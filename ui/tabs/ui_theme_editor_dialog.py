@@ -14,6 +14,31 @@ from ui.tabs.ui_tab_theme_editor import TabThemeEditor
 class ThemeEditorDialog(Gtk.Window):
     """Dialogue d'édition de thème GRUB dans une fenêtre séparée."""
 
+    state_manager: object
+    current_theme: GrubTheme | None
+    _updating_ui: bool
+
+    title_color_btn: Gtk.ColorButton | None
+    bg_color_btn: Gtk.ColorButton | None
+    menu_fg_btn: Gtk.ColorButton | None
+    menu_bg_btn: Gtk.ColorButton | None
+    highlight_fg_btn: Gtk.ColorButton | None
+    highlight_bg_btn: Gtk.ColorButton | None
+
+    bg_image_entry: Gtk.Entry | None
+    bg_image_scale_combo: Gtk.DropDown | None
+
+    show_boot_menu_check: Gtk.CheckButton | None
+    show_progress_check: Gtk.CheckButton | None
+    show_timeout_check: Gtk.CheckButton | None
+    show_scrollbar_check: Gtk.CheckButton | None
+
+    theme_name_entry: Gtk.Entry | None
+    title_text_entry: Gtk.Entry | None
+    grub_timeout_spin: Gtk.SpinButton | None
+    grub_gfxmode_entry: Gtk.Entry | None
+    preview_buffer: Gtk.TextBuffer | None
+
     def __init__(self, parent_window: Gtk.Window, state_manager) -> None:
         """Initialise le dialogue d'édition de thèmes.
 
@@ -29,35 +54,6 @@ class ThemeEditorDialog(Gtk.Window):
         self.state_manager = state_manager
         self.current_theme: GrubTheme | None = None
         self._updating_ui = False
-
-        # Widgets de couleurs
-        self.title_color_btn: Gtk.ColorButton | None = None
-        self.bg_color_btn: Gtk.ColorButton | None = None
-        self.menu_fg_btn: Gtk.ColorButton | None = None
-        self.menu_bg_btn: Gtk.ColorButton | None = None
-        self.highlight_fg_btn: Gtk.ColorButton | None = None
-        self.highlight_bg_btn: Gtk.ColorButton | None = None
-
-        # Widgets d'image
-        self.bg_image_entry: Gtk.Entry | None = None
-        self.bg_image_scale_combo: Gtk.DropDown | None = None
-
-        # Widgets de mise en page
-        self.show_boot_menu_check: Gtk.CheckButton | None = None
-        self.show_progress_check: Gtk.CheckButton | None = None
-        self.show_timeout_check: Gtk.CheckButton | None = None
-        self.show_scrollbar_check: Gtk.CheckButton | None = None
-
-        # Widget de nom
-        self.theme_name_entry: Gtk.Entry | None = None
-
-        # Widgets de titre et paramètres GRUB
-        self.title_text_entry: Gtk.Entry | None = None
-        self.grub_timeout_spin: Gtk.SpinButton | None = None
-        self.grub_gfxmode_entry: Gtk.Entry | None = None
-
-        # Zone de prévisualisation du code
-        self.preview_buffer: Gtk.TextBuffer | None = None
 
         self._build_ui()
         self._load_default_theme()

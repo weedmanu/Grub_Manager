@@ -2,6 +2,7 @@
 
 from core.core_exceptions import GrubCommandError
 
+
 def test_grub_command_error_full():
     """Test GrubCommandError avec tous les attributs."""
     error = GrubCommandError(
@@ -10,11 +11,11 @@ def test_grub_command_error_full():
         returncode=1,
         stderr="Permission denied"
     )
-    
+
     assert error.command == "update-grub"
     assert error.returncode == 1
     assert error.stderr == "Permission denied"
-    
+
     error_str = str(error)
     assert "Échec de la commande" in error_str
     assert "Commande: update-grub" in error_str
@@ -28,13 +29,13 @@ def test_grub_command_error_partial():
     assert "Message" in str(error)
     assert "Code retour: 2" in str(error)
     assert "Commande:" not in str(error)
-    
+
     # Sans code retour
     error = GrubCommandError("Message", command="ls")
     assert "Message" in str(error)
     assert "Commande: ls" in str(error)
     assert "Code retour:" not in str(error)
-    
+
     # Sans stderr
     error = GrubCommandError("Message", stderr="Error")
     assert "Message" in str(error)

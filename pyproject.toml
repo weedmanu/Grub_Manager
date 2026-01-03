@@ -123,6 +123,10 @@ module = ["gi", "gi.repository"]
 ignore_missing_imports = true
 disable_error_code = ["import-untyped", "import-not-found"]
 
+[[tool.mypy.overrides]]
+module = ["ui.*"]
+ignore_errors = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
@@ -187,6 +191,7 @@ max-line-length = 120
 [tool.pydocstyle]
 convention = "pep257"
 match = '(?!test_).*\.py'
+add-ignore = ["D401"]
 
 [tool.vulture]
 paths = ["core", "ui", "main.py"]

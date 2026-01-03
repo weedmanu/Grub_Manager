@@ -1,9 +1,9 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, mock_open
-import sys
-import os
-from pathlib import Path
+
 import main
+
 
 class TestMainCoverage:
     @patch("main.os.geteuid")
@@ -41,7 +41,7 @@ class TestMainCoverage:
         """Test successful reexec via pkexec."""
         mock_geteuid.return_value = 1000
         mock_which.return_value = "/usr/bin/pkexec"
-        
+
         # Should call execv
         main._reexec_as_root_once()
         assert mock_execv.called
@@ -58,11 +58,11 @@ class TestMainCoverage:
         """Test reexec finding .Xauthority in home."""
         mock_geteuid.return_value = 1000
         mock_which.return_value = "/usr/bin/pkexec"
-        
+
         mock_xauth = MagicMock()
         mock_xauth.exists.return_value = True
         mock_home.return_value.__truediv__.return_value = mock_xauth
-        
+
         main._reexec_as_root_once()
         assert mock_execv.called
 
@@ -75,18 +75,18 @@ class TestMainCoverage:
     def test_main_execution(self, mock_exit, mock_gtk_app, mock_backup, mock_debug, mock_logging, mock_reexec):
         """Test the main() function execution."""
         from main import main as main_func
-        
+
         mock_debug.return_value = (False, [])
         mock_app_instance = MagicMock()
         mock_gtk_app.return_value = mock_app_instance
         mock_app_instance.run.return_value = 0
-        
+
         # To cover _on_activate, we need to capture the callback and call it
         def mock_connect(signal, callback):
             if signal == "activate":
                 callback(mock_app_instance)
         mock_app_instance.connect.side_effect = mock_connect
-        
+
         # Patch GrubConfigManager where it's imported (inside main)
         with patch("ui.ui_manager.GrubConfigManager") as mock_gcm:
             with pytest.raises(SystemExit) as excinfo:
@@ -94,7 +94,7 @@ class TestMainCoverage:
             assert excinfo.value.code == 0
             # Note: GrubConfigManager is instantiated inside _on_activate
             assert mock_gcm.called
-        
+
         assert mock_reexec.called
         assert mock_logging.called
         assert mock_backup.called
@@ -106,7 +106,7 @@ class TestMainCoverage:
         """Test main() handles critical errors during startup."""
         from main import main as main_func
         mock_parse.side_effect = Exception("Critical startup error")
-        
+
         with pytest.raises(SystemExit) as excinfo:
             main_func()
         assert excinfo.value.code == 1
@@ -118,7 +118,7 @@ class TestMainCoverage:
         """Test _reexec_as_root_once handles execv failure."""
         from main import _reexec_as_root_once
         mock_execv.side_effect = Exception("Exec failure")
-        
+
         # Should not raise, just log error
         _reexec_as_root_once()
         assert mock_execv.called
@@ -143,7 +143,6 @@ class TestMainCoverage:
     def test_module_entry_point(self, mock_main):
         """Test the if __name__ == '__main__': block."""
         # This is tricky to test directly without re-importing or using runpy
-        import runpy
         with patch("main.main", mock_main):
             # We use runpy to execute the module as __main__
             # But we need to be careful about recursion or side effects
@@ -171,11 +170,11 @@ class TestMainCoverage:
              patch("main.parse_debug_flag", return_value=(False, [])), \
              patch("main.configure_logging"), \
              patch("gi.repository.Gdk.Display.get_default"):
-            
+
             mock_app_inst = MagicMock()
             mock_app.return_value = mock_app_inst
             mock_app_inst.run.return_value = 0
-            
+
             with pytest.raises(SystemExit) as cm:
                 main.main()
             assert cm.value.code == 0

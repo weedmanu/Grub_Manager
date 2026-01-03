@@ -100,6 +100,15 @@ class AppStateManager:
         """
         return self._loading
 
+    def is_dirty(self) -> bool:
+        """Indique si l'application a des changements non appliqués.
+
+        Inclut:
+        - modifications de configuration (state == DIRTY)
+        - changements de visibilité des entrées GRUB
+        """
+        return bool(self.modified or self.entries_visibility_dirty)
+
     def update_state_data(self, state_data: GrubUiState) -> None:
         """Met à jour les données d'état de l'application.
 

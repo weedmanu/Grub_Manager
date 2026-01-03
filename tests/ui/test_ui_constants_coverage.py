@@ -1,6 +1,7 @@
 
 from ui.ui_constants import *
 
+
 def test_constants_exist():
     # Just access some constants to ensure they are loaded
     assert COLOR_BUTTON_SIZE == 50

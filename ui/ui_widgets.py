@@ -46,6 +46,28 @@ def create_section_title(text: str) -> Gtk.Label:
     return label
 
 
+def box_append_section_grid(
+    box: Gtk.Box,
+    title: str,
+    *,
+    row_spacing: int = 12,
+    column_spacing: int = 12,
+) -> Gtk.Grid:
+    """Ajoute un titre de sous-section + un Grid préconfiguré.
+
+    Centralise un motif très fréquent dans les onglets :
+    - un titre (classe CSS section-title)
+    - une grille avec des espacements homogènes.
+    """
+    box.append(create_section_title(title))
+
+    grid = Gtk.Grid()
+    grid.set_row_spacing(row_spacing)
+    grid.set_column_spacing(column_spacing)
+    box.append(grid)
+    return grid
+
+
 # ============================================================================
 # HELPERS DE DISPOSITION (GRID)
 # ============================================================================

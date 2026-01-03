@@ -3,6 +3,8 @@
 Contient uniquement l'orchestration (délègue construction UI et gestion d'état).
 """
 
+# isort: skip_file
+
 # Pylint: l'ordre d'import est imposé par `gi.require_version()`, et l'UI attrape
 # volontairement des exceptions larges aux frontières (affichage d'erreurs).
 # pylint: disable=wrong-import-position,broad-exception-caught

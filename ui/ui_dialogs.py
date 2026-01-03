@@ -161,10 +161,13 @@ def confirm_action(callback, message: str, controller: GrubConfigManager) -> Non
     def on_response(d: Gtk.AlertDialog, result) -> None:
         try:
             choice = d.choose_finish(result)
-            if choice == 1:  # Index 1 = Confirmer
-                callback()
-        except Exception as e:
-            # Ignorer les erreurs de dialog (annulation, erreur GTK, etc.)
-            pass
+        except GLib.Error:
+            return
+        except Exception:  # pylint: disable=broad-exception-caught
+            # Les tests peuvent simuler des erreurs génériques.
+            return
+
+        if choice == 1:  # Index 1 = Confirmer
+            callback()
 
     dialog.choose(controller, None, on_response)

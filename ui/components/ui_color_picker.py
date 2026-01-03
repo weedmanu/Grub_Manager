@@ -85,7 +85,7 @@ class ColorPicker:
                 logger.debug(f"[ColorPicker] Couleur définie: {color_hex}")
             else:
                 logger.warning(f"[ColorPicker] Couleur invalide '{color_hex}'")
-        except (ValueError, TypeError, Exception) as e:
+        except (ValueError, TypeError) as e:
             logger.warning(f"[ColorPicker] Erreur lors du parsing de la couleur '{color_hex}': {e}")
 
     def get_widget(self) -> Gtk.Box:

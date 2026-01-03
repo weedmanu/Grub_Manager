@@ -1,10 +1,8 @@
 """Tests pour les opérations I/O sur /etc/default/grub."""
 
 import os
-import shutil
 import tarfile
 import tempfile
-import uuid
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 

@@ -12,6 +12,7 @@ from core.theme.core_theme_generator import (
     create_custom_theme,
 )
 from ui.tabs.ui_grub_preview_dialog import GrubPreviewDialog
+from ui.ui_constants import COLOR_PRESETS
 from ui.ui_widgets import (
     create_error_dialog,
     create_main_box,
@@ -281,18 +282,7 @@ class TabThemeEditor:
     def _parse_color(self, color_str: str) -> object:
         """Parse une couleur (hex ou nom) en RGBA."""
         rgba = Gdk.RGBA()
-        # Correspondance des couleurs nommées
-        color_map = {
-            "white": "#FFFFFF",
-            "black": "#000000",
-            "red": "#FF0000",
-            "green": "#00FF00",
-            "blue": "#0000FF",
-            "light-gray": "#D3D3D3",
-            "gray": "#808080",
-            "dark-gray": "#404040",
-        }
-        color_str = color_map.get(color_str.lower(), color_str)
+        color_str = COLOR_PRESETS.get(color_str.lower(), color_str)
         rgba.parse(color_str)
         return rgba
 

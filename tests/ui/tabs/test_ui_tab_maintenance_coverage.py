@@ -1,25 +1,26 @@
 
-import pytest
-from unittest.mock import MagicMock, patch
-from gi.repository import Gtk, Gio
 import os
-import shutil
+from unittest.mock import MagicMock, patch
+
+import pytest
+from gi.repository import Gio, Gtk
 
 # Set headless backend for GTK
 os.environ["GDK_BACKEND"] = "headless"
 
 from ui.tabs.ui_tab_maintenance import (
-    build_maintenance_tab,
-    _on_view_config,
-    _on_exec_diag,
-    _on_exec_restore,
-    _run_restore_command_direct,
-    _reinstall_grub_uefi,
-    _reinstall_grub_bios,
     _get_config_files,
     _get_diagnostic_commands,
-    _get_restore_commands
+    _get_restore_commands,
+    _on_exec_diag,
+    _on_exec_restore,
+    _on_view_config,
+    _reinstall_grub_bios,
+    _reinstall_grub_uefi,
+    _run_restore_command_direct,
+    build_maintenance_tab,
 )
+
 
 class MockController(MagicMock):
     def __init__(self, *args, **kwargs):
@@ -45,7 +46,7 @@ def test_build_maintenance_tab(controller, service):
          patch("os.listdir", return_value=["00_header", "05_debian_theme"]), \
          patch("os.path.isfile", return_value=True), \
          patch("shutil.which", return_value="/usr/bin/grub-emu"):
-        
+
         build_maintenance_tab(controller, notebook)
         assert notebook.get_n_pages() == 1
 
@@ -53,7 +54,7 @@ def test_get_config_files():
     with patch("os.path.exists", side_effect=lambda p: p == "/etc/grub.d"), \
          patch("os.listdir", return_value=["00_header", "05_debian_theme", "40_custom"]), \
          patch("os.path.isfile", side_effect=lambda p: "05_debian_theme" in p):
-        
+
         files = _get_config_files()
         # Expected: /etc/default/grub, /boot/grub/grub.cfg, 05_debian_theme
         assert len(files) == 3
@@ -76,7 +77,7 @@ def test_get_restore_commands(service):
     cmds = _get_restore_commands(service, "UEFI")
     assert len(cmds) == 5
     assert any("UEFI" in c[0] for c in cmds)
-    
+
     service.get_restore_command.return_value = None
     cmds = _get_restore_commands(service, "BIOS")
     assert len(cmds) == 4
@@ -85,14 +86,14 @@ def test_get_restore_commands(service):
 def test_on_view_config(controller):
     config_files = [("File1", "/path/1"), ("File2", "/path/2")]
     dropdown = MagicMock(spec=Gtk.DropDown)
-    
+
     # Case 1: File exists
     dropdown.get_selected.return_value = 0
     with patch("os.path.exists", return_value=True), \
          patch("ui.tabs.ui_tab_maintenance.run_command_popup") as mock_popup:
         _on_view_config(controller, dropdown, config_files)
         mock_popup.assert_called_with(controller, ["cat", "/path/1"], "Contenu de File1")
-        
+
     # Case 2: File missing
     dropdown.get_selected.return_value = 1
     with patch("os.path.exists", return_value=False):
@@ -106,7 +107,7 @@ def test_on_view_config(controller):
 def test_on_exec_diag(controller):
     diag_commands = [("Diag1", ["cmd1"]), ("Diag2", ["cmd2"])]
     dropdown = MagicMock(spec=Gtk.DropDown)
-    
+
     dropdown.get_selected.return_value = 1
     with patch("ui.tabs.ui_tab_maintenance.run_command_popup") as mock_popup:
         _on_exec_diag(controller, dropdown, diag_commands)
@@ -119,7 +120,7 @@ def test_on_exec_diag(controller):
 def test_on_exec_restore(controller, service):
     restore_commands = [("Restore1", "reinstall-05-debian"), ("Restore2", ["list", "cmd"])]
     dropdown = MagicMock(spec=Gtk.DropDown)
-    
+
     dropdown.get_selected.return_value = 0
     with patch("ui.tabs.ui_tab_maintenance._run_restore_command_direct") as mock_run:
         _on_exec_restore(controller, dropdown, restore_commands, service)
@@ -133,7 +134,7 @@ def test_get_config_files_with_non_file():
     with patch("os.path.exists", side_effect=lambda p: p == "/etc/grub.d"), \
          patch("os.listdir", return_value=["05_debian_theme"]), \
          patch("os.path.isfile", return_value=False):
-        
+
         files = _get_config_files()
         # Expected: /etc/default/grub, /boot/grub/grub.cfg (05_debian_theme is NOT a file)
         assert len(files) == 2
@@ -143,16 +144,16 @@ def test_run_restore_command_direct(controller, service):
         # reinstall-05-debian
         _run_restore_command_direct(controller, "Name", "reinstall-05-debian", service)
         mock_popup.assert_called()
-        
+
         # reinstall-05-debian (no manager)
         service.get_reinstall_05_debian_command.return_value = None
         _run_restore_command_direct(controller, "Name", "reinstall-05-debian", service)
         controller.show_info.assert_called_with("Aucun gestionnaire de paquets détecté", "error")
-        
+
         # enable-05-theme
         _run_restore_command_direct(controller, "Name", "enable-05-theme", service)
         mock_popup.assert_called()
-        
+
         # list command
         _run_restore_command_direct(controller, "Name", ["some", "cmd"], service)
         mock_popup.assert_called_with(controller, ["some", "cmd"], "Name")
@@ -164,10 +165,10 @@ def test_run_restore_command_direct(controller, service):
 def test_run_restore_command_direct_reinstall_calls(controller, service):
     with patch("ui.tabs.ui_tab_maintenance._reinstall_grub_uefi") as mock_uefi, \
          patch("ui.tabs.ui_tab_maintenance._reinstall_grub_bios") as mock_bios:
-        
+
         _run_restore_command_direct(controller, "Name", "reinstall-grub-uefi", service)
         mock_uefi.assert_called_once()
-        
+
         _run_restore_command_direct(controller, "Name", "reinstall-grub-bios", service)
         mock_bios.assert_called_once()
 
@@ -187,16 +188,16 @@ def test_reinstall_grub_uefi_root(mock_dialog_class, controller):
     with patch("os.geteuid", return_value=0):
         _reinstall_grub_uefi(controller)
         mock_dialog.choose.assert_called_once()
-        
+
         # Test callback (index 2 in choose(parent, cancellable, callback))
         callback = mock_dialog.choose.call_args[0][2]
-        
+
         # Simulate "Reinstall" (index 1)
         mock_dialog.choose_finish.return_value = 1
         with patch("ui.tabs.ui_tab_maintenance.run_command_popup") as mock_popup:
             callback(mock_dialog, MagicMock(spec=Gio.AsyncResult))
             mock_popup.assert_called()
-            
+
         # Simulate "Cancel" (index 0)
         mock_dialog.choose_finish.return_value = 0
         with patch("ui.tabs.ui_tab_maintenance.run_command_popup") as mock_popup:
@@ -209,10 +210,10 @@ def test_reinstall_grub_bios_root(mock_dialog_class, controller):
     with patch("os.geteuid", return_value=0):
         _reinstall_grub_bios(controller)
         mock_dialog.choose.assert_called_once()
-        
+
         # Test callback
         callback = mock_dialog.choose.call_args[0][2]
-        
+
         # Simulate "Reinstall" (index 1)
         mock_dialog.choose_finish.return_value = 1
         with patch("ui.tabs.ui_tab_maintenance.run_command_popup") as mock_popup:
@@ -231,7 +232,7 @@ def test_reinstall_grub_uefi_exception(controller):
         mock_dialog = mock_dialog_class.return_value
         _reinstall_grub_uefi(controller)
         callback = mock_dialog.choose.call_args[0][2]
-        
+
         mock_dialog.choose_finish.side_effect = OSError("Test Error")
         callback(mock_dialog, MagicMock(spec=Gio.AsyncResult))
 
@@ -244,7 +245,7 @@ def test_reinstall_grub_bios_exception(controller):
         mock_dialog = mock_dialog_class.return_value
         _reinstall_grub_bios(controller)
         callback = mock_dialog.choose.call_args[0][2]
-        
+
         mock_dialog.choose_finish.side_effect = OSError("Test Error")
         callback(mock_dialog, MagicMock(spec=Gio.AsyncResult))
 

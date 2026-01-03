@@ -1,13 +1,14 @@
 
-import pytest
-from unittest.mock import MagicMock, patch
-from gi.repository import Gtk, Gdk
 import os
+from unittest.mock import MagicMock
+
+from gi.repository import Gdk, Gtk
 
 # Set headless backend for GTK
 os.environ["GDK_BACKEND"] = "headless"
 
 from ui.components.ui_color_picker import ColorPicker, create_color_grid_row
+
 
 def test_color_picker_init():
     callback = MagicMock()
@@ -18,12 +19,12 @@ def test_color_picker_init():
 def test_color_picker_on_color_changed():
     callback = MagicMock()
     picker = ColorPicker("Test Label", "#FFFFFF", callback=callback)
-    
+
     # Simulate color change
     rgba = Gdk.RGBA()
     rgba.parse("#00FF00")
     picker.color_button.set_property("rgba", rgba)
-    
+
     picker._on_color_changed(picker.color_button)
     callback.assert_called_with("#00FF00")
 

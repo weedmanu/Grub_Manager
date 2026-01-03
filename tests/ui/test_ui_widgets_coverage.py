@@ -2,27 +2,28 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk
-import pytest
+
 from ui.ui_widgets import (
-    create_section_header,
-    create_section_title,
-    grid_add_labeled,
-    grid_add_check,
-    grid_add_switch,
+    apply_margins,
     box_append_label,
     box_append_section_title,
     box_append_switch,
-    apply_margins,
-    create_main_box,
-    make_scrolled_grid,
-    create_list_box_row_with_margins,
-    create_two_column_layout,
-    create_info_box,
+    categorize_backup_type,
     clear_listbox,
     create_error_dialog,
+    create_info_box,
+    create_list_box_row_with_margins,
+    create_main_box,
+    create_section_header,
+    create_section_title,
     create_success_dialog,
-    categorize_backup_type,
+    create_two_column_layout,
+    grid_add_check,
+    grid_add_labeled,
+    grid_add_switch,
+    make_scrolled_grid,
 )
+
 
 def test_create_section_header():
     label = create_section_header("Test Header")
@@ -149,7 +150,7 @@ def test_clear_listbox():
     listbox = Gtk.ListBox()
     for i in range(5):
         listbox.append(Gtk.Label(label=f"Item {i}"))
-    
+
     # Verify it has 5 children
     count = 0
     child = listbox.get_first_child()

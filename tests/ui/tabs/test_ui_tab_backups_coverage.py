@@ -1,12 +1,13 @@
 """Tests de couverture pour ui_tab_backups."""
 
-from unittest.mock import MagicMock, patch
-import os
-import pytest
-from gi.repository import Gtk, GLib
 import tarfile
+from unittest.mock import MagicMock, patch
+
+import pytest
+from gi.repository import Gtk
 
 import ui.tabs.ui_tab_backups as ui_backups
+
 
 @pytest.fixture
 def mock_controller():
@@ -210,7 +211,7 @@ def test_on_selection_changed():
     btn_delete = MagicMock()
     ui_backups._on_selection_changed(None, None, btn_restore, btn_delete)
     btn_restore.set_sensitive.assert_called_with(False)
-    
+
     row = MagicMock()
     row.backup_path = "/p"
     ui_backups._on_selection_changed(None, row, btn_restore, btn_delete)

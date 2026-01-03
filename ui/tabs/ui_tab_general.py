@@ -10,6 +10,7 @@ from loguru import logger
 from ui.ui_widgets import (
     apply_margins,
     box_append_label,
+    box_append_section_grid,
     box_append_section_title,
     create_info_box,
     create_two_column_layout,
@@ -29,7 +30,7 @@ def build_general_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     and toggle switches for GRUB_SAVEDEFAULT and hidden timeout modes.
     """
     logger.debug("[build_general_tab] Construction de l'onglet Général")
-    scroll, grid = make_scrolled_grid()
+    scroll, _grid = make_scrolled_grid()
 
     # Conteneur principal avec marges harmonisées
     root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
@@ -43,16 +44,7 @@ def build_general_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     _, left_section, right_section = create_two_column_layout(root)
 
     # === COLONNE GAUCHE : Paramètres de base ===
-    left_title = Gtk.Label(xalign=0)
-    left_title.set_markup("<b>Options de base</b>")
-    left_title.add_css_class("section-title")
-    left_section.append(left_title)
-
-    # Grid pour les formulaires de gauche
-    grid_left = Gtk.Grid()
-    grid_left.set_row_spacing(12)
-    grid_left.set_column_spacing(12)
-    left_section.append(grid_left)
+    grid_left = box_append_section_grid(left_section, "Options de base")
 
     row_left = 0
 
@@ -80,16 +72,7 @@ def build_general_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     # two_columns.append(left_section) # Déjà ajouté par create_two_column_layout
 
     # === COLONNE DROITE : Paramètres avancés ===
-    right_title = Gtk.Label(xalign=0)
-    right_title.set_markup("<b>Paramètres avancés</b>")
-    right_title.add_css_class("section-title")
-    right_section.append(right_title)
-
-    # Grid pour les formulaires de droite
-    grid_right = Gtk.Grid()
-    grid_right.set_row_spacing(12)
-    grid_right.set_column_spacing(12)
-    right_section.append(grid_right)
+    grid_right = box_append_section_grid(right_section, "Paramètres avancés")
 
     row_right = 0
 

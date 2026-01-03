@@ -75,7 +75,18 @@ class GrubService:
         """
         try:
             entries = get_simulated_os_prober_entries()
-            return [MenuEntry(title=entry.get("title", ""), id=entry.get("id", "")) for entry in entries]
+            menu_entries: list[MenuEntry] = []
+            for entry in entries:
+                if isinstance(entry, dict):
+                    title = str(entry.get("title", ""))
+                    entry_id = str(entry.get("id", ""))
+                else:
+                    title = str(getattr(entry, "title", ""))
+                    entry_id = str(getattr(entry, "id", ""))
+
+                menu_entries.append(MenuEntry(title=title, id=entry_id))
+
+            return menu_entries
         except (OSError, ValueError) as e:
             logger.error(f"[GrubService] Erreur lors de la lecture des entrées: {e}")
             return [MenuEntry(title="Ubuntu", id="gnulinux")]

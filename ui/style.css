@@ -135,8 +135,6 @@ button:disabled {
 colorbutton {
     min-width: 50px;
     min-height: 50px;
-    max-width: 50px;
-    max-height: 50px;
     border: 2px solid #95a5a6;
     border-radius: 4px;
     margin: 4px;

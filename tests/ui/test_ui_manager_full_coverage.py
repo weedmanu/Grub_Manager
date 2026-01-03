@@ -1,13 +1,16 @@
-import pytest
-from unittest.mock import MagicMock, patch, ANY
-import os
 import dataclasses
+import os
 from pathlib import Path
-from gi.repository import Gtk, GLib
-from ui.ui_manager import GrubConfigManager, INFO, WARNING, ERROR
-from ui.ui_state import AppState
-from core.system.core_grub_system_commands import GrubUiState, GrubUiModel, GrubDefaultChoice
+from unittest.mock import ANY, MagicMock, patch
+
+import pytest
+from gi.repository import Gtk
+
+from core.system.core_grub_system_commands import GrubDefaultChoice, GrubUiModel, GrubUiState
 from core.system.core_sync_checker import SyncStatus
+from ui.ui_manager import ERROR, INFO, WARNING, GrubConfigManager
+from ui.ui_state import AppState
+
 
 @pytest.fixture
 def manager():
@@ -18,21 +21,21 @@ def manager():
          patch("ui.ui_manager.os.geteuid", return_value=0), \
          patch("ui.ui_manager.GrubConfigManager.create_ui"), \
          patch("ui.ui_manager.GrubConfigManager.load_config"): # Mock load_config to avoid apply_state with None buttons
-        
+
         mock_load.return_value = GrubUiState(
             model=GrubUiModel(timeout=5, default="0"),
             entries=[],
             raw_config={}
         )
         mock_sync.return_value = SyncStatus(
-            in_sync=True, 
-            message="OK", 
-            grub_default_exists=True, 
+            in_sync=True,
+            message="OK",
+            grub_default_exists=True,
             grub_cfg_exists=True,
             grub_default_mtime=0.0,
             grub_cfg_mtime=0.0
         )
-        
+
         mgr = GrubConfigManager(None)
         # Mock widgets that would be created by UIBuilder
         mgr.save_btn = Gtk.Button()
@@ -40,7 +43,7 @@ def manager():
         mgr.info_revealer = Gtk.Revealer()
         mgr.info_box = Gtk.Box()
         mgr.info_label = Gtk.Label()
-        
+
         mgr.timeout_dropdown = Gtk.DropDown.new_from_strings(["0", "5", "10"])
         mgr.default_dropdown = Gtk.DropDown.new_from_strings(["saved", "Entry 1"])
         mgr.hidden_timeout_check = Gtk.Switch()
@@ -50,26 +53,26 @@ def manager():
         mgr.disable_submenu_check = Gtk.Switch()
         mgr.disable_recovery_check = Gtk.Switch()
         mgr.disable_os_prober_check = Gtk.Switch()
-        
+
         return mgr
 
 def test_get_cmdline_value_full(manager):
     # quiet splash
     manager.cmdline_dropdown.set_selected(0)
     assert manager._get_cmdline_value() == "quiet splash"
-    
+
     # quiet
     manager.cmdline_dropdown.set_selected(1)
     assert manager._get_cmdline_value() == "quiet"
-    
+
     # splash
     manager.cmdline_dropdown.set_selected(2)
     assert manager._get_cmdline_value() == "splash"
-    
+
     # verbose
     manager.cmdline_dropdown.set_selected(3)
     assert manager._get_cmdline_value() == ""
-    
+
     # None case
     manager.cmdline_dropdown = None
     assert manager._get_cmdline_value() == "quiet splash"
@@ -88,22 +91,22 @@ def test_apply_model_to_ui_full(manager):
         disable_os_prober=True
     )
     entries = [GrubDefaultChoice(id="id1", title="Title 1")]
-    
+
     manager._apply_model_to_ui(model, entries)
-    
+
     # Check cmdline_dropdown (quiet splash -> index 0)
     assert manager.cmdline_dropdown.get_selected() == 0
-    
+
     # quiet only
     model = dataclasses.replace(model, splash=False)
     manager._apply_model_to_ui(model, entries)
     assert manager.cmdline_dropdown.get_selected() == 1
-    
+
     # splash only
     model = dataclasses.replace(model, quiet=False, splash=True)
     manager._apply_model_to_ui(model, entries)
     assert manager.cmdline_dropdown.get_selected() == 2
-    
+
     # verbose
     model = dataclasses.replace(model, quiet=False, splash=False)
     manager._apply_model_to_ui(model, entries)
@@ -116,12 +119,12 @@ def test_read_model_from_ui_full(manager):
     manager.disable_submenu_check.set_active(True)
     manager.gfxmode_dropdown.set_selected(1) # 1024x768
     manager.gfxpayload_dropdown.set_selected(1) # text
-    
+
     with patch("core.theme.core_active_theme_manager.ActiveThemeManager") as mock_theme_mgr:
         mock_theme_mgr.return_value.get_active_theme.return_value = MagicMock(name="test-theme")
         with patch("core.config.core_paths.get_grub_themes_dir", return_value=os.path.abspath("/boot/grub/themes")):
             model = manager._read_model_from_ui()
-            
+
     assert model.timeout == 5
     assert model.hidden_timeout is True
     assert model.quiet is True
@@ -134,9 +137,9 @@ def test_load_config_warnings_full(manager):
     # Sync warning
     with patch("ui.ui_manager.check_grub_sync") as mock_sync:
         mock_sync.return_value = SyncStatus(
-            in_sync=False, 
-            message="Out of sync", 
-            grub_default_exists=True, 
+            in_sync=False,
+            message="Out of sync",
+            grub_default_exists=True,
             grub_cfg_exists=True,
             grub_default_mtime=0.0,
             grub_cfg_mtime=0.0
@@ -189,7 +192,7 @@ def test_on_hidden_timeout_toggled_full(manager):
     switch.set_active(True)
     manager.on_hidden_timeout_toggled(switch)
     assert manager.timeout_dropdown.get_selected() == 0 # "0"
-    
+
     switch.set_active(False)
     manager.on_hidden_timeout_toggled(switch)
     # Should just mark dirty
@@ -211,7 +214,7 @@ def test_on_reload_confirm_full(manager):
             mock_dlg_inst.choose_finish.return_value = 1 # Recharger
             callback(mock_dlg_inst, mock_result)
         mock_dlg_inst.choose.side_effect = fake_choose
-        
+
         with patch.object(manager, "load_config") as mock_load:
             manager.on_reload(None)
             mock_load.assert_called_once()
@@ -225,7 +228,7 @@ def test_on_save_confirm_full(manager):
                 mock_dlg_inst.choose_finish.return_value = 1 # Appliquer
                 callback(mock_dlg_inst, mock_result)
             mock_dlg_inst.choose.side_effect = fake_choose
-            
+
             with patch.object(manager, "_perform_save") as mock_save:
                 manager.on_save(None)
                 mock_save.assert_called_with(apply_now=True)
@@ -238,18 +241,18 @@ def test_perform_save_full_flow(manager):
             with patch("ui.ui_manager.GrubApplyManager") as mock_apply_mgr:
                 mock_inst = mock_apply_mgr.return_value
                 mock_inst.apply_configuration.return_value = MagicMock(success=True, message="Saved", details="Details")
-                
+
                 with patch("ui.ui_manager.read_grub_default") as mock_verify:
                     mock_verify.return_value = {"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "id1"}
-                    
+
                     manager.state_manager.hidden_entry_ids = ["hid1"]
                     manager.state_manager.entries_visibility_dirty = True
-                    
+
                     with patch("ui.ui_manager.apply_hidden_entries_to_grub_cfg") as mock_hide:
                         mock_hide.return_value = ("/boot/grub/grub.cfg", 1)
-                        
+
                         manager._perform_save(apply_now=True)
-                        
+
                         assert manager.state_manager.state == AppState.CLEAN
                         assert manager.state_manager.entries_visibility_dirty is False
 
@@ -266,7 +269,7 @@ def test_show_info_full(manager):
         assert manager.info_label.get_text() == "Test message"
         assert manager.info_revealer.get_reveal_child() is True
         mock_timeout.assert_called_once()
-        
+
         # Test callback
         callback = mock_timeout.call_args[0][1]
         assert callback() is False
@@ -442,8 +445,8 @@ def test_load_config_with_entries(manager):
     # Line 456 (elif not state.entries) - False case
     with patch("ui.ui_manager.load_grub_ui_state") as mock_load:
         mock_load.return_value = GrubUiState(
-            model=GrubUiModel(), 
-            entries=[GrubDefaultChoice(id="1", title="T1")], 
+            model=GrubUiModel(),
+            entries=[GrubDefaultChoice(id="1", title="T1")],
             raw_config={}
         )
         manager.load_config()

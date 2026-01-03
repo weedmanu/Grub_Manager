@@ -1,14 +1,16 @@
 """Tests de couverture pour core/models/core_grub_ui_model.py."""
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
 from core.models.core_grub_ui_model import (
-    GrubUiModel, 
-    model_from_config, 
-    merged_config_from_model,
+    GrubUiModel,
+    GrubUiState,
     load_grub_ui_state,
+    merged_config_from_model,
+    model_from_config,
     save_grub_ui_state,
-    GrubUiState
 )
+
 
 def test_model_from_config_cmdline_variants():
     """Test model_from_config avec différentes variantes de CMDLINE."""
@@ -17,13 +19,13 @@ def test_model_from_config_cmdline_variants():
     model = model_from_config(cfg)
     assert model.quiet is False
     assert model.splash is False
-    
+
     # Cas avec quiet seulement
     cfg = {"GRUB_CMDLINE_LINUX_DEFAULT": "quiet nomodeset"}
     model = model_from_config(cfg)
     assert model.quiet is True
     assert model.splash is False
-    
+
     # Cas avec splash seulement
     cfg = {"GRUB_CMDLINE_LINUX_DEFAULT": "splash nomodeset"}
     model = model_from_config(cfg)
@@ -46,7 +48,7 @@ def test_merged_config_all_branches():
     assert merged["GRUB_DISABLE_RECOVERY"] == "true"
     assert merged["GRUB_DISABLE_OS_PROBER"] == "true"
     assert merged["GRUB_THEME"] == "/boot/grub/themes/mytheme/theme.txt"
-    
+
     # Cas où tout est désactivé (vérifier suppression des clés si présentes dans base)
     base = {
         "GRUB_SAVEDEFAULT": "true",
@@ -92,7 +94,7 @@ def test_save_grub_ui_state():
     """Test save_grub_ui_state."""
     model = GrubUiModel(timeout=15)
     state = GrubUiState(model=model, entries=[], raw_config={"GRUB_TIMEOUT": "10"})
-    
+
     with patch("core.models.core_grub_ui_model.write_grub_default", return_value="/path/to/backup") as mock_write:
         result = save_grub_ui_state(state, model)
         assert result == "/path/to/backup"

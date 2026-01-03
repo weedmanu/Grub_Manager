@@ -74,10 +74,10 @@ def _on_create_clicked(_btn, controller, refresh_callback):
 
         controller.show_info(f"Sauvegarde créée avec succès:\n{os.path.basename(backup_path)}", "info")
         refresh_callback()
-    except (OSError, ValueError) as e:
+    except (OSError, ValueError, RuntimeError) as e:
         logger.error(f"[_on_create_clicked] ERREUR: {e}")
         controller.show_info(f"❌ Échec de la création:\n{e}", "error")
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"[_on_create_clicked] ERREUR: {e}")
         controller.show_info(f"❌ Échec de la création:\n{e}", "error")
 
@@ -111,7 +111,10 @@ def _on_restore_clicked(_btn, controller, list_frame):
             msg = f"✅ Sauvegarde restaurée avec succès:\n{basename}" "\n\nRedémarrez pour appliquer les changements."
             controller.show_info(msg, "info")
             controller.reload_from_disk()
-        except Exception as e:
+        except (OSError, PermissionError, ValueError, RuntimeError) as e:
+            logger.error(f"[_on_restore_clicked] ERREUR: {e}")
+            controller.show_info(f"❌ Échec de la restauration:\n{e}", "error")
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(f"[_on_restore_clicked] ERREUR: {e}")
             controller.show_info(f"❌ Échec de la restauration:\n{e}", "error")
 
@@ -149,7 +152,10 @@ def _on_delete_clicked(_btn, controller, list_frame, refresh_callback):
             logger.info(f"[_on_delete_clicked] Suppression réussie de {basename}")
             controller.show_info(f"✅ Sauvegarde supprimée:\n{basename}", "info")
             refresh_callback()
-        except Exception as e:
+        except (OSError, PermissionError, ValueError, RuntimeError) as e:
+            logger.error(f"[_on_delete_clicked] ERREUR: {e}")
+            controller.show_info(f"❌ Échec de la suppression:\n{e}", "error")
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(f"[_on_delete_clicked] ERREUR: {e}")
             controller.show_info(f"❌ Échec de la suppression:\n{e}", "error")
 
@@ -334,14 +340,24 @@ def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     delete_btn.add_css_class("destructive-action")
     delete_btn.set_sensitive(False)
     delete_btn.set_margin_top(4)
-    delete_btn.connect("clicked", lambda b: _on_delete_clicked(b, controller, list_frame, lambda: _refresh_list(controller, list_frame, restore_btn, delete_btn)))
+    delete_btn.connect(
+        "clicked",
+        lambda b: _on_delete_clicked(
+            b, controller, list_frame, lambda: _refresh_list(controller, list_frame, restore_btn, delete_btn)
+        ),
+    )
     selection_box.append(delete_btn)
 
     # Bouton Créer (déplacé après pour avoir accès à _refresh_list avec les boutons)
-    create_btn = Gtk.Button(label="➕ Créer une sauvegarde")
+    create_btn = Gtk.Button(label="➕ Créer une sauvegarde")  # noqa: RUF001
     create_btn.set_halign(Gtk.Align.FILL)
     create_btn.add_css_class("suggested-action")
-    create_btn.connect("clicked", lambda b: _on_create_clicked(b, controller, lambda: _refresh_list(controller, list_frame, restore_btn, delete_btn)))
+    create_btn.connect(
+        "clicked",
+        lambda b: _on_create_clicked(
+            b, controller, lambda: _refresh_list(controller, list_frame, restore_btn, delete_btn)
+        ),
+    )
     create_box.append(create_btn)
 
     right_section.append(create_box)
@@ -361,4 +377,3 @@ def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     label = Gtk.Label(label="Sauvegardes")
     notebook.append_page(root, label)
     logger.debug("[build_backups_tab] Onglet Sauvegardes construit avec succès")
-

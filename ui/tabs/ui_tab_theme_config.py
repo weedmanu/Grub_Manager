@@ -8,19 +8,29 @@ from typing import Any
 from gi.repository import Gtk
 from loguru import logger
 
-from core.config.core_paths import GRUB_CFG_PATHS, get_all_grub_themes_dirs
+from core.config.core_paths import get_all_grub_themes_dirs as _get_all_grub_themes_dirs
 from core.core_exceptions import GrubCommandError, GrubScriptNotFoundError
-from core.io.core_grub_default_io import read_grub_default
 from core.services.core_grub_script_service import GrubScriptService
 from core.services.core_theme_service import ThemeService
 from core.theme.core_active_theme_manager import ActiveThemeManager
-from core.theme.core_theme_generator import GrubTheme, create_custom_theme
+from core.theme.core_theme_generator import GrubTheme
+from core.theme.core_theme_generator import create_custom_theme as _create_custom_theme
 from ui.tabs.ui_grub_preview_dialog import GrubPreviewDialog
 from ui.tabs.ui_theme_editor_dialog import ThemeEditorDialog
 from ui.ui_widgets import create_error_dialog, create_main_box, create_success_dialog, create_two_column_layout
 
 HORIZONTAL = Gtk.Orientation.HORIZONTAL
 VERTICAL = Gtk.Orientation.VERTICAL
+
+
+def get_all_grub_themes_dirs() -> list[Path]:
+    """Proxy pour compatibilité avec les tests (patch du symbole dans ce module)."""
+    return _get_all_grub_themes_dirs()
+
+
+def create_custom_theme(name: str, **kwargs: Any) -> GrubTheme:
+    """Proxy pour compatibilité avec les tests (patch du symbole dans ce module)."""
+    return _create_custom_theme(name, **kwargs)
 
 
 class TabThemeConfig:
@@ -46,6 +56,8 @@ class TabThemeConfig:
         self.theme_list_box: Gtk.ListBox | None = None
         self.activate_btn: Gtk.Button | None = None
         self.preview_btn: Gtk.Button | None = None
+        self.edit_btn: Gtk.Button | None = None
+        self.delete_btn: Gtk.Button | None = None
         self.theme_switch: Gtk.Switch | None = None
         self.scripts_info_box: Gtk.Box | None = None
 
@@ -162,14 +174,18 @@ class TabThemeConfig:
         self.edit_btn = Gtk.Button(label="✏️ Modifier")
         self.edit_btn.set_halign(Gtk.Align.FILL)
         self.edit_btn.set_sensitive(False)
-        self.edit_btn.connect("clicked", lambda _b: _on_edit_theme(None, self.current_theme.name, self) if self.current_theme else None)
+        self.edit_btn.connect(
+            "clicked", lambda _b: _on_edit_theme(None, self.current_theme.name, self) if self.current_theme else None
+        )
         actions_box.append(self.edit_btn)
 
         self.delete_btn = Gtk.Button(label="🗑️ Supprimer")
         self.delete_btn.set_halign(Gtk.Align.FILL)
         self.delete_btn.set_sensitive(False)
         self.delete_btn.add_css_class("destructive-action")
-        self.delete_btn.connect("clicked", lambda _b: _on_delete_theme(None, self.current_theme.name, self) if self.current_theme else None)
+        self.delete_btn.connect(
+            "clicked", lambda _b: _on_delete_theme(None, self.current_theme.name, self) if self.current_theme else None
+        )
         actions_box.append(self.delete_btn)
 
         container.append(actions_box)
@@ -185,7 +201,7 @@ class TabThemeConfig:
         global_actions_box.append(global_title)
 
         # Bouton Éditeur de thème (Nouveau)
-        editor_btn = Gtk.Button(label="➕ Créer un nouveau thème")
+        editor_btn = Gtk.Button(label="➕ Créer un nouveau thème")  # noqa: RUF001
         editor_btn.set_halign(Gtk.Align.FILL)
         editor_btn.connect("clicked", lambda _b: _on_open_editor(self))
         global_actions_box.append(editor_btn)
@@ -471,9 +487,7 @@ def _scan_grub_scripts(tab: TabThemeConfig) -> None:
             # Bouton d'activation si inactif
             if not script.is_executable:
                 activate_script_btn = Gtk.Button(label="Activer")
-                activate_script_btn.connect(
-                    "clicked", lambda b, p=str(script.path): _on_activate_script(b, p, tab)
-                )
+                activate_script_btn.connect("clicked", lambda b, p=str(script.path): _on_activate_script(b, p, tab))
                 script_row.append(activate_script_btn)
 
             tab.scripts_info_box.append(script_row)
@@ -530,7 +544,7 @@ def _on_open_editor(tab: TabThemeConfig) -> None:
         # On cherche la fenêtre parente si elle n'est pas définie
         if not tab.parent_window:
             root = tab.get_root()
-            if root and hasattr(root, 'present'):
+            if root and hasattr(root, "present"):
                 tab.parent_window = root
 
         if tab.parent_window:
@@ -651,8 +665,7 @@ def _on_delete_theme(_button: Gtk.Button | None, theme_name: str, tab: TabThemeC
         dialog = Gtk.AlertDialog()
         dialog.set_message(f"Supprimer le thème '{theme_name}' ?")
         dialog.set_detail(
-            f"Cette action supprimera définitivement le répertoire:\n{theme_path}\n\n"
-            "Cette action est irréversible."
+            f"Cette action supprimera définitivement le répertoire:\n{theme_path}\n\n" "Cette action est irréversible."
         )
         dialog.set_buttons(["Annuler", "Supprimer"])
         dialog.set_default_button(0)

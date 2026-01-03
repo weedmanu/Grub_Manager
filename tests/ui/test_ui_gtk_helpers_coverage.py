@@ -1,13 +1,14 @@
 
-import pytest
-from unittest.mock import MagicMock, patch
-from gi.repository import Gtk, GLib
 import os
+from unittest.mock import MagicMock, patch
+
+from gi.repository import Gtk
 
 # Set headless backend for GTK
 os.environ["GDK_BACKEND"] = "headless"
 
 from ui.ui_gtk_helpers import GtkHelper
+
 
 def test_stringlist_find():
     model = Gtk.StringList.new(["a", "b", "c"])
@@ -113,7 +114,7 @@ def test_dropdown_set_value_fallback_auto():
     model.get_string.return_value = "auto (default)"
     dropdown = MagicMock(spec=Gtk.DropDown)
     dropdown.get_model.return_value = model
-    
+
     with patch("ui.ui_gtk_helpers.GtkHelper.stringlist_find", return_value=None):
         GtkHelper.dropdown_set_value(dropdown, "new")
         dropdown.set_selected.assert_called_with(0)
@@ -124,7 +125,7 @@ def test_dropdown_set_value_fallback_zero():
     model.get_string.return_value = "not auto"
     dropdown = MagicMock(spec=Gtk.DropDown)
     dropdown.get_model.return_value = model
-    
+
     with patch("ui.ui_gtk_helpers.GtkHelper.stringlist_find", return_value=None):
         GtkHelper.dropdown_set_value(dropdown, "new")
         dropdown.set_selected.assert_called_with(0)
@@ -142,12 +143,12 @@ def test_stringlist_replace_all_exception():
     model = MagicMock()
     model.get_n_items.return_value = 2
     model.splice.side_effect = TypeError("Boom")
-    
+
     # Mock remove to decrease n_items
     def mock_remove(idx):
         model.get_n_items.return_value -= 1
     model.remove.side_effect = mock_remove
-    
+
     GtkHelper.stringlist_replace_all(model, ["a", "b"])
     assert model.remove.call_count == 2
     assert model.append.call_count == 2

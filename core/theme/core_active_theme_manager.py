@@ -105,10 +105,8 @@ class ActiveThemeManager:
         Returns:
             Dictionnaire des paramètres GRUB
         """
-        if not self.active_theme:
-            self.load_active_theme()
-
-        return ThemeGenerator.export_grub_config(self.active_theme)
+        theme = self.get_active_theme()
+        return ThemeGenerator.export_grub_config(theme)
 
     def _create_default_theme(self) -> GrubTheme:
         """Crée un thème par défaut.
@@ -234,7 +232,6 @@ class ActiveThemeManager:
         Returns:
             Thème reconstruit
         """
-
         theme = create_custom_theme(
             name=data["name"],
             title_color=data["colors"]["title_color"],

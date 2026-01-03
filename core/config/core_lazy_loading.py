@@ -104,7 +104,7 @@ def lazy_import(module_name: str) -> LazyLoader:
     return LazyLoader(module_name)
 
 
-def lazy_property(factory: Callable[[], Any]) -> property:
+def lazy_property(factory: Callable[[Any], Any]) -> property:
     """Décorateur pour créer une propriété lazy.
 
     Args:

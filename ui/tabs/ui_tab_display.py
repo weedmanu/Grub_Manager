@@ -13,6 +13,7 @@ from loguru import logger
 from ui.ui_widgets import (
     apply_margins,
     box_append_label,
+    box_append_section_grid,
     box_append_section_title,
     create_two_column_layout,
     grid_add_labeled,
@@ -20,26 +21,6 @@ from ui.ui_widgets import (
 
 if TYPE_CHECKING:
     from ui.ui_manager import GrubConfigManager
-
-
-_GRUB_COLORS: list[str] = [
-    "black",
-    "blue",
-    "green",
-    "cyan",
-    "red",
-    "magenta",
-    "brown",
-    "light-gray",
-    "dark-gray",
-    "light-blue",
-    "light-green",
-    "light-cyan",
-    "light-red",
-    "light-magenta",
-    "yellow",
-    "white",
-]
 
 
 def build_display_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> None:
@@ -62,16 +43,7 @@ def build_display_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     _, left_section, right_section = create_two_column_layout(root)
 
     # === COLONNE GAUCHE : Résolution Menu ===
-    left_title = Gtk.Label(xalign=0)
-    left_title.set_markup("<b>Résolution du Menu GRUB</b>")
-    left_title.add_css_class("section-title")
-    left_section.append(left_title)
-
-    # Grid gauche
-    grid_left = Gtk.Grid()
-    grid_left.set_row_spacing(12)
-    grid_left.set_column_spacing(12)
-    left_section.append(grid_left)
+    grid_left = box_append_section_grid(left_section, "Résolution du Menu GRUB")
 
     row_left = 0
 
@@ -111,16 +83,7 @@ def build_display_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     left_section.append(controller.terminal_color_check)
 
     # === COLONNE DROITE : Résolution Kernel ===
-    right_title = Gtk.Label(xalign=0)
-    right_title.set_markup("<b>Résolution du Système (Kernel)</b>")
-    right_title.add_css_class("section-title")
-    right_section.append(right_title)
-
-    # Grid droite
-    grid_right = Gtk.Grid()
-    grid_right.set_row_spacing(12)
-    grid_right.set_column_spacing(12)
-    right_section.append(grid_right)
+    grid_right = box_append_section_grid(right_section, "Résolution du Système (Kernel)")
 
     row_right = 0
 

@@ -1,13 +1,15 @@
 
-import pytest
-from unittest.mock import MagicMock, patch
-from gi.repository import Gtk
 import os
+from unittest.mock import MagicMock, patch
+
+import pytest
+from gi.repository import Gtk
 
 # Set headless backend for GTK
 os.environ["GDK_BACKEND"] = "headless"
 
 from ui.tabs.ui_theme_editor_dialog import ThemeEditorDialog
+
 
 @pytest.fixture
 def state_manager():
@@ -21,7 +23,7 @@ def test_theme_editor_dialog_init(parent_window, state_manager):
     with patch("ui.tabs.ui_theme_editor_dialog.TabThemeEditor") as mock_editor_class:
         mock_editor = mock_editor_class.return_value
         mock_editor.build.return_value = Gtk.Box()
-        
+
         # Mock all widgets that are copied
         mock_editor.title_color_btn = MagicMock()
         mock_editor.bg_color_btn = MagicMock()
@@ -40,9 +42,9 @@ def test_theme_editor_dialog_init(parent_window, state_manager):
         mock_editor.grub_timeout_spin = MagicMock()
         mock_editor.grub_gfxmode_entry = MagicMock()
         mock_editor.preview_buffer = MagicMock()
-        
+
         dialog = ThemeEditorDialog(parent_window, state_manager)
-        
+
         assert dialog.state_manager == state_manager
         assert dialog.title_color_btn == mock_editor.title_color_btn
         assert mock_editor._load_default_theme.called
@@ -54,7 +56,7 @@ def test_theme_editor_dialog_load_default_theme_no_editor(parent_window, state_m
         mock_editor = mock_editor_class.return_value
         mock_editor.build.return_value = Gtk.Box()
         dialog = ThemeEditorDialog(parent_window, state_manager)
-        
+
         # Manually remove _editor to test the branch
         del dialog._editor
         dialog._load_default_theme() # Should not crash
