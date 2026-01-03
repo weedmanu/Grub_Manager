@@ -617,18 +617,15 @@ def test_show_info_existing_classes(manager):
     manager.info_box = MagicMock()
     manager.info_revealer = MagicMock()
 
-    ctx = MagicMock()
-    manager.info_box.get_style_context.return_value = ctx
-
     # Simulate "info" class being present
-    ctx.has_class.side_effect = lambda k: k == "info"
+    manager.info_box.has_css_class.side_effect = lambda k: k == "info"
 
     manager.show_info("msg", "warning")
 
     # Should remove "info"
-    ctx.remove_class.assert_called_with("info")
+    manager.info_box.remove_css_class.assert_called_with("info")
     # Should add "warning"
-    ctx.add_class.assert_called_with("warning")
+    manager.info_box.add_css_class.assert_called_with("warning")
 
 
 def test_ensure_timeout_choice_loop_completion(manager):

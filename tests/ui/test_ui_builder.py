@@ -67,14 +67,25 @@ def test_create_notebook():
 
         notebook = UIBuilder._create_notebook(window, container)
 
-        # Trigger switch-page signal
-        page = Gtk.Box()
-        notebook.append_page(page, Gtk.Label(label="Test"))
+        # Trigger switch-page signal - Case 1: Sauvegardes (buttons disabled)
+        page_backups = Gtk.Box()
+        notebook.append_page(page_backups, Gtk.Label(label="Sauvegardes"))
         notebook.set_current_page(1)
+        window.save_btn.set_sensitive.assert_called_with(False)
+        window.reload_btn.set_sensitive.assert_called_with(False)
 
+        # Trigger switch-page signal - Case 2: Other tab, not dirty (buttons disabled)
+        window.state_manager.is_dirty.return_value = False
+        page_other = Gtk.Box()
+        notebook.append_page(page_other, Gtk.Label(label="General"))
+        # Manually emit signal to be 100% sure
+        notebook.emit("switch-page", page_other, 2)
+        window.save_btn.set_sensitive.assert_called_with(False)
+        window.reload_btn.set_sensitive.assert_called_with(False)
 
-def test_obsolete_methods():
-    window = MagicMock()
-    container = Gtk.Box()
-    UIBuilder._create_info_area(window, container)
-    UIBuilder._create_action_buttons(window, container)
+        # Trigger switch-page signal - Case 3: Other tab, dirty (buttons NOT disabled by this logic)
+        window.state_manager.is_dirty.return_value = True
+        window.save_btn.set_sensitive.reset_mock()
+        notebook.set_current_page(0) # Switch back to first tab
+        # Should not call set_sensitive(False) in the elif block
+        assert not any(call.args == (False,) for call in window.save_btn.set_sensitive.call_args_list)

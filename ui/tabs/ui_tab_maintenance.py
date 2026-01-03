@@ -82,25 +82,8 @@ def build_maintenance_tab(controller: GrubConfigManager, notebook: Gtk.Notebook)
 
     box_append_label(consult_section, "Sélectionnez un fichier pour afficher son contenu.", italic=True)
 
-    # Détection des scripts de thème et couleurs dans /etc/grub.d/
-    grub_d_scripts = []
-    if os.path.exists("/etc/grub.d"):
-        for script_name in os.listdir("/etc/grub.d"):
-            script_path = f"/etc/grub.d/{script_name}"
-            # Filtrer les scripts qui concernent les thèmes et couleurs
-            if any(keyword in script_name.lower() for keyword in ["theme", "color", "05_debian"]):
-                if os.path.isfile(script_path):
-                    grub_d_scripts.append((script_name, script_path))
-
-    # Construction de la liste des fichiers à consulter
-    config_files = [
-        ("📄 /etc/default/grub", "/etc/default/grub"),
-        ("📄 /boot/grub/grub.cfg", "/boot/grub/grub.cfg"),
-    ]
-
-    # Ajouter les scripts trouvés
-    for script_name, script_path in sorted(grub_d_scripts):
-        config_files.append((f"🎨 {script_name}", script_path))
+    # Détection des scripts et construction de la liste
+    config_files = _get_config_files()
 
     # Dropdown pour sélectionner le fichier
     config_dropdown = Gtk.DropDown.new_from_strings([name for name, _ in config_files])
@@ -131,16 +114,7 @@ def build_maintenance_tab(controller: GrubConfigManager, notebook: Gtk.Notebook)
     box_append_label(consult_section, "Outils de vérification et diagnostic système.", italic=True)
 
     # Liste des autres commandes de diagnostic
-    diag_commands = [
-        ("💾 Lister partitions", ["lsblk", "-f"]),
-        ("✓ Vérifier syntaxe GRUB", ["grub-script-check", "/boot/grub/grub.cfg"]),
-    ]
-
-    if boot_type == "UEFI":
-        diag_commands.append(("⚡ Entrées UEFI", ["efibootmgr"]))
-
-    if shutil.which("grub-emu"):
-        diag_commands.append(("🖥️  Preview GRUB (Simulation)", ["grub-emu"]))
+    diag_commands = _get_diagnostic_commands(boot_type)
 
     # Dropdown pour sélectionner la commande de diagnostic
     diag_dropdown = Gtk.DropDown.new_from_strings([name for name, _ in diag_commands])
@@ -170,24 +144,8 @@ def build_maintenance_tab(controller: GrubConfigManager, notebook: Gtk.Notebook)
 
     box_append_label(restore_section, "⚠️ Ces commandes modifient le système.", italic=True)
 
-    # Détecter le gestionnaire de paquets disponible
-    restore_cmd = service.get_restore_command()
-
     # Liste des commandes de restauration
-    restore_commands = []
-
-    if restore_cmd:
-        cmd_name, cmd_list = restore_cmd
-        restore_commands.append((f"📦 Réinstaller GRUB ({cmd_name})", cmd_list))
-
-    restore_commands.append(("🔧 Réinstaller script /etc/grub.d/05_debian", "reinstall-05-debian"))
-    restore_commands.append(("🎨 Activer /etc/grub.d/05_debian_theme", "enable-05-theme"))
-    restore_commands.append(("🔄 Regénérer grub.cfg (update-grub)", ["update-grub"]))
-
-    if boot_type == "UEFI":
-        restore_commands.append(("⚡ Réinstaller GRUB (UEFI)", "reinstall-grub-uefi"))
-    else:
-        restore_commands.append(("🔶 Réinstaller GRUB (BIOS)", "reinstall-grub-bios"))
+    restore_commands = _get_restore_commands(service, boot_type)
 
     # Dropdown pour sélectionner l'action
     restore_dropdown = Gtk.DropDown.new_from_strings([name for name, _ in restore_commands])
@@ -212,42 +170,6 @@ def build_maintenance_tab(controller: GrubConfigManager, notebook: Gtk.Notebook)
     logger.success("[build_maintenance_tab] Onglet Maintenance construit")
 
 
-def _run_consult_command(controller: GrubConfigManager, listbox: Gtk.ListBox, service: MaintenanceService) -> None:
-    """Exécute une commande de consultation sélectionnée."""
-    row = listbox.get_selected_row()
-    if not row:
-        return
-
-    cmd_name = getattr(row, "cmd_name", "")
-    cmd_data = getattr(row, "cmd_data", None)
-
-    if not cmd_data:
-        return
-
-    logger.info(f"[_run_consult_command] Exécution: {cmd_name}")
-
-    if cmd_data == "find-theme-script":
-        _show_theme_script(controller, service)
-    elif isinstance(cmd_data, list):
-        run_command_popup(controller, cmd_data, cmd_name)
-
-
-def _run_restore_command(controller: GrubConfigManager, listbox: Gtk.ListBox, service: MaintenanceService) -> None:
-    """Exécute une commande de restauration sélectionnée."""
-    row = listbox.get_selected_row()
-    if not row:
-        return
-
-    cmd_name = getattr(row, "cmd_name", "")
-    cmd_data = getattr(row, "cmd_data", None)
-
-    if not cmd_data:
-        return
-
-    logger.info(f"[_run_restore_command] Exécution: {cmd_name}")
-    _run_restore_command_direct(controller, cmd_name, cmd_data, service)
-
-
 def _run_restore_command_direct(
     controller: GrubConfigManager, cmd_name: str, cmd_data, service: MaintenanceService
 ) -> None:
@@ -269,28 +191,6 @@ def _run_restore_command_direct(
         _reinstall_grub_bios(controller)
     elif isinstance(cmd_data, list):
         run_command_popup(controller, cmd_data, cmd_name)
-
-
-def _show_theme_script(controller: GrubConfigManager, service: MaintenanceService) -> None:
-    """Find and display GRUB theme script (theme.txt)."""
-    logger.info("[_show_theme_script] Recherche du script du thème GRUB")
-
-    theme_path = service.find_theme_script_path()
-
-    if not theme_path:
-        logger.warning("[_show_theme_script] Aucun script de thème trouvé")
-        controller.show_info("Aucun script de thème GRUB trouvé", "error")
-        return
-
-    logger.info(f"[_show_theme_script] Affichage du thème: {theme_path}")
-
-    # Déterminer le titre selon le type de fichier
-    if theme_path.endswith("theme.txt"):
-        title = f"Script du thème: {os.path.basename(os.path.dirname(theme_path))}"
-    else:
-        title = f"Script de génération: {os.path.basename(theme_path)}"
-
-    run_command_popup(controller, ["cat", theme_path], title)
 
 
 def _reinstall_grub_uefi(controller: GrubConfigManager) -> None:
@@ -373,3 +273,61 @@ def _on_exec_restore(
     if selected_idx < len(restore_commands):
         cmd_name, cmd_data = restore_commands[selected_idx]
         _run_restore_command_direct(controller, cmd_name, cmd_data, service)
+
+
+def _get_config_files() -> list[tuple[str, str]]:
+    """Détecte les fichiers de configuration GRUB consultables."""
+    grub_d_scripts = []
+    if os.path.exists("/etc/grub.d"):
+        for script_name in os.listdir("/etc/grub.d"):
+            script_path = f"/etc/grub.d/{script_name}"
+            if any(keyword in script_name.lower() for keyword in ["theme", "color", "05_debian"]):
+                if os.path.isfile(script_path):
+                    grub_d_scripts.append((script_name, script_path))
+
+    config_files = [
+        ("📄 /etc/default/grub", "/etc/default/grub"),
+        ("📄 /boot/grub/grub.cfg", "/boot/grub/grub.cfg"),
+    ]
+
+    for script_name, script_path in sorted(grub_d_scripts):
+        config_files.append((f"🎨 {script_name}", script_path))
+
+    return config_files
+
+
+def _get_diagnostic_commands(boot_type: str) -> list[tuple[str, list[str]]]:
+    """Retourne la liste des commandes de diagnostic disponibles."""
+    diag_commands = [
+        ("💾 Lister partitions", ["lsblk", "-f"]),
+        ("✓ Vérifier syntaxe GRUB", ["grub-script-check", "/boot/grub/grub.cfg"]),
+    ]
+
+    if boot_type == "UEFI":
+        diag_commands.append(("⚡ Entrées UEFI", ["efibootmgr"]))
+
+    if shutil.which("grub-emu"):
+        diag_commands.append(("🖥️  Preview GRUB (Simulation)", ["grub-emu"]))
+
+    return diag_commands
+
+
+def _get_restore_commands(service: MaintenanceService, boot_type: str) -> list[tuple[str, any]]:
+    """Retourne la liste des commandes de restauration disponibles."""
+    restore_cmd = service.get_restore_command()
+    restore_commands = []
+
+    if restore_cmd:
+        cmd_name, cmd_list = restore_cmd
+        restore_commands.append((f"📦 Réinstaller GRUB ({cmd_name})", cmd_list))
+
+    restore_commands.append(("🔧 Réinstaller script /etc/grub.d/05_debian", "reinstall-05-debian"))
+    restore_commands.append(("🎨 Activer /etc/grub.d/05_debian_theme", "enable-05-theme"))
+    restore_commands.append(("🔄 Regénérer grub.cfg (update-grub)", ["update-grub"]))
+
+    if boot_type == "UEFI":
+        restore_commands.append(("⚡ Réinstaller GRUB (UEFI)", "reinstall-grub-uefi"))
+    else:
+        restore_commands.append(("🔶 Réinstaller GRUB (BIOS)", "reinstall-grub-bios"))
+
+    return restore_commands

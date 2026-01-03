@@ -160,11 +160,124 @@ if TYPE_CHECKING:
     from ui.ui_manager import GrubConfigManager
 
 
-def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> None:
-    """Build the Backups tab (list/create/delete).
+def _on_selection_changed(_listbox_widget, row, restore_btn, delete_btn):
+    """Active/désactive les boutons selon la sélection."""
+    has_selection = row is not None and hasattr(row, "backup_path")
+    restore_btn.set_sensitive(has_selection)
+    delete_btn.set_sensitive(has_selection)
 
-    DEV: Complete backup management with create, restore, delete.
-    """
+
+def _refresh_list(controller, list_frame, restore_btn=None, delete_btn=None):
+    """Rafraîchit l'affichage de la liste."""
+    try:
+        backups = list_grub_default_backups()
+        logger.debug(f"[_load_backups] {len(backups)} sauvegarde(s) trouvée(s)")
+    except OSError as e:
+        logger.error(f"[_load_backups] ERREUR: {e}")
+        controller.show_info(f"Impossible de lister les sauvegardes: {e}", "error")
+        backups = []
+
+    if not backups:
+        # Afficher un message si aucune sauvegarde
+        empty_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        apply_margins(empty_box, 20)
+        empty_label = Gtk.Label(label="📭 Aucune sauvegarde trouvée")
+        empty_label.add_css_class("dim-label")
+        empty_box.append(empty_label)
+        list_frame.set_child(empty_box)
+        if restore_btn:
+            restore_btn.set_sensitive(False)
+        if delete_btn:
+            delete_btn.set_sensitive(False)
+        return
+
+    # Créer listbox avec les sauvegardes
+    listbox = Gtk.ListBox()
+    listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
+    listbox.add_css_class("rich-list")
+
+    for backup_path in backups:
+        row, hbox = create_list_box_row_with_margins()
+        row.backup_path = backup_path
+
+        # --- Icône à gauche ---
+        backup_type = categorize_backup_type(backup_path)
+        is_initial = "initial" in backup_path
+        icon_char = "⭐" if is_initial else "📦"
+
+        icon_label = Gtk.Label(label=icon_char)
+        icon_label.set_markup(f"<span size='x-large'>{icon_char}</span>")
+        icon_label.set_margin_end(12)
+        hbox.append(icon_label)
+
+        # --- Contenu central (Nom + Type) ---
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        vbox.set_hexpand(True)
+        vbox.set_valign(Gtk.Align.CENTER)
+
+        # Nom du fichier
+        title = Gtk.Label(label=os.path.basename(backup_path), xalign=0)
+        title.set_markup(f"<b>{os.path.basename(backup_path)}</b>")
+        title.add_css_class("title-4")
+        vbox.append(title)
+
+        # Type (sous-titre)
+        type_label = Gtk.Label(xalign=0)
+        type_label.set_markup(f"<small>{backup_type}</small>")
+        type_label.add_css_class("dim-label")
+        vbox.append(type_label)
+
+        hbox.append(vbox)
+
+        # --- Métadonnées à droite (Date + Taille) ---
+        meta_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        meta_box.set_valign(Gtk.Align.CENTER)
+        meta_box.set_halign(Gtk.Align.END)
+
+        try:
+            mtime = os.path.getmtime(backup_path)
+            size = os.path.getsize(backup_path)
+            date_str = datetime.fromtimestamp(mtime).strftime("%d/%m/%Y")
+
+            # Taille formatée
+            if size < 1024:
+                size_str = f"{size} B"
+            elif size < 1024 * 1024:
+                size_str = f"{size / 1024:.1f} KB"
+            else:
+                size_str = f"{size / (1024 * 1024):.1f} MB"
+
+            date_label = Gtk.Label(label=date_str)
+            date_label.set_markup(f"<small>{date_str}</small>")
+            date_label.set_halign(Gtk.Align.END)
+            date_label.add_css_class("dim-label")
+
+            size_label = Gtk.Label(label=size_str)
+            size_label.set_markup(f"<small><b>{size_str}</b></small>")
+            size_label.set_halign(Gtk.Align.END)
+            size_label.add_css_class("caption")
+
+            meta_box.append(date_label)
+            meta_box.append(size_label)
+        except OSError:
+            pass
+
+        hbox.append(meta_box)
+        row.set_child(hbox)
+        listbox.append(row)
+
+    if restore_btn and delete_btn:
+        listbox.connect("row-selected", _on_selection_changed, restore_btn, delete_btn)
+
+    scroll = Gtk.ScrolledWindow()
+    scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+    scroll.set_vexpand(True)
+    scroll.set_child(listbox)
+    list_frame.set_child(scroll)
+
+
+def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> None:
+    """Build the Backups tab (list/create/delete)."""
     logger.debug("[build_backups_tab] Construction de l'onglet Sauvegardes")
     root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
     apply_margins(root, 12)
@@ -185,110 +298,6 @@ def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
 
     # Frame pour la liste
     list_frame = Gtk.Frame()
-
-    def _refresh_list():
-        """Rafraîchit l'affichage de la liste."""
-        try:
-            backups = list_grub_default_backups()
-            logger.debug(f"[_load_backups] {len(backups)} sauvegarde(s) trouvée(s)")
-        except OSError as e:
-            logger.error(f"[_load_backups] ERREUR: {e}")
-            controller.show_info(f"Impossible de lister les sauvegardes: {e}", "error")
-            backups = []
-
-        if not backups:
-            # Afficher un message si aucune sauvegarde
-            empty_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-            apply_margins(empty_box, 20)
-            empty_label = Gtk.Label(label="📭 Aucune sauvegarde trouvée")
-            empty_label.add_css_class("dim-label")
-            empty_box.append(empty_label)
-            list_frame.set_child(empty_box)
-            return
-
-        # Créer listbox avec les sauvegardes
-        listbox = Gtk.ListBox()
-        listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
-        listbox.add_css_class("rich-list")  # Classe fictive pour le moment, mais sémantique
-
-        for backup_path in backups:
-            row, hbox = create_list_box_row_with_margins()
-            row.backup_path = backup_path
-
-            # --- Icône à gauche ---
-            backup_type = categorize_backup_type(backup_path)
-            is_initial = "initial" in backup_path
-            icon_char = "⭐" if is_initial else "📦"
-
-            icon_label = Gtk.Label(label=icon_char)
-            icon_label.set_markup(f"<span size='x-large'>{icon_char}</span>")
-            icon_label.set_margin_end(12)
-            hbox.append(icon_label)
-
-            # --- Contenu central (Nom + Type) ---
-            vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-            vbox.set_hexpand(True)
-            vbox.set_valign(Gtk.Align.CENTER)
-
-            # Nom du fichier
-            title = Gtk.Label(label=os.path.basename(backup_path), xalign=0)
-            title.set_markup(f"<b>{os.path.basename(backup_path)}</b>")
-            title.add_css_class("title-4")
-            vbox.append(title)
-
-            # Type (sous-titre)
-            type_label = Gtk.Label(xalign=0)
-            type_label.set_markup(f"<small>{backup_type}</small>")
-            type_label.add_css_class("dim-label")
-            vbox.append(type_label)
-
-            hbox.append(vbox)
-
-            # --- Métadonnées à droite (Date + Taille) ---
-            meta_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-            meta_box.set_valign(Gtk.Align.CENTER)
-            meta_box.set_halign(Gtk.Align.END)
-
-            try:
-                mtime = os.path.getmtime(backup_path)
-                size = os.path.getsize(backup_path)
-                date_str = datetime.fromtimestamp(mtime).strftime("%d/%m/%Y")
-                # time_str = datetime.fromtimestamp(mtime).strftime("%H:%M") # Inutilisé
-
-                # Taille formatée
-                if size < 1024:
-                    size_str = f"{size} B"
-                elif size < 1024 * 1024:
-                    size_str = f"{size / 1024:.1f} KB"
-                else:
-                    size_str = f"{size / (1024 * 1024):.1f} MB"
-
-                date_label = Gtk.Label(label=date_str)
-                date_label.set_markup(f"<small>{date_str}</small>")
-                date_label.set_halign(Gtk.Align.END)
-                date_label.add_css_class("dim-label")
-
-                size_label = Gtk.Label(label=size_str)
-                size_label.set_markup(f"<small><b>{size_str}</b></small>")
-                size_label.set_halign(Gtk.Align.END)
-                size_label.add_css_class("caption")
-
-                meta_box.append(date_label)
-                meta_box.append(size_label)
-            except OSError:
-                pass
-
-            hbox.append(meta_box)
-            row.set_child(hbox)
-            listbox.append(row)
-
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        scroll.set_vexpand(True)
-        scroll.set_child(listbox)
-        list_frame.set_child(scroll)
-
-    _refresh_list()
     left_section.append(list_frame)
 
     # === COLONNE DROITE : Actions ===
@@ -300,20 +309,6 @@ def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     create_box.append(create_title)
 
     box_append_label(create_box, "Crée une nouvelle sauvegarde complète.", italic=True)
-
-    create_btn = Gtk.Button(label="➕ Créer une sauvegarde")
-    create_btn.set_halign(Gtk.Align.FILL)
-    create_btn.add_css_class("suggested-action")
-    create_btn.connect("clicked", lambda b: _on_create_clicked(b, controller, _refresh_list))
-    create_box.append(create_btn)
-
-    right_section.append(create_box)
-
-    # Séparateur
-    separator = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
-    separator.set_margin_top(12)
-    separator.set_margin_bottom(8)
-    right_section.append(separator)
 
     # --- Actions sur la sélection ---
     selection_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -339,28 +334,31 @@ def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     delete_btn.add_css_class("destructive-action")
     delete_btn.set_sensitive(False)
     delete_btn.set_margin_top(4)
-    delete_btn.connect("clicked", lambda b: _on_delete_clicked(b, controller, list_frame, _refresh_list))
+    delete_btn.connect("clicked", lambda b: _on_delete_clicked(b, controller, list_frame, lambda: _refresh_list(controller, list_frame, restore_btn, delete_btn)))
     selection_box.append(delete_btn)
+
+    # Bouton Créer (déplacé après pour avoir accès à _refresh_list avec les boutons)
+    create_btn = Gtk.Button(label="➕ Créer une sauvegarde")
+    create_btn.set_halign(Gtk.Align.FILL)
+    create_btn.add_css_class("suggested-action")
+    create_btn.connect("clicked", lambda b: _on_create_clicked(b, controller, lambda: _refresh_list(controller, list_frame, restore_btn, delete_btn)))
+    create_box.append(create_btn)
+
+    right_section.append(create_box)
+
+    # Séparateur
+    separator = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
+    separator.set_margin_top(12)
+    separator.set_margin_bottom(8)
+    right_section.append(separator)
 
     right_section.append(selection_box)
 
-    # === Gestion de la sélection ===
-    def _on_selection_changed(_listbox_widget, row):
-        """Active/désactive les boutons selon la sélection."""
-        has_selection = row is not None and hasattr(row, "backup_path")
-        restore_btn.set_sensitive(has_selection)
-        delete_btn.set_sensitive(has_selection)
-
-    # Connecter le handler de sélection après le premier refresh
-    def _connect_listbox_handler():
-        listbox = _get_listbox_from_frame(list_frame)
-        if listbox:
-            listbox.connect("row-selected", _on_selection_changed)
-        return False
-
-    GLib.idle_add(_connect_listbox_handler)
+    # Premier chargement
+    GLib.idle_add(lambda: _refresh_list(controller, list_frame, restore_btn, delete_btn))
 
     # === Ajout à l'onglet ===
     label = Gtk.Label(label="Sauvegardes")
     notebook.append_page(root, label)
     logger.debug("[build_backups_tab] Onglet Sauvegardes construit avec succès")
+

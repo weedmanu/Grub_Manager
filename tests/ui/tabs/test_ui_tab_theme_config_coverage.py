@@ -7,7 +7,9 @@ from ui.tabs.ui_tab_theme_config import (
     _on_edit_theme,
     _on_delete_theme,
     _on_delete_confirmed,
-    _on_theme_selected
+    _on_theme_selected,
+    _on_activate_script,
+    _on_open_editor
 )
 from ui.ui_state import AppStateManager
 import gi
@@ -26,11 +28,18 @@ def tab(mock_state_manager):
          patch("ui.tabs.ui_tab_theme_config.ThemeService"):
         tab = TabThemeConfig(mock_state_manager)
         tab.theme_list_box = MagicMock(spec=Gtk.ListBox)
+        # Prevent infinite loops in clearing loops
+        tab.theme_list_box.get_first_child.return_value = None
+        
         tab.activate_btn = MagicMock(spec=Gtk.Button)
         tab.preview_btn = MagicMock(spec=Gtk.Button)
         tab.edit_btn = MagicMock(spec=Gtk.Button)
         tab.delete_btn = MagicMock(spec=Gtk.Button)
         tab.parent_window = MagicMock(spec=Gtk.Window)
+        
+        tab.scripts_info_box = MagicMock(spec=Gtk.Box)
+        tab.scripts_info_box.get_first_child.return_value = None
+        
         return tab
 
 def test_on_edit_theme_not_found(tab):
@@ -488,3 +497,286 @@ def test_on_activate_theme_exception(tab):
     with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_error:
         _on_activate_theme(tab)
         assert mock_error.called
+
+def test_load_themes_no_active_theme(tab):
+    """Teste _load_themes quand aucun thème n'est actif."""
+    tab.theme_service.is_theme_enabled_in_grub.return_value = True
+    tab.theme_manager.load_active_theme.return_value = None
+    tab.refresh = MagicMock()
+    
+    tab._load_themes()
+    
+    assert tab.current_theme is None
+    assert tab.refresh.called
+
+def test_load_themes_no_available_themes(tab):
+    """Teste _load_themes quand aucun thème n'est disponible."""
+    tab.theme_service.is_theme_enabled_in_grub.return_value = True
+    tab.theme_manager.load_active_theme.return_value = None
+    tab.refresh = MagicMock()
+    tab.available_themes = {}
+    
+    tab._load_themes()
+    
+    assert not tab.theme_list_box.select_row.called
+
+def test_scan_system_themes_no_list_box(tab):
+    """Teste _scan_system_themes sans list_box."""
+    tab.theme_list_box = None
+    tab._scan_system_themes()
+    assert tab.theme_service.scan_system_themes.called == False
+
+def test_on_theme_selected_row_none(tab):
+    """Teste _on_theme_selected avec row=None."""
+    _on_theme_selected(tab.theme_list_box, None, tab)
+    assert tab.current_theme is None
+    tab.activate_btn.set_sensitive.assert_called_with(False)
+
+def test_on_theme_selected_no_buttons(tab):
+    """Teste _on_theme_selected sans boutons définis."""
+    tab.activate_btn = None
+    tab.preview_btn = None
+    tab.edit_btn = None
+    tab.delete_btn = None
+    
+    row = MagicMock(spec=Gtk.ListBoxRow)
+    row.get_index.return_value = 0
+    tab.available_themes = {"T": GrubTheme(name="T")}
+    
+    # Ne doit pas lever d'exception
+    _on_theme_selected(tab.theme_list_box, row, tab)
+    
+    # Cas row is None
+    _on_theme_selected(tab.theme_list_box, None, tab)
+
+def test_on_theme_selected_theme_not_in_paths(tab):
+    """Teste _on_theme_selected quand le thème n'est pas dans theme_paths."""
+    row = MagicMock(spec=Gtk.ListBoxRow)
+    row.get_index.return_value = 0
+    tab.available_themes = {"T": GrubTheme(name="T")}
+    tab.theme_paths = {} # Vide
+    
+    _on_theme_selected(tab.theme_list_box, row, tab)
+    
+    tab.edit_btn.set_sensitive.assert_called_with(False)
+
+def test_on_theme_switch_toggled_no_container(tab):
+    """Teste _on_theme_switch_toggled sans container."""
+    tab.theme_sections_container = None
+    tab.refresh = MagicMock()
+    switch = MagicMock(spec=Gtk.Switch)
+    switch.get_active.return_value = True
+    
+    from ui.tabs.ui_tab_theme_config import _on_theme_switch_toggled
+    _on_theme_switch_toggled(switch, None, tab)
+    # Ne doit pas lever d'exception
+
+def test_on_theme_switch_toggled_no_list_box(tab):
+    """Teste _on_theme_switch_toggled sans list_box."""
+    tab.theme_list_box = None
+    tab.refresh = MagicMock()
+    switch = MagicMock(spec=Gtk.Switch)
+    switch.get_active.return_value = True
+    tab.available_themes = {"T": MagicMock()}
+    
+    from ui.tabs.ui_tab_theme_config import _on_theme_switch_toggled
+    _on_theme_switch_toggled(switch, None, tab)
+    # Ne doit pas lever d'exception
+
+def test_scan_grub_scripts_no_box(tab):
+    """Teste _scan_grub_scripts sans scripts_info_box."""
+    tab.scripts_info_box = None
+    from ui.tabs.ui_tab_theme_config import _scan_grub_scripts
+    _scan_grub_scripts(tab)
+    assert not tab.script_service.scan_theme_scripts.called
+
+def test_scan_grub_scripts_empty(tab):
+    """Teste _scan_grub_scripts quand aucun script n'est trouvé."""
+    tab.scripts_info_box = MagicMock(spec=Gtk.Box)
+    tab.scripts_info_box.get_first_child.return_value = None
+    tab.script_service.scan_theme_scripts.return_value = []
+    
+    from ui.tabs.ui_tab_theme_config import _scan_grub_scripts
+    _scan_grub_scripts(tab)
+    
+    assert not tab.scripts_info_box.append.called
+
+def test_on_open_editor_root_no_present(tab):
+    """Teste _on_open_editor quand le root n'a pas de méthode present."""
+    tab.parent_window = None
+    mock_root = MagicMock() # Pas de spec Gtk.Window, donc pas de present() par défaut
+    del mock_root.present
+    tab.get_root = MagicMock(return_value=mock_root)
+    
+    from ui.tabs.ui_tab_theme_config import _on_open_editor
+    with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_error:
+        _on_open_editor(tab)
+        mock_error.assert_called_once()
+
+def test_on_activate_theme_no_mark_dirty(tab):
+    """Teste _on_activate_theme quand state_manager n'a pas mark_dirty."""
+    tab.current_theme = GrubTheme(name="Test")
+    del tab.state_manager.mark_dirty
+    
+    from ui.tabs.ui_tab_theme_config import _on_activate_theme
+    with patch("ui.tabs.ui_tab_theme_config.create_success_dialog"):
+        _on_activate_theme(tab)
+        # Ne doit pas lever d'exception
+
+def test_on_delete_theme_no_parent_no_button(tab):
+    """Teste _on_delete_theme sans parent et sans bouton."""
+    tab.available_themes = {"Custom": GrubTheme(name="Custom")}
+    tab.theme_paths = {"Custom": Path("/path")}
+    tab.theme_service.is_theme_custom.return_value = True
+    tab.parent_window = None
+    
+    with patch("ui.tabs.ui_tab_theme_config.Gtk.AlertDialog") as mock_dialog_class:
+        _on_delete_theme(None, "Custom", tab)
+        # Vérifier que choose a été appelé
+        assert mock_dialog_class.return_value.choose.called
+
+def test_on_activate_script_oserror(tab):
+    """Teste _on_activate_script avec OSError."""
+    tab.script_service.make_executable.side_effect = OSError("OS Error")
+    with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_err:
+        _on_activate_script(MagicMock(), "/path/to/script", tab)
+        mock_err.assert_called()
+
+def test_on_delete_theme_no_parent_with_button(tab):
+    """Teste _on_delete_theme sans parent_window mais avec un bouton."""
+    tab.parent_window = None
+    tab.available_themes = {"custom": MagicMock()}
+    tab.theme_paths = {"custom": "/home/user/.local/share/grub/themes/custom"}
+    tab.theme_service.is_theme_custom.return_value = True
+    
+    button = MagicMock()
+    mock_root = MagicMock()
+    button.get_root.return_value = mock_root
+    
+    with patch("gi.repository.Gtk.AlertDialog") as MockDialog:
+        mock_dialog = MockDialog.return_value
+        _on_delete_theme(button, "custom", tab)
+        mock_dialog.choose.assert_called()
+        # Vérifier que le parent passé à choose est mock_root
+        args, kwargs = mock_dialog.choose.call_args
+        assert kwargs['parent'] == mock_root
+
+def test_on_open_editor_exception(tab):
+    """Teste _on_open_editor avec une exception."""
+    tab.parent_window = MagicMock()
+    with patch("ui.tabs.ui_tab_theme_config.ThemeEditorDialog", side_effect=RuntimeError("Editor Error")):
+        with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_err:
+            _on_open_editor(tab)
+            mock_err.assert_called()
+
+def test_scan_system_themes_custom_badge(tab):
+    """Teste _scan_system_themes avec un badge 'Custom'."""
+    mock_theme = GrubTheme(name="custom_theme")
+    tab.theme_service.scan_system_themes.return_value = {"custom_theme": (mock_theme, Path("/path/to/custom"))}
+    tab.theme_service.is_theme_custom.return_value = True
+    tab._scan_system_themes()
+    assert tab.theme_list_box.append.called
+
+def test_load_themes_with_container(tab):
+    """Teste _load_themes avec un container de sections."""
+    tab.theme_sections_container = MagicMock(spec=Gtk.Box)
+    tab.theme_switch = MagicMock(spec=Gtk.Switch)
+    tab.theme_service.is_theme_enabled_in_grub.return_value = True
+    tab.theme_manager.load_active_theme.return_value = None
+    tab.refresh = MagicMock()
+    # Mock available_themes to trigger selection branch
+    tab.available_themes = {"T": MagicMock()}
+    mock_row = MagicMock(spec=Gtk.ListBoxRow)
+    tab.theme_list_box.get_row_at_index.return_value = mock_row
+    
+    tab._load_themes()
+    tab.theme_sections_container.set_visible.assert_called_with(True)
+    tab.theme_list_box.select_row.assert_called_with(mock_row)
+
+def test_on_theme_switch_toggled_select_first(tab):
+    """Teste _on_theme_switch_toggled sélectionne le premier thème."""
+    tab.theme_list_box = MagicMock(spec=Gtk.ListBox)
+    tab.theme_list_box.get_first_child.return_value = None
+    # Mock scan_system_themes to populate available_themes
+    tab.theme_service.scan_system_themes.return_value = {"T": (MagicMock(), Path("/path"))}
+    
+    mock_row = MagicMock(spec=Gtk.ListBoxRow)
+    tab.theme_list_box.get_row_at_index.return_value = mock_row
+    
+    switch = MagicMock(spec=Gtk.Switch)
+    switch.get_active.return_value = True
+    
+    from ui.tabs.ui_tab_theme_config import _on_theme_switch_toggled
+    _on_theme_switch_toggled(switch, None, tab)
+    
+    tab.theme_list_box.select_row.assert_called_with(mock_row)
+
+def test_on_theme_switch_toggled_no_themes(tab):
+    """Teste _on_theme_switch_toggled quand aucun thème n'est disponible."""
+    switch = MagicMock(spec=Gtk.Switch)
+    switch.get_active.return_value = True
+    tab.theme_list_box = MagicMock(spec=Gtk.ListBox)
+    tab.available_themes = {}
+    tab.refresh = MagicMock()
+    from ui.tabs.ui_tab_theme_config import _on_theme_switch_toggled
+    _on_theme_switch_toggled(switch, None, tab)
+    tab.theme_list_box.select_row.assert_not_called()
+
+def test_load_themes_active_theme_exception(tab):
+    """Teste _load_themes avec une exception lors du chargement du thème actif."""
+    tab.theme_service.is_theme_enabled_in_grub.return_value = True
+    tab.theme_manager.load_active_theme.side_effect = RuntimeError("Test error")
+    tab.refresh = MagicMock()
+    
+    # Ne devrait pas planter
+    tab._load_themes()
+    # Vérifier que la suite s'est exécutée
+    tab.refresh.assert_called()
+
+def test_load_themes_global_exception_real(tab):
+    """Teste _load_themes avec une exception globale."""
+    tab.theme_service.is_theme_enabled_in_grub.side_effect = RuntimeError("Global error")
+    
+    # Ne devrait pas planter
+    tab._load_themes()
+
+def test_load_themes_no_sections_container(tab):
+    """Teste _load_themes sans container de sections."""
+    tab.theme_switch = MagicMock(spec=Gtk.Switch)
+    tab.theme_sections_container = None
+    tab.theme_service.is_theme_enabled_in_grub.return_value = True
+    tab.theme_manager.load_active_theme.return_value = None
+    tab.refresh = MagicMock()
+    tab._load_themes()
+    # Devrait passer sans erreur
+
+def test_load_themes_no_first_row(tab):
+    """Teste _load_themes quand get_row_at_index(0) retourne None."""
+    tab.theme_service.is_theme_enabled_in_grub.return_value = True
+    tab.theme_manager.load_active_theme.return_value = None
+    tab.theme_list_box = MagicMock(spec=Gtk.ListBox)
+    tab.theme_list_box.get_row_at_index.return_value = None
+    tab.available_themes = {"T": MagicMock()}
+    tab.refresh = MagicMock()
+    tab._load_themes()
+    tab.theme_list_box.select_row.assert_not_called()
+
+def test_on_theme_switch_toggled_no_first_row(tab):
+    """Teste _on_theme_switch_toggled quand get_row_at_index(0) retourne None."""
+    switch = MagicMock(spec=Gtk.Switch)
+    switch.get_active.return_value = True
+    tab.theme_list_box = MagicMock(spec=Gtk.ListBox)
+    tab.theme_list_box.get_row_at_index.return_value = None
+    tab.available_themes = {"T": MagicMock()}
+    tab.refresh = MagicMock()
+    from ui.tabs.ui_tab_theme_config import _on_theme_switch_toggled
+    _on_theme_switch_toggled(switch, None, tab)
+    tab.theme_list_box.select_row.assert_not_called()
+
+def test_scan_system_themes_system_badge(tab):
+    """Teste _scan_system_themes avec un badge 'Système'."""
+    mock_theme = GrubTheme(name="system_theme")
+    tab.theme_service.scan_system_themes.return_value = {"system_theme": (mock_theme, Path("/usr/share/grub/themes/system_theme"))}
+    tab.theme_service.is_theme_custom.return_value = False
+    tab._scan_system_themes()
+    assert tab.theme_list_box.append.called

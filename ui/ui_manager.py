@@ -29,6 +29,8 @@ from core.system.core_grub_system_commands import (  # noqa: E402
     load_grub_ui_state,
 )
 from core.system.core_sync_checker import check_grub_sync  # noqa: E402
+from core.config.core_paths import get_grub_themes_dir  # noqa: E402
+from core.theme.core_active_theme_manager import ActiveThemeManager  # noqa: E402
 from ui.tabs.ui_entries_renderer import render_entries as render_entries_view  # noqa: E402
 from ui.ui_builder import UIBuilder  # noqa: E402
 from ui.ui_gtk_helpers import GtkHelper  # noqa: E402
@@ -356,12 +358,6 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         # Lire le thème actif depuis le gestionnaire de thème
         grub_theme = ""
         try:
-            # pylint: disable=import-outside-toplevel
-            from core.config.core_paths import get_grub_themes_dir
-            from core.theme.core_active_theme_manager import ActiveThemeManager
-
-            # pylint: enable=import-outside-toplevel
-
             theme_manager = ActiveThemeManager()
             active_theme = theme_manager.get_active_theme()
             if active_theme and active_theme.name:
@@ -657,12 +653,11 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         if self.info_box is None or self.info_revealer is None:
             return
 
-        ctx = self.info_box.get_style_context()
         for klass in ("info", "warning", "error"):
-            if ctx.has_class(klass):
-                ctx.remove_class(klass)
+            if self.info_box.has_css_class(klass):
+                self.info_box.remove_css_class(klass)
         if msg_type in (INFO, WARNING, ERROR):
-            ctx.add_class(msg_type)
+            self.info_box.add_css_class(msg_type)
 
         self.info_revealer.set_reveal_child(True)
 

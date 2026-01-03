@@ -78,13 +78,15 @@ class ColorPicker:
         Args:
             color_hex: Couleur au format #RRGGBB ou #RGB
         """
+        rgba = Gdk.RGBA()
         try:
-            rgba = Gdk.RGBA()
-            rgba.parse(color_hex)
-            self.color_button.set_property("rgba", rgba)
-            logger.debug(f"[ColorPicker] Couleur définie: {color_hex}")
-        except ValueError as e:
-            logger.warning(f"[ColorPicker] Couleur invalide '{color_hex}': {e}")
+            if rgba.parse(color_hex):
+                self.color_button.set_property("rgba", rgba)
+                logger.debug(f"[ColorPicker] Couleur définie: {color_hex}")
+            else:
+                logger.warning(f"[ColorPicker] Couleur invalide '{color_hex}'")
+        except (ValueError, TypeError, Exception) as e:
+            logger.warning(f"[ColorPicker] Erreur lors du parsing de la couleur '{color_hex}': {e}")
 
     def get_widget(self) -> Gtk.Box:
         """Récupère le widget complet (label + button dans une HBox).

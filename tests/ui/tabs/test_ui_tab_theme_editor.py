@@ -18,10 +18,9 @@ def state_manager():
 def editor(state_manager):
     with (
         patch("ui.tabs.ui_tab_theme_editor.create_main_box", return_value=Gtk.Box()),
-        patch("ui.tabs.ui_tab_theme_editor.WidgetFactory") as mock_wf,
+        patch("ui.tabs.ui_tab_theme_editor.create_section_header", return_value=Gtk.Label()),
+        patch("ui.tabs.ui_tab_theme_editor.create_section_title", return_value=Gtk.Label()),
     ):
-        mock_wf.create_section_header.return_value = Gtk.Label()
-        mock_wf.create_section_title.return_value = Gtk.Label()
         return TabThemeEditor(state_manager)
 
 

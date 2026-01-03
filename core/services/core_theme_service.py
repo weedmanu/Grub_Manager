@@ -51,11 +51,10 @@ class ThemeService:
                 content = grub_cfg.read_text(encoding="utf-8", errors="ignore")
                 for line in content.split("\n"):
                     if "set theme=" in line.lower() or "theme=" in line.lower():
-                        if "=" in line:
-                            theme_path = line.split("=", 1)[1].strip().strip('"').strip("'")
-                            if theme_path:
-                                logger.debug(f"[ThemeService] Thème trouvé dans {grub_cfg_path}: {theme_path}")
-                                return True
+                        theme_path = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        if theme_path:
+                            logger.debug(f"[ThemeService] Thème trouvé dans {grub_cfg_path}: {theme_path}")
+                            return True
             except (OSError, PermissionError) as e:
                 logger.debug(f"[ThemeService] Impossible de lire {grub_cfg_path}: {e}")
 
