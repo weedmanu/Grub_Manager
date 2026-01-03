@@ -22,7 +22,10 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from core.io.core_grub_default_io import read_grub_default  # noqa: E402
 from core.managers.core_apply_manager import GrubApplyManager  # noqa: E402
-from core.managers.core_entry_visibility_manager import apply_hidden_entries_to_grub_cfg  # noqa: E402
+from core.managers.core_entry_visibility_manager import (  # noqa: E402
+    apply_hidden_entries_to_grub_cfg,
+    save_hidden_entry_ids,
+)
 from core.models.core_grub_ui_model import merged_config_from_model  # noqa: E402
 from core.system.core_grub_system_commands import (  # noqa: E402
     GrubDefaultChoice,
@@ -67,9 +70,11 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         self.gfxmode_dropdown: Gtk.DropDown | None = None
         self.gfxpayload_dropdown: Gtk.DropDown | None = None
 
-        self.disable_submenu_check: Gtk.Switch | None = None
-        self.disable_recovery_check: Gtk.Switch | None = None
         self.disable_os_prober_check: Gtk.Switch | None = None
+
+        # Options globales de masquage (via hidden_entries.json + post-traitement grub.cfg)
+        self.hide_advanced_options_check: Gtk.Switch | None = None
+        self.hide_memtest_check: Gtk.Switch | None = None
 
         self.entries_listbox: Gtk.ListBox | None = None
 
@@ -90,6 +95,13 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         self.load_config()
         self.check_permissions()
         logger.success("[GrubConfigManager.__init__] Initialisation complète")
+
+    def _apply_state(self, state: AppState) -> None:
+        """Wrapper interne pour synchroniser l'état et les boutons.
+
+        Certains handlers (ex: renderer des entrées) appellent cette méthode.
+        """
+        self.state_manager.apply_state(state, self.save_btn, self.reload_btn)
 
     # ========================================================================
     # HELPERS: Manipulation de widgets GTK (timeout, dropdown, etc.)
@@ -251,10 +263,7 @@ class GrubConfigManager(Gtk.ApplicationWindow):
             f"default={model.default}, hidden_timeout={model.hidden_timeout}"
         )
         logger.debug(f"[_apply_model_to_ui] Graphics: gfxmode={model.gfxmode}, gfxpayload={model.gfxpayload_linux}")
-        logger.debug(
-            f"[_apply_model_to_ui] Flags: disable_submenu={model.disable_submenu}, "
-            f"disable_recovery={model.disable_recovery}, disable_os_prober={model.disable_os_prober}"
-        )
+        logger.debug(f"[_apply_model_to_ui] Flags: disable_os_prober={model.disable_os_prober}")
 
         self.state_manager.set_loading(True)
         logger.debug("[_apply_model_to_ui] Loading flag set to True")
@@ -285,17 +294,34 @@ class GrubConfigManager(Gtk.ApplicationWindow):
                 GtkHelper.dropdown_set_value(self.gfxpayload_dropdown, model.gfxpayload_linux)
                 logger.debug(f"[_apply_model_to_ui] gfxpayload_dropdown set to '{model.gfxpayload_linux}'")
 
-            if self.disable_submenu_check is not None:
-                self.disable_submenu_check.set_active(bool(model.disable_submenu))
-                logger.debug(f"[_apply_model_to_ui] disable_submenu_check.set_active({bool(model.disable_submenu)})")
-            if self.disable_recovery_check is not None:
-                self.disable_recovery_check.set_active(bool(model.disable_recovery))
-                logger.debug(f"[_apply_model_to_ui] disable_recovery_check.set_active({bool(model.disable_recovery)})")
             if self.disable_os_prober_check is not None:
                 self.disable_os_prober_check.set_active(bool(model.disable_os_prober))
                 logger.debug(
                     f"[_apply_model_to_ui] disable_os_prober_check.set_active({bool(model.disable_os_prober)})"
                 )
+
+            # Synchroniser les switches de masquage global (Advanced options / memtest)
+            # Basé sur les IDs actuellement masqués.
+            hide_advanced_options_check = getattr(self, "hide_advanced_options_check", None)
+            if hide_advanced_options_check is not None:
+                adv_ids = {
+                    (e.menu_id or "").strip()
+                    for e in (entries or [])
+                    if (e.menu_id or "").strip() and ("advanced options" in (e.title or "").lower())
+                }
+                hide_advanced_options_check.set_active(
+                    bool(adv_ids) and adv_ids.issubset(self.state_manager.hidden_entry_ids)
+                )
+
+            hide_memtest_check = getattr(self, "hide_memtest_check", None)
+            if hide_memtest_check is not None:
+                mem_ids = {
+                    (e.menu_id or "").strip()
+                    for e in (entries or [])
+                    if (e.menu_id or "").strip()
+                    and (("memtest" in (e.title or "").lower()) or ("memtest" in ((e.source or "").lower())))
+                }
+                hide_memtest_check.set_active(bool(mem_ids) and mem_ids.issubset(self.state_manager.hidden_entry_ids))
 
             self._refresh_default_choices(entries)
             logger.debug(f"[_apply_model_to_ui] refresh_default_choices completed with {len(entries)} entries")
@@ -337,19 +363,10 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         )
         logger.debug(f"[_read_model_from_ui] gfxpayload='{gfxpayload}'")
 
-        disable_submenu = (
-            bool(self.disable_submenu_check.get_active()) if self.disable_submenu_check is not None else False
-        )
-        disable_recovery = (
-            bool(self.disable_recovery_check.get_active()) if self.disable_recovery_check is not None else False
-        )
         disable_os_prober = (
             bool(self.disable_os_prober_check.get_active()) if self.disable_os_prober_check is not None else False
         )
-        logger.debug(
-            f"[_read_model_from_ui] flags: disable_submenu={disable_submenu}, "
-            f"disable_recovery={disable_recovery}, disable_os_prober={disable_os_prober}"
-        )
+        logger.debug(f"[_read_model_from_ui] flags: disable_os_prober={disable_os_prober}")
 
         # Lire les paramètres kernel depuis le dropdown
         cmdline_value = self._get_cmdline_value()
@@ -377,8 +394,6 @@ class GrubConfigManager(Gtk.ApplicationWindow):
             hidden_timeout=hidden_timeout,
             gfxmode=gfxmode,
             gfxpayload_linux=gfxpayload,
-            disable_submenu=disable_submenu,
-            disable_recovery=disable_recovery,
             disable_os_prober=disable_os_prober,
             grub_theme=grub_theme,
             quiet=quiet,
@@ -495,13 +510,74 @@ class GrubConfigManager(Gtk.ApplicationWindow):
             self._set_timeout_value(0)
         self.on_modified(widget)
 
-    def on_menu_options_toggled(self, widget):
-        """Toggle visibility of advanced menu options."""
+    def on_menu_options_toggled(self, widget, _pspec=None):
+        """Toggle visibility of advanced menu options.
+
+        Connected to GTK signals like ``notify::active`` which pass (widget, pspec).
+        """
         if self.state_manager.is_loading():
             logger.debug("[on_menu_options_toggled] Ignored - loading in progress")
             return
         logger.debug(f"[on_menu_options_toggled] Menu option toggled - {widget.__class__.__name__}")
         self.on_modified(widget)
+        render_entries_view(self)
+
+    def on_hide_category_toggled(self, widget, _pspec=None) -> None:
+        """Masque/démasque en bloc certaines catégories d'entrées (Advanced options, memtest).
+
+        Implémenté via hidden_entries.json + post-traitement de grub.cfg lors de l'application.
+        """
+        if self.state_manager.is_loading():
+            logger.debug("[on_hide_category_toggled] Ignored - loading in progress")
+            return
+
+        category = getattr(widget, "_category_name", "")
+        active = bool(widget.get_active())
+        entries = list(self.state_manager.state_data.entries or [])
+
+        def _ids_for_advanced() -> set[str]:
+            ids: set[str] = set()
+            for e in entries:
+                mid = (getattr(e, "menu_id", "") or "").strip()
+                if not mid:
+                    continue
+                t = (getattr(e, "title", "") or "").lower()
+                if "advanced options" in t or "options avanc" in t:
+                    ids.add(mid)
+            return ids
+
+        def _ids_for_memtest() -> set[str]:
+            ids: set[str] = set()
+            for e in entries:
+                mid = (getattr(e, "menu_id", "") or "").strip()
+                if not mid:
+                    continue
+                t = (getattr(e, "title", "") or "").lower()
+                src = (getattr(e, "source", "") or "").lower()
+                if "memtest" in t or "memtest" in src:
+                    ids.add(mid)
+            return ids
+
+        if category == "advanced_options":
+            ids = _ids_for_advanced()
+        elif category == "memtest":
+            ids = _ids_for_memtest()
+        else:
+            logger.debug(f"[on_hide_category_toggled] Unknown category='{category}'")
+            return
+
+        if not ids:
+            logger.debug(f"[on_hide_category_toggled] No matching IDs for '{category}'")
+            return
+
+        if active:
+            self.state_manager.hidden_entry_ids |= ids
+        else:
+            self.state_manager.hidden_entry_ids -= ids
+
+        save_hidden_entry_ids(self.state_manager.hidden_entry_ids)
+        self.state_manager.entries_visibility_dirty = True
+        self._apply_state(self.state_manager.state)
         render_entries_view(self)
 
     def on_reload(self, _button):

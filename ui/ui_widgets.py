@@ -6,7 +6,7 @@ Fournit des utilitaires réutilisables pour la construction d'interfaces.
 
 from __future__ import annotations
 
-from gi.repository import Gtk
+from gi.repository import Gtk, Pango
 from loguru import logger
 
 # ============================================================================
@@ -175,8 +175,14 @@ def box_append_label(
     label = Gtk.Label()
     if italic:
         label.set_markup(f"<i>{text}</i>")
+        label.add_css_class("dim-label")
+        label.add_css_class("subtitle-label")
     else:
         label.set_text(text)
+    label.set_wrap(True)
+    label.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
+    label.set_xalign(0)
+    label.set_justify(Gtk.Justification.LEFT)
     label.set_halign(halign)
     box.append(label)
     return label

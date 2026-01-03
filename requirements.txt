@@ -1,10 +1,6 @@
 loguru>=0.7
-flake8
-isort
 mypy
-pylint
 vulture
-pydocstyle
 ruff
 black
 pytest

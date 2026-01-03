@@ -47,51 +47,20 @@ def test_disable_os_prober_persistence_when_true() -> None:
     assert merged["GRUB_DISABLE_OS_PROBER"] == "true"
 
 
-def test_disable_recovery_toggle() -> None:
-    """Vérifie le toggle recovery on->off->on."""
-    base = {"GRUB_TIMEOUT": "5", "GRUB_DISABLE_RECOVERY": "true"}
-
-    # 1. État initial: recovery désactivé
+def test_disable_recovery_is_preserved_when_present() -> None:
+    """GRUB_DISABLE_RECOVERY n'est plus géré: il doit être préservé tel quel."""
+    base = {"GRUB_TIMEOUT": "5", "GRUB_DEFAULT": "0", "GRUB_DISABLE_RECOVERY": "true"}
     model = model_from_config(base)
-    assert model.disable_recovery is True
-
-    # 2. On réactive recovery
-    model_enabled = GrubUiModel(
-        timeout=model.timeout,
-        default=model.default,
-        disable_recovery=False,
-    )
-    merged = merged_config_from_model(base, model_enabled)
-    assert "GRUB_DISABLE_RECOVERY" not in merged
-
-    # 3. On relit: doit être False
-    model2 = model_from_config(merged)
-    assert model2.disable_recovery is False
-
-    # 4. On redésactive
-    model_disabled = GrubUiModel(
-        timeout=model2.timeout,
-        default=model2.default,
-        disable_recovery=True,
-    )
-    merged2 = merged_config_from_model(merged, model_disabled)
-    assert merged2["GRUB_DISABLE_RECOVERY"] == "true"
+    merged = merged_config_from_model(base, model)
+    assert merged["GRUB_DISABLE_RECOVERY"] == "true"
 
 
-def test_disable_submenu_toggle() -> None:
-    """Vérifie le toggle submenu."""
-    # Cycle complet: off -> on -> off
-    base = {"GRUB_TIMEOUT": "5"}
-
-    # Activer
-    model_on = GrubUiModel(timeout=5, default="0", disable_submenu=True)
-    merged = merged_config_from_model(base, model_on)
+def test_disable_submenu_is_preserved_when_present() -> None:
+    """GRUB_DISABLE_SUBMENU n'est plus géré: il doit être préservé tel quel."""
+    base = {"GRUB_TIMEOUT": "5", "GRUB_DEFAULT": "0", "GRUB_DISABLE_SUBMENU": "y"}
+    model = model_from_config(base)
+    merged = merged_config_from_model(base, model)
     assert merged["GRUB_DISABLE_SUBMENU"] == "y"
-
-    # Désactiver
-    model_off = GrubUiModel(timeout=5, default="0", disable_submenu=False)
-    merged2 = merged_config_from_model(merged, model_off)
-    assert "GRUB_DISABLE_SUBMENU" not in merged2
 
 
 def test_terminal_console_toggle() -> None:
@@ -157,14 +126,13 @@ def test_roundtrip_all_options() -> None:
     model = model_from_config(original)
     assert model.timeout == 10
     assert model.default == "0"
-    assert model.disable_submenu is True
-    assert model.disable_recovery is True
     assert model.disable_os_prober is False  # Absent = non désactivé
     assert model.gfxmode == "1920x1080"
 
     # 2. Sauvegarder
     merged = merged_config_from_model(original, model)
     assert merged["GRUB_TIMEOUT"] == "10"
+    # Ces clés ne sont plus gérées: elles doivent être préservées
     assert merged["GRUB_DISABLE_SUBMENU"] == "y"
     assert merged["GRUB_DISABLE_RECOVERY"] == "true"
     assert "GRUB_DISABLE_OS_PROBER" not in merged  # Toujours absent
@@ -174,8 +142,6 @@ def test_roundtrip_all_options() -> None:
     # 3. Recharger
     model2 = model_from_config(merged)
     assert model2.timeout == model.timeout
-    assert model2.disable_submenu == model.disable_submenu
-    assert model2.disable_recovery == model.disable_recovery
     assert model2.disable_os_prober == model.disable_os_prober
 
 

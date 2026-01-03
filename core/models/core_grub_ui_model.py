@@ -32,8 +32,6 @@ class GrubUiModel:
     gfxmode: str = ""
     gfxpayload_linux: str = ""
 
-    disable_submenu: bool = False
-    disable_recovery: bool = False
     disable_os_prober: bool = False
     grub_theme: str = ""  # Chemin vers le fichier theme.txt
 
@@ -60,8 +58,6 @@ _MANAGED_KEYS: Final[set[str]] = {
     "GRUB_DEFAULT",
     "GRUB_TIMEOUT_STYLE",
     "GRUB_SAVEDEFAULT",
-    "GRUB_DISABLE_SUBMENU",
-    "GRUB_DISABLE_RECOVERY",
     "GRUB_DISABLE_OS_PROBER",
     "GRUB_GFXMODE",
     "GRUB_GFXPAYLOAD_LINUX",
@@ -108,8 +104,6 @@ def model_from_config(config: dict[str, str]) -> GrubUiModel:
         hidden_timeout=hidden_timeout,
         gfxmode=config.get("GRUB_GFXMODE", ""),
         gfxpayload_linux=config.get("GRUB_GFXPAYLOAD_LINUX", ""),
-        disable_submenu=_as_bool(config, "GRUB_DISABLE_SUBMENU", {"y"}),
-        disable_recovery=_as_bool(config, "GRUB_DISABLE_RECOVERY", {"true"}),
         disable_os_prober=_as_bool(config, "GRUB_DISABLE_OS_PROBER", {"true"}),
         grub_theme=config.get("GRUB_THEME", ""),
         quiet=quiet,
@@ -140,14 +134,6 @@ def merged_config_from_model(base_config: dict[str, str], model: GrubUiModel) ->
     # GRUB_SAVEDEFAULT: True si GRUB_DEFAULT=saved OU si explicitement demandé
     if model.save_default or model.default == "saved":
         cfg["GRUB_SAVEDEFAULT"] = "true"
-
-    if model.disable_submenu:
-        cfg["GRUB_DISABLE_SUBMENU"] = "y"
-    # Sinon : clé absente = sous-menus activés
-
-    if model.disable_recovery:
-        cfg["GRUB_DISABLE_RECOVERY"] = "true"
-    # Sinon : clé absente = mode recovery activé
 
     if model.disable_os_prober:
         cfg["GRUB_DISABLE_OS_PROBER"] = "true"

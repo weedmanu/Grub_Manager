@@ -50,8 +50,6 @@ def manager():
         mgr.cmdline_dropdown = Gtk.DropDown.new_from_strings(["quiet splash", "quiet", "splash", "verbose"])
         mgr.gfxmode_dropdown = Gtk.DropDown.new_from_strings(["auto", "1024x768"])
         mgr.gfxpayload_dropdown = Gtk.DropDown.new_from_strings(["keep", "text"])
-        mgr.disable_submenu_check = Gtk.Switch()
-        mgr.disable_recovery_check = Gtk.Switch()
         mgr.disable_os_prober_check = Gtk.Switch()
 
         return mgr
@@ -86,8 +84,6 @@ def test_apply_model_to_ui_full(manager):
         splash=True,
         gfxmode="1024x768",
         gfxpayload_linux="keep",
-        disable_submenu=True,
-        disable_recovery=False,
         disable_os_prober=True
     )
     entries = [GrubDefaultChoice(id="id1", title="Title 1")]
@@ -116,7 +112,6 @@ def test_read_model_from_ui_full(manager):
     manager.timeout_dropdown.set_selected(1) # 5
     manager.hidden_timeout_check.set_active(True)
     manager.cmdline_dropdown.set_selected(0) # quiet splash
-    manager.disable_submenu_check.set_active(True)
     manager.gfxmode_dropdown.set_selected(1) # 1024x768
     manager.gfxpayload_dropdown.set_selected(1) # text
 
@@ -129,7 +124,6 @@ def test_read_model_from_ui_full(manager):
     assert model.hidden_timeout is True
     assert model.quiet is True
     assert model.splash is True
-    assert model.disable_submenu is True
     assert model.gfxmode == "1024x768"
     assert model.gfxpayload_linux == "text"
 

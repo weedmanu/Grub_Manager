@@ -16,8 +16,6 @@ class MockGrubConfigManager(GrubConfigManager):
         self.gfxmode_dropdown = None
         self.gfxpayload_dropdown = None
         self.terminal_color_check = None
-        self.disable_submenu_check = None
-        self.disable_recovery_check = None
         self.disable_os_prober_check = None
         self.entries_listbox = None
         self.maintenance_output = None
@@ -166,8 +164,6 @@ def test_apply_model_to_ui_none_widgets(manager):
     manager.hidden_timeout_check = None
     manager.gfxmode_dropdown = None
     manager.gfxpayload_dropdown = None
-    manager.disable_submenu_check = None
-    manager.disable_recovery_check = None
     manager.disable_os_prober_check = None
     manager.terminal_color_check = None
 

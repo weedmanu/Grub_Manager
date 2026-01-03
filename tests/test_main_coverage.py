@@ -117,7 +117,7 @@ class TestMainCoverage:
     def test_reexec_as_root_exec_failure(self, mock_execv, mock_which, mock_geteuid):
         """Test _reexec_as_root_once handles execv failure."""
         from main import _reexec_as_root_once
-        mock_execv.side_effect = Exception("Exec failure")
+        mock_execv.side_effect = OSError("Exec failure")
 
         # Should not raise, just log error
         _reexec_as_root_once()

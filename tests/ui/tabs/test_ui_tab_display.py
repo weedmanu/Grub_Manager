@@ -22,7 +22,6 @@ def test_build_display_tab():
     # Verify that widgets were created and assigned to controller
     assert isinstance(controller.gfxmode_dropdown, Gtk.DropDown)
     assert isinstance(controller.gfxpayload_dropdown, Gtk.DropDown)
-    assert isinstance(controller.terminal_color_check, Gtk.CheckButton)
 
     # Verify that notebook has one page
     assert notebook.get_n_pages() == 1
@@ -46,4 +45,3 @@ def test_build_display_tab_signals():
     # Trigger signals
     controller.gfxmode_dropdown.set_selected(1)
     controller.gfxpayload_dropdown.set_selected(1)
-    controller.terminal_color_check.set_active(True)

@@ -100,6 +100,7 @@ def build_general_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     info_box = create_info_box(
         "Note:",
         "Le mode 'quiet splash' affiche le logo de chargement.\nLe mode 'verbose' affiche tous les messages du noyau.",
+        css_class="warning-box",
     )
     right_section.append(info_box)
 

@@ -37,15 +37,11 @@ def test_merged_config_all_branches():
     # Cas où tout est activé
     model = GrubUiModel(
         save_default=True,
-        disable_submenu=True,
-        disable_recovery=True,
         disable_os_prober=True,
         grub_theme="/boot/grub/themes/mytheme/theme.txt"
     )
     merged = merged_config_from_model({}, model)
     assert merged["GRUB_SAVEDEFAULT"] == "true"
-    assert merged["GRUB_DISABLE_SUBMENU"] == "y"
-    assert merged["GRUB_DISABLE_RECOVERY"] == "true"
     assert merged["GRUB_DISABLE_OS_PROBER"] == "true"
     assert merged["GRUB_THEME"] == "/boot/grub/themes/mytheme/theme.txt"
 
@@ -59,23 +55,20 @@ def test_merged_config_all_branches():
     }
     model = GrubUiModel(
         save_default=False,
-        disable_submenu=False,
-        disable_recovery=False,
         disable_os_prober=False,
         grub_theme=""
     )
     merged = merged_config_from_model(base, model)
     assert "GRUB_SAVEDEFAULT" not in merged
-    assert "GRUB_DISABLE_SUBMENU" not in merged
-    assert "GRUB_DISABLE_RECOVERY" not in merged
     assert "GRUB_DISABLE_OS_PROBER" not in merged
     assert "GRUB_THEME" not in merged
+    # Ces clés ne sont plus gérées: elles doivent être conservées
+    assert merged["GRUB_DISABLE_SUBMENU"] == "y"
+    assert merged["GRUB_DISABLE_RECOVERY"] == "true"
 
     # Cas où tout est désactivé et absent de base (pour couvrir les branches else)
     merged_empty = merged_config_from_model({}, model)
     assert "GRUB_SAVEDEFAULT" not in merged_empty
-    assert "GRUB_DISABLE_SUBMENU" not in merged_empty
-    assert "GRUB_DISABLE_RECOVERY" not in merged_empty
     assert "GRUB_DISABLE_OS_PROBER" not in merged_empty
     assert "GRUB_THEME" not in merged_empty
 

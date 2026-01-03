@@ -72,7 +72,7 @@ class TabThemeEditor:
         Returns:
             Container principal de l'onglet
         """
-        main_box = create_main_box(spacing=10, margin=10)
+        main_box = create_main_box(spacing=12, margin=12)
 
         # En-tête
         header = create_section_header("Générateur de Thèmes GRUB")

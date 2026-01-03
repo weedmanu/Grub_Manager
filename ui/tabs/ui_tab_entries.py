@@ -36,33 +36,30 @@ def build_entries_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     _, left_section, right_section = create_two_column_layout(box)
 
     # === COLONNE GAUCHE : Liste des entrées ===
-    left_title = Gtk.Label(xalign=0)
-    left_title.set_markup("<b>Liste des entrées</b>")
-    left_title.add_css_class("section-title")
-    left_section.append(left_title)
+    box_append_section_title(left_section, "Liste des entrées")
 
     box_append_label(left_section, "Décochez pour masquer une entrée.", italic=True)
 
     # === Liste des entrées avec toggles ===
     logger.debug("[build_entries_tab] Création scrolled listbox pour entrées")
+    list_frame = Gtk.Frame()
+    list_frame.set_vexpand(True)
+    left_section.append(list_frame)
+
     scroll = Gtk.ScrolledWindow()
-    scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+    scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
     scroll.set_vexpand(True)
-    scroll.add_css_class("frame")  # Ajout d'une bordure visuelle
 
     controller.entries_listbox = Gtk.ListBox()
     controller.entries_listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
     controller.entries_listbox.add_css_class("rich-list")
     scroll.set_child(controller.entries_listbox)
-    left_section.append(scroll)
+    list_frame.set_child(scroll)
 
     # two_columns.append(left_section) # Déjà ajouté par create_two_column_layout
 
     # === COLONNE DROITE : Options du menu ===
-    right_title = Gtk.Label(xalign=0)
-    right_title.set_markup("<b>Options globales</b>")
-    right_title.add_css_class("section-title")
-    right_section.append(right_title)
+    box_append_section_title(right_section, "Options globales")
 
     box_append_label(right_section, "Ces options s'appliquent à tout le menu.", italic=True)
 
@@ -72,13 +69,6 @@ def build_entries_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     # Conteneur pour les switches
     switches_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
     switches_box.set_margin_top(8)
-
-    controller.disable_recovery_check = Gtk.Switch()
-    controller.disable_recovery_check.connect("notify::active", controller.on_menu_options_toggled)
-    controller.disable_recovery_check._option_name = "Disable Recovery"
-    _add_styled_switch(
-        switches_box, "Masquer 'Recovery Mode'", controller.disable_recovery_check, "Cache les options de dépannage."
-    )
 
     controller.disable_os_prober_check = Gtk.Switch()
     controller.disable_os_prober_check.connect("notify::active", controller.on_menu_options_toggled)
@@ -90,20 +80,34 @@ def build_entries_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
         "Ne pas détecter les autres systèmes (Windows, etc).",
     )
 
-    controller.disable_submenu_check = Gtk.Switch()
-    controller.disable_submenu_check.connect("notify::active", controller.on_menu_options_toggled)
-    controller.disable_submenu_check._option_name = "Disable Submenu"
+    controller.hide_advanced_options_check = Gtk.Switch()
+    controller.hide_advanced_options_check.connect("notify::active", controller.on_hide_category_toggled)
+    controller.hide_advanced_options_check._category_name = "advanced_options"
     _add_styled_switch(
         switches_box,
-        "Menu plat (Pas de sous-menus)",
-        controller.disable_submenu_check,
-        "Affiche toutes les entrées au premier niveau.",
+        "Masquer 'Advanced options'",
+        controller.hide_advanced_options_check,
+        "Cache les entrées avancées (noyau/paramètres) du menu.",
+    )
+
+    controller.hide_memtest_check = Gtk.Switch()
+    controller.hide_memtest_check.connect("notify::active", controller.on_hide_category_toggled)
+    controller.hide_memtest_check._category_name = "memtest"
+    _add_styled_switch(
+        switches_box,
+        "Masquer 'memtest'",
+        controller.hide_memtest_check,
+        "Cache les entrées de test mémoire (memtest).",
     )
 
     right_section.append(switches_box)
 
     # Info box
-    info_box = create_info_box("Note:", "L'entrée par défaut se règle dans l'onglet Général.")
+    info_box = create_info_box(
+        "Note:",
+        "L'entrée par défaut se règle dans l'onglet Général.",
+        css_class="warning-box",
+    )
     right_section.append(info_box)
 
     # two_columns.append(right_section) # Déjà ajouté par create_two_column_layout
@@ -127,8 +131,10 @@ def _add_styled_switch(
 
     if description:
         desc = Gtk.Label(xalign=0, label=description)
-        desc.add_css_class("caption")
         desc.set_wrap(True)
+        desc.set_justify(Gtk.Justification.LEFT)
+        desc.add_css_class("dim-label")
+        desc.add_css_class("subtitle-label")
         vbox.append(desc)
 
     row.append(vbox)

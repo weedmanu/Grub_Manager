@@ -31,6 +31,19 @@ def _entry_is_os_prober(choice: GrubDefaultChoice) -> bool:
     return choice.menu_id.startswith("osprober-")
 
 
+def _entry_is_advanced_options(title: str) -> bool:
+    """Detect if entry title belongs to GRUB 'Advanced options' submenu."""
+    t = (title or "").lower()
+    return ("advanced options" in t) or ("options avanc" in t)
+
+
+def _entry_is_memtest(choice: GrubDefaultChoice) -> bool:
+    """Detect if entry comes from memtest scripts."""
+    t = (getattr(choice, "title", "") or "").lower()
+    src = (getattr(choice, "source", "") or "").lower()
+    return ("memtest" in t) or ("memtest" in src)
+
+
 def _entry_display_title(title: str, disable_submenu: bool) -> str:
     """Format boot entry title for display in menu list.
 
@@ -39,9 +52,16 @@ def _entry_display_title(title: str, disable_submenu: bool) -> str:
     title_str = str(title or "").strip()
     if not title_str:
         return "(Untitled)"
-    if disable_submenu and ">>" in title_str:
-        # Remove submenu marker when submenus are disabled
-        return title_str.split(">>", maxsplit=1)[0].strip()
+    if disable_submenu and ">" in title_str:
+        # When submenus are disabled, keep only the leaf entry title.
+        # core_grub_menu_parser builds titles like: "Submenu title > Entry title".
+        # Some older formats may use ">>".
+        if ">>" in title_str:
+            parts = [p.strip() for p in title_str.split(">>") if p.strip()]
+        else:
+            parts = [p.strip() for p in title_str.split(">") if p.strip()]
+        if parts:
+            return parts[-1]
     return title_str[:100]  # Truncate very long titles
 
 
@@ -60,20 +80,25 @@ def render_entries(controller: GrubConfigManager) -> None:
     state = controller.state_manager.state_data
     wanted_id = (state.model.default or "").strip()
 
-    hide_recovery = (
-        bool(controller.disable_recovery_check.get_active()) if controller.disable_recovery_check is not None else False
-    )
+    disable_recovery_check = getattr(controller, "disable_recovery_check", None)
+    hide_recovery = bool(disable_recovery_check.get_active()) if disable_recovery_check is not None else False
     hide_os_prober = (
         bool(controller.disable_os_prober_check.get_active())
         if controller.disable_os_prober_check is not None
         else False
     )
-    disable_submenu = (
-        bool(controller.disable_submenu_check.get_active()) if controller.disable_submenu_check is not None else False
-    )
+    disable_submenu_check = getattr(controller, "disable_submenu_check", None)
+    disable_submenu = bool(disable_submenu_check.get_active()) if disable_submenu_check is not None else False
+
+    hide_advanced_check = getattr(controller, "hide_advanced_options_check", None)
+    hide_advanced = bool(hide_advanced_check.get_active()) if hide_advanced_check is not None else False
+
+    hide_memtest_check = getattr(controller, "hide_memtest_check", None)
+    hide_memtest = bool(hide_memtest_check.get_active()) if hide_memtest_check is not None else False
     logger.debug(
         f"[render_entries] Filters: hide_recovery={hide_recovery}, "
-        f"hide_os_prober={hide_os_prober}, disable_submenu={disable_submenu}"
+        f"hide_os_prober={hide_os_prober}, disable_submenu={disable_submenu}, "
+        f"hide_advanced={hide_advanced}, hide_memtest={hide_memtest}"
     )
 
     clear_listbox(listbox)
@@ -102,6 +127,12 @@ def render_entries(controller: GrubConfigManager) -> None:
             continue
         if hide_os_prober and _entry_is_os_prober(choice):
             logger.debug(f"[render_entries] Entry #{i} filtered (os-prober): {title[:30]}")
+            continue
+        if hide_memtest and _entry_is_memtest(choice):
+            logger.debug(f"[render_entries] Entry #{i} filtered (memtest): {title[:30]}")
+            continue
+        if hide_advanced and _entry_is_advanced_options(title):
+            logger.debug(f"[render_entries] Entry #{i} filtered (advanced options): {title[:30]}")
             continue
 
         row = Gtk.ListBoxRow()

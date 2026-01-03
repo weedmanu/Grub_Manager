@@ -111,6 +111,7 @@ class TabThemeConfig:
 
         desc_label = Gtk.Label(xalign=0, label="Gérez l'apparence du menu de démarrage GRUB.")
         desc_label.add_css_class("dim-label")
+        desc_label.add_css_class("subtitle-label")
         desc_label.set_margin_bottom(12)
         container.append(desc_label)
 
@@ -124,12 +125,16 @@ class TabThemeConfig:
         self.scripts_info_box = Gtk.Box(orientation=VERTICAL, spacing=8)
         container.append(self.scripts_info_box)
 
-        # Scrolled window pour la liste
+        # Frame + Scrolled window pour harmoniser avec les autres onglets
+        frame = Gtk.Frame()
+        frame.set_vexpand(True)
+        frame.set_hexpand(True)
+        container.append(frame)
+
         scrolled = Gtk.ScrolledWindow()
-        scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scrolled.set_vexpand(True)
         scrolled.set_hexpand(True)
-        scrolled.add_css_class("frame")
 
         self.theme_list_box = Gtk.ListBox()
         self.theme_list_box.set_selection_mode(Gtk.SelectionMode.SINGLE)
@@ -137,7 +142,7 @@ class TabThemeConfig:
         self.theme_list_box.connect("row-selected", lambda lb, row: _on_theme_selected(lb, row, self))
 
         scrolled.set_child(self.theme_list_box)
-        container.append(scrolled)
+        frame.set_child(scrolled)
 
     def _build_right_column(self, container: Gtk.Box) -> None:
         """Construit la colonne de droite (actions)."""

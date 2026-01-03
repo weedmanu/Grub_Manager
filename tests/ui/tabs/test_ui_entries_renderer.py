@@ -25,7 +25,8 @@ def test_entry_helpers():
     assert _entry_is_os_prober(GrubDefaultChoice(id="0", title="Windows", menu_id="osprober-123", source=None)) is True
 
     assert _entry_display_title("Ubuntu", False) == "Ubuntu"
-    assert _entry_display_title("Ubuntu >> Advanced", True) == "Ubuntu"
+    assert _entry_display_title("Ubuntu >> Advanced", True) == "Advanced"
+    assert _entry_display_title("Advanced options for Ubuntu > Ubuntu, with Linux", True) == "Ubuntu, with Linux"
     assert _entry_display_title("", False) == "(Untitled)"
     assert _entry_display_title("A" * 200, False) == "A" * 100
 
@@ -73,8 +74,15 @@ def test_render_entries_filters():
     state_data = controller.state_manager.state_data
     state_data.entries = [
         GrubDefaultChoice(id="0", title="Ubuntu", menu_id="ubuntu-id", source="10_linux"),
+        GrubDefaultChoice(
+            id="0>0",
+            title="Advanced options for Ubuntu > Ubuntu, with Linux",
+            menu_id="adv-id",
+            source="10_linux",
+        ),
         GrubDefaultChoice(id="1", title="Windows", menu_id="osprober-id", source="30_os-prober"),
         GrubDefaultChoice(id="2", title="Ubuntu (recovery)", menu_id="recovery-id", source="10_linux"),
+        GrubDefaultChoice(id="3", title="Memory test (memtest86+)", menu_id="memtest-id", source="20_memtest86+"),
     ]
     state_data.model.default = "0"
 
@@ -82,6 +90,10 @@ def test_render_entries_filters():
     controller.disable_recovery_check.get_active.return_value = True
     controller.disable_os_prober_check.get_active.return_value = True
     controller.disable_submenu_check.get_active.return_value = False
+
+    # New global filters
+    controller.hide_advanced_options_check.get_active.return_value = True
+    controller.hide_memtest_check.get_active.return_value = True
 
     render_entries(controller)
 

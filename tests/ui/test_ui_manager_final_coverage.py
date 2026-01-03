@@ -27,8 +27,6 @@ def ui_manager():
             self.hidden_timeout_check = MagicMock()
             self.gfxmode_dropdown = MagicMock()
             self.gfxpayload_dropdown = MagicMock()
-            self.disable_submenu_check = MagicMock()
-            self.disable_recovery_check = MagicMock()
             self.disable_os_prober_check = MagicMock()
             self.terminal_color_check = MagicMock()
 

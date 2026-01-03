@@ -13,7 +13,6 @@ from ui.tabs.ui_tab_display import build_display_tab
 class MockController:
     def __init__(self):
         self.gfxmode_dropdown = None
-        self.terminal_color_check = None
         self.gfxpayload_dropdown = None
         self.on_modified = MagicMock()
 
@@ -25,15 +24,11 @@ def test_build_display_tab():
 
     assert notebook.get_n_pages() == 1
     assert isinstance(controller.gfxmode_dropdown, Gtk.DropDown)
-    assert isinstance(controller.terminal_color_check, Gtk.CheckButton)
     assert isinstance(controller.gfxpayload_dropdown, Gtk.DropDown)
 
     # Check if signals are connected
     controller.gfxmode_dropdown.set_selected(1)
     assert controller.on_modified.called
 
-    controller.terminal_color_check.set_active(True)
-    assert controller.on_modified.call_count == 2
-
     controller.gfxpayload_dropdown.set_selected(1)
-    assert controller.on_modified.call_count == 3
+    assert controller.on_modified.call_count == 2

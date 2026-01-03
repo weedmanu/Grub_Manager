@@ -12,6 +12,7 @@ def test_build_entries_tab():
     # Mock controller
     controller = MagicMock()
     controller.on_menu_options_toggled = MagicMock()
+    controller.on_hide_category_toggled = MagicMock()
 
     # Mock notebook
     notebook = Gtk.Notebook()
@@ -21,9 +22,9 @@ def test_build_entries_tab():
 
     # Verify that widgets were created and assigned to controller
     assert isinstance(controller.entries_listbox, Gtk.ListBox)
-    assert isinstance(controller.disable_recovery_check, Gtk.Switch)
     assert isinstance(controller.disable_os_prober_check, Gtk.Switch)
-    assert isinstance(controller.disable_submenu_check, Gtk.Switch)
+    assert isinstance(controller.hide_advanced_options_check, Gtk.Switch)
+    assert isinstance(controller.hide_memtest_check, Gtk.Switch)
 
     # Verify that notebook has one page
     assert notebook.get_n_pages() == 1
@@ -37,6 +38,7 @@ def test_build_entries_tab():
 def test_build_entries_tab_signals():
     # Mock controller
     controller = MagicMock()
+    controller.on_hide_category_toggled = MagicMock()
 
     # Mock notebook
     notebook = Gtk.Notebook()
@@ -45,9 +47,9 @@ def test_build_entries_tab_signals():
     build_entries_tab(controller, notebook)
 
     # Trigger signals
-    controller.disable_recovery_check.set_active(True)
     controller.disable_os_prober_check.set_active(True)
-    controller.disable_submenu_check.set_active(True)
+    controller.hide_advanced_options_check.set_active(True)
+    controller.hide_memtest_check.set_active(True)
 
 
 def test_add_styled_switch_no_description():

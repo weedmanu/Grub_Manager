@@ -35,8 +35,9 @@ def test_entry_is_os_prober():
 
 def test_entry_display_title():
     assert _entry_display_title("", False) == "(Untitled)"
-    assert _entry_display_title("Title >> Sub", True) == "Title"
+    assert _entry_display_title("Title >> Sub", True) == "Sub"
     assert _entry_display_title("Title >> Sub", False) == "Title >> Sub"
+    assert _entry_display_title("Submenu > Entry", True) == "Entry"
     assert _entry_display_title("A" * 200, False) == "A" * 100
 
 class MockController:
@@ -54,6 +55,12 @@ class MockController:
 
         self.disable_os_prober_check = MagicMock(spec=Gtk.CheckButton)
         self.disable_os_prober_check.get_active.return_value = False
+
+        self.hide_advanced_options_check = MagicMock(spec=Gtk.Switch)
+        self.hide_advanced_options_check.get_active.return_value = False
+
+        self.hide_memtest_check = MagicMock(spec=Gtk.Switch)
+        self.hide_memtest_check.get_active.return_value = False
 
         self.disable_submenu_check = MagicMock(spec=Gtk.CheckButton)
         self.disable_submenu_check.get_active.return_value = False

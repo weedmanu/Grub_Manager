@@ -13,10 +13,11 @@ from ui.tabs.ui_tab_entries import _add_styled_switch, build_entries_tab
 class MockController:
     def __init__(self):
         self.entries_listbox = None
-        self.disable_recovery_check = None
         self.disable_os_prober_check = None
-        self.disable_submenu_check = None
+        self.hide_advanced_options_check = None
+        self.hide_memtest_check = None
         self.on_menu_options_toggled = MagicMock()
+        self.on_hide_category_toggled = MagicMock()
 
 def test_build_entries_tab():
     controller = MockController()
@@ -26,13 +27,16 @@ def test_build_entries_tab():
 
     assert notebook.get_n_pages() == 1
     assert isinstance(controller.entries_listbox, Gtk.ListBox)
-    assert isinstance(controller.disable_recovery_check, Gtk.Switch)
     assert isinstance(controller.disable_os_prober_check, Gtk.Switch)
-    assert isinstance(controller.disable_submenu_check, Gtk.Switch)
+    assert isinstance(controller.hide_advanced_options_check, Gtk.Switch)
+    assert isinstance(controller.hide_memtest_check, Gtk.Switch)
 
     # Check if switches are connected
-    controller.disable_recovery_check.set_active(True)
+    controller.disable_os_prober_check.set_active(True)
     assert controller.on_menu_options_toggled.called
+
+    controller.hide_advanced_options_check.set_active(True)
+    assert controller.on_hide_category_toggled.called
 
 def test_add_styled_switch_no_description():
     container = Gtk.Box()

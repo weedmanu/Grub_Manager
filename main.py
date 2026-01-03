@@ -102,8 +102,10 @@ def _reexec_as_root_once() -> None:
     logger.debug(f"[_reexec_as_root_once] Executing: {' '.join(args[:5])}... (total {len(args)} args)")
     try:
         os.execv(pkexec, args)
-    except Exception as e:
-        logger.error(f"[_reexec_as_root_once] Failed to re-exec: {e}")
+    except OSError:
+        # OSError est l'exception attendue si execv échoue (binaire introuvable,
+        # permissions, etc.).
+        logger.exception("[_reexec_as_root_once] Failed to re-exec")
 
 
 def main() -> None:

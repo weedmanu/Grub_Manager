@@ -109,8 +109,11 @@ python main.py --help
 # Activer l'environnement virtuel
 source .venv/bin/activate
 
-# Lancer tous les contrôles qualité
-./run_quality.sh --all
+# CI-ready: lint en une commande (Ruff/Black/MyPy/Vulture)
+make lint
+
+# Ou via le script (identique, sans Make)
+./run_quality.sh --lint
 
 # Lancer uniquement les tests
 pytest tests/ -v
@@ -890,7 +893,7 @@ is_uefi: bool            # Pas "uefi", "u", etc
 L'application dispose d'un script complet **qui corrige automatiquement** tous les problèmes de code:
 
 ```bash
-# Auto-fix complet (formatage, linting, imports, types, docstrings, tests)
+# Auto-fix complet (formatage + lint + tests)
 ./run_quality.sh
 
 # Nettoyer les caches puis faire l'assurance qualité
@@ -905,9 +908,9 @@ L'application dispose d'un script complet **qui corrige automatiquement** tous l
 
 **Phases d'exécution automatiques:**
 
-1. **PHASE 1: Auto-Fix** - Ruff, isort, Black corrigent automatiquement
+1. **PHASE 1: Auto-Fix** - Ruff + Black corrigent automatiquement
 2. **PHASE 2: Vérification** - Confirmation que les corrections ont fonctionné
-3. **PHASE 3: Analyse** - mypy, pydocstyle, pylint, vulture
+3. **PHASE 3: Analyse** - mypy, vulture
 4. **PHASE 4: Tests** - pytest suite complète (110 tests)
 
 **Score de qualité actuel** : 100% (11/11 contrôles validés)

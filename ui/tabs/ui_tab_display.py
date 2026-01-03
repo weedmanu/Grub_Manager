@@ -15,6 +15,7 @@ from ui.ui_widgets import (
     box_append_label,
     box_append_section_grid,
     box_append_section_title,
+    create_info_box,
     create_two_column_layout,
     grid_add_labeled,
 )
@@ -66,21 +67,13 @@ def build_display_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     controller.gfxmode_dropdown.set_halign(Gtk.Align.FILL)
     row_left = grid_add_labeled(grid_left, row_left, "Résolution:", controller.gfxmode_dropdown)
 
-    # Explication gfxmode
-    gfxmode_info = Gtk.Label(xalign=0)
-    gfxmode_info.set_markup(
-        "<small><i>Définit la résolution d'affichage du menu de sélection GRUB au démarrage.</i></small>"
+    left_section.append(
+        create_info_box(
+            "Info:",
+            "Définit la résolution d'affichage du menu de sélection GRUB au démarrage.",
+            css_class="warning-box",
+        )
     )
-    gfxmode_info.set_wrap(True)
-    gfxmode_info.set_margin_top(8)
-    gfxmode_info.add_css_class("dim-label")
-    left_section.append(gfxmode_info)
-
-    # Checkbox couleur terminal
-    controller.terminal_color_check = Gtk.CheckButton(label="Forcer le terminal en noir et blanc")
-    controller.terminal_color_check.set_margin_top(12)
-    controller.terminal_color_check.connect("toggled", controller.on_modified)
-    left_section.append(controller.terminal_color_check)
 
     # === COLONNE DROITE : Résolution Kernel ===
     grid_right = box_append_section_grid(right_section, "Résolution du Système (Kernel)")
@@ -105,18 +98,16 @@ def build_display_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     controller.gfxpayload_dropdown.set_halign(Gtk.Align.FILL)
     row_right = grid_add_labeled(grid_right, row_right, "Résolution:", controller.gfxpayload_dropdown)
 
-    # Explication gfxpayload
-    gfxpayload_info = Gtk.Label(xalign=0)
-    gfxpayload_info.set_markup(
-        "<small><i>Résolution transmise au kernel Linux après le démarrage.\n"
-        "• <b>keep</b> : Garde la résolution du menu GRUB\n"
-        "• <b>text</b> : Force le mode texte\n"
-        "• <b>auto</b> : Laisse le système décider</i></small>"
+    right_section.append(
+        create_info_box(
+            "Info:",
+            "Résolution transmise au kernel Linux après le démarrage.\n"
+            "• keep : Garde la résolution du menu GRUB\n"
+            "• text : Force le mode texte\n"
+            "• auto : Laisse le système décider",
+            css_class="warning-box",
+        )
     )
-    gfxpayload_info.set_wrap(True)
-    gfxpayload_info.set_margin_top(8)
-    gfxpayload_info.add_css_class("dim-label")
-    right_section.append(gfxpayload_info)
 
     # two_columns.append(right_section) # Déjà ajouté par create_two_column_layout
 

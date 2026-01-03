@@ -57,8 +57,6 @@ class GrubConfigManagerForTest(GrubConfigManager):
         self.gfxmode_dropdown = None
         self.gfxpayload_dropdown = None
         self.terminal_color_check = None
-        self.disable_submenu_check = None
-        self.disable_recovery_check = None
         self.disable_os_prober_check = None
         self.entries_listbox = None
         self.maintenance_output = None

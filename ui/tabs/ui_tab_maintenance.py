@@ -61,11 +61,8 @@ def build_maintenance_tab(controller: GrubConfigManager, notebook: Gtk.Notebook)
     root.append(info_frame)
 
     # === Titre des outils ===
-    tools_title = Gtk.Label(xalign=0)
-    tools_title.set_markup("<b>Outils de Diagnostic et Réparation</b>")
-    tools_title.add_css_class("section-title")
+    tools_title = box_append_section_title(root, "Outils de Diagnostic et Réparation")
     tools_title.set_margin_top(8)
-    root.append(tools_title)
 
     # === Conteneur 2 colonnes ===
     _, consult_section, restore_section = create_two_column_layout(root)
@@ -75,10 +72,7 @@ def build_maintenance_tab(controller: GrubConfigManager, notebook: Gtk.Notebook)
     # consult_section.set_hexpand(True)
     # consult_section.set_vexpand(True)
 
-    consult_title = Gtk.Label(xalign=0)
-    consult_title.set_markup("<b>Consultation</b>")
-    consult_title.add_css_class("section-title")
-    consult_section.append(consult_title)
+    box_append_section_title(consult_section, "Consultation")
 
     box_append_label(consult_section, "Sélectionnez un fichier pour afficher son contenu.", italic=True)
 
@@ -106,10 +100,7 @@ def build_maintenance_tab(controller: GrubConfigManager, notebook: Gtk.Notebook)
     consult_section.append(separator1)
 
     # Sous-section pour autres commandes de diagnostic
-    diag_title = Gtk.Label(xalign=0)
-    diag_title.set_markup("<b>Commandes de Diagnostic</b>")
-    diag_title.add_css_class("section-title")
-    consult_section.append(diag_title)
+    box_append_section_title(consult_section, "Commandes de Diagnostic")
 
     box_append_label(consult_section, "Outils de vérification et diagnostic système.", italic=True)
 
@@ -137,10 +128,7 @@ def build_maintenance_tab(controller: GrubConfigManager, notebook: Gtk.Notebook)
     # restore_section.set_hexpand(True)
     # restore_section.set_vexpand(True)
 
-    restore_title = Gtk.Label(xalign=0)
-    restore_title.set_markup("<b>Restauration et Réinstallation</b>")
-    restore_title.add_css_class("section-title")
-    restore_section.append(restore_title)
+    box_append_section_title(restore_section, "Restauration et Réinstallation")
 
     box_append_label(restore_section, "⚠️ Ces commandes modifient le système.", italic=True)
 

@@ -34,8 +34,6 @@ class TestUiManagerFinalGap:
             manager.gfxpayload_dropdown.get_model.return_value.get_n_items.return_value = 0
 
             manager.terminal_color_check = MagicMock()
-            manager.disable_submenu_check = MagicMock()
-            manager.disable_recovery_check = MagicMock()
             manager.disable_os_prober_check = MagicMock()
 
             manager.entries_listbox = MagicMock()

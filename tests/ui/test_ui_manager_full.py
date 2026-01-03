@@ -26,8 +26,6 @@ class GrubConfigManagerFull(GrubConfigManager):
         self.gfxmode_dropdown = MagicMock(spec=Gtk.DropDown)
         self.gfxpayload_dropdown = MagicMock(spec=Gtk.DropDown)
         self.terminal_color_check = MagicMock(spec=Gtk.CheckButton)
-        self.disable_submenu_check = MagicMock(spec=Gtk.CheckButton)
-        self.disable_recovery_check = MagicMock(spec=Gtk.CheckButton)
         self.disable_os_prober_check = MagicMock(spec=Gtk.CheckButton)
         self.entries_listbox = MagicMock(spec=Gtk.ListBox)
         self.maintenance_output = MagicMock(spec=Gtk.TextView)
@@ -201,8 +199,6 @@ def test_read_model_from_ui(manager):
     ):
 
         manager.hidden_timeout_check.get_active.return_value = True
-        manager.disable_submenu_check.get_active.return_value = True
-        manager.disable_recovery_check.get_active.return_value = False
         manager.disable_os_prober_check.get_active.return_value = False
         manager.terminal_color_check.get_active.return_value = True
 
@@ -212,7 +208,6 @@ def test_read_model_from_ui(manager):
         assert model.default == "saved"
         assert model.save_default is True
         assert model.hidden_timeout is True
-        assert model.disable_submenu is True
         assert model.quiet is True
 
 
@@ -223,8 +218,6 @@ def test_apply_model_to_ui(manager):
         hidden_timeout=True,
         gfxmode="1024x768",
         gfxpayload_linux="keep",
-        disable_submenu=True,
-        disable_recovery=True,
         disable_os_prober=True,
         quiet=True,
     )
@@ -244,9 +237,6 @@ def test_apply_model_to_ui(manager):
 
         mock_set_val.assert_any_call(manager.gfxmode_dropdown, "1024x768")
         mock_set_val.assert_any_call(manager.gfxpayload_dropdown, "keep")
-
-        manager.disable_submenu_check.set_active.assert_called_with(True)
-        manager.disable_recovery_check.set_active.assert_called_with(True)
         manager.disable_os_prober_check.set_active.assert_called_with(True)
 
         mock_refresh_defaults.assert_called_with(entries)
