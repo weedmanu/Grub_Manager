@@ -467,7 +467,7 @@ def test_on_restore_invalid_content_rollback(mock_controller, mock_notebook):
         patch("ui.tabs.ui_tab_backups.os.path.exists", return_value=True),
         patch("ui.tabs.ui_tab_backups.os.path.isfile", return_value=True),
         patch("ui.tabs.ui_tab_backups.os.path.getsize", return_value=100),
-        patch("shutil.copy2") as mock_copy,
+        patch("shutil.copy2"),
         patch("builtins.open", mock_open(read_data="# Only comments\n# No config\n")),
         patch("ui.tabs.ui_tab_backups.Gtk.AlertDialog") as mock_dialog_class,
     ):

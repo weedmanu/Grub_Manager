@@ -1,6 +1,5 @@
 """Tests pour les exceptions personnalisées de Grub Manager."""
 
-
 from core.core_exceptions import (
     GrubBackupError,
     GrubCommandError,

@@ -207,7 +207,7 @@ class TestCreateGrubDefaultBackup:
             backup_path.write_text("old backup")
             os.utime(backup_path, (i + 1, i + 1))
 
-        result = create_grub_default_backup(str(config_path))
+        create_grub_default_backup(str(config_path))
 
         # Devrait garder seulement 3 backups (le nouveau + 2 anciens)
         manual_backups = list(tmp_path.glob("grub.backup.manual.*"))

@@ -52,7 +52,7 @@ class TestLoggingConfig:
         configure_logging(level=DEBUG)
 
         # Vérifie les arguments pour stderr
-        args, kwargs = mock_logger.add.call_args_list[0]
+        _args, kwargs = mock_logger.add.call_args_list[0]
         assert kwargs["level"] == DEBUG
         assert kwargs["diagnose"] is True
 

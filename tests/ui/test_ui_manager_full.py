@@ -1,4 +1,3 @@
-import os
 from unittest.mock import MagicMock, patch
 
 import gi
@@ -55,7 +54,7 @@ def mock_app():
 
 @pytest.fixture
 def manager(mock_app):
-    with patch("ui.ui_manager.UIBuilder") as mock_builder:
+    with patch("ui.ui_manager.UIBuilder"):
         manager = GrubConfigManagerFull(mock_app)
         return manager
 
@@ -101,7 +100,7 @@ def test_load_config_success(manager):
         patch("ui.ui_manager.check_grub_sync", return_value=sync_status),
         patch("ui.ui_manager.load_grub_ui_state", return_value=state),
         patch("ui.ui_manager.render_entries_view") as mock_render,
-        patch("ui.ui_gtk_helpers.GtkHelper.dropdown_set_value") as mock_set_val,
+        patch("ui.ui_gtk_helpers.GtkHelper.dropdown_set_value"),
     ):
 
         manager.load_config()

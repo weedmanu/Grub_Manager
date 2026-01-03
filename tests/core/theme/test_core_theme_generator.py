@@ -1,6 +1,5 @@
 """Tests pour le générateur de thèmes."""
 
-
 import pytest
 
 from core.theme.core_theme_generator import (

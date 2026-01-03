@@ -479,7 +479,7 @@ class GrubConfigManager(Gtk.ApplicationWindow):
                     logger.debug(f"[on_reload._on_choice] Dialog result: {idx}")
                 except GLib.Error as e:
                     logger.debug(f"[on_reload._on_choice] Dialog cancelled: {e}")
-                
+
                 if idx == 1:
                     logger.debug("[on_reload._on_choice] User confirmed reload")
                     self.load_config()
@@ -520,7 +520,7 @@ class GrubConfigManager(Gtk.ApplicationWindow):
                 logger.debug(f"[on_save._on_response] Dialog result: {idx}")
             except GLib.Error as e:
                 logger.debug(f"[on_save._on_response] Dialog cancelled: {e}")
-            
+
             if idx == 1:
                 logger.debug("[on_save._on_response] User confirmed save")
                 self._perform_save(apply_now=True)
@@ -550,8 +550,8 @@ class GrubConfigManager(Gtk.ApplicationWindow):
                 try:
                     verified_config = read_grub_default()
                     matches = (
-                        verified_config.get("GRUB_TIMEOUT") == str(model.timeout) and
-                        verified_config.get("GRUB_DEFAULT") == model.default
+                        verified_config.get("GRUB_TIMEOUT") == str(model.timeout)
+                        and verified_config.get("GRUB_DEFAULT") == model.default
                     )
                     logger.debug(f"[_perform_save] Vérification: matches={matches}")
 

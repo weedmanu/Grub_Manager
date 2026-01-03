@@ -67,7 +67,7 @@ def test_load_themes_no_active(tab_theme_config):
     """Test le chargement des thèmes sans thème actif."""
     with (
         patch.object(tab_theme_config.theme_manager, "load_active_theme", return_value=None),
-        patch.object(tab_theme_config, "_scan_system_themes") as mock_scan,
+        patch.object(tab_theme_config, "_scan_system_themes"),
     ):
 
         tab_theme_config.build()

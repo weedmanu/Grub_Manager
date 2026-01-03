@@ -50,7 +50,7 @@ def test_run_command_popup_thread_execution_success(mock_controller):
     """Test the execution logic inside the thread (success case)."""
     with (
         patch("os.geteuid", return_value=0),
-        patch("ui.ui_dialogs.Gtk") as mock_gtk,
+        patch("ui.ui_dialogs.Gtk"),
         patch("ui.ui_dialogs.GLib.idle_add") as mock_idle_add,
         patch("subprocess.Popen") as mock_popen,
     ):
@@ -67,7 +67,7 @@ def test_run_command_popup_thread_execution_success(mock_controller):
             run_command_popup(mock_controller, ["ls"], "Title")
 
             # Get the target function passed to Thread
-            args, kwargs = mock_thread.call_args
+            _args, kwargs = mock_thread.call_args
             target = kwargs.get("target")
 
             # Execute the target (simulate thread running)
@@ -90,7 +90,7 @@ def test_run_command_popup_thread_execution_failure(mock_controller):
     """Test the execution logic inside the thread (failure case)."""
     with (
         patch("os.geteuid", return_value=0),
-        patch("ui.ui_dialogs.Gtk") as mock_gtk,
+        patch("ui.ui_dialogs.Gtk"),
         patch("ui.ui_dialogs.GLib.idle_add") as mock_idle_add,
         patch("subprocess.Popen") as mock_popen,
     ):
@@ -118,8 +118,8 @@ def test_run_command_popup_grub_emu(mock_controller):
     """Test the special case for grub-emu."""
     with (
         patch("os.geteuid", return_value=0),
-        patch("ui.ui_dialogs.Gtk") as mock_gtk,
-        patch("ui.ui_dialogs.GLib.idle_add") as mock_idle_add,
+        patch("ui.ui_dialogs.Gtk"),
+        patch("ui.ui_dialogs.GLib.idle_add"),
         patch("ui.ui_dialogs.shutil.which", return_value="/usr/bin/grub-emu"),
         patch("subprocess.Popen") as mock_popen,
     ):
@@ -140,8 +140,8 @@ def test_run_command_popup_grub_emu_missing(mock_controller):
     """Test grub-emu missing."""
     with (
         patch("os.geteuid", return_value=0),
-        patch("ui.ui_dialogs.Gtk") as mock_gtk,
-        patch("ui.ui_dialogs.GLib.idle_add") as mock_idle_add,
+        patch("ui.ui_dialogs.Gtk"),
+        patch("ui.ui_dialogs.GLib.idle_add"),
         patch("ui.ui_dialogs.shutil.which", return_value=None),
     ):
 
@@ -159,7 +159,7 @@ def test_run_command_popup_exception(mock_controller):
     """Test exception handling during execution."""
     with (
         patch("os.geteuid", return_value=0),
-        patch("ui.ui_dialogs.Gtk") as mock_gtk,
+        patch("ui.ui_dialogs.Gtk"),
         patch("ui.ui_dialogs.GLib.idle_add") as mock_idle_add,
         patch("subprocess.Popen", side_effect=OSError("Exec failed")),
     ):
