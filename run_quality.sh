@@ -15,6 +15,8 @@ if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
   _c_red=$'\033[31m'
   _c_yellow=$'\033[33m'
   _c_blue=$'\033[34m'
+  _c_cyan=$'\033[36m'
+  _c_magenta=$'\033[35m'
 else
   _c_reset=''
   _c_dim=''
@@ -23,9 +25,15 @@ else
   _c_red=''
   _c_yellow=''
   _c_blue=''
+  _c_cyan=''
+  _c_magenta=''
 fi
 
 _step=0
+_passed=0
+_failed=0
+_skipped=0
+declare -a _results=()
 
 say() {
   # shellcheck disable=SC2059
@@ -36,19 +44,35 @@ run_step() {
   local label="$1"
   shift
   _step=$((_step + 1))
-  say "${_c_bold}[${_step}]${_c_reset} ${_c_blue}FIX${_c_reset} ${label}${_c_dim}  ->${_c_reset} $*"
-
+  
+  printf "${_c_bold}[%2d]${_c_reset} ${_c_cyan}●${_c_reset} %-50s " "$_step" "$label"
+  
   set +e
-  "$@"
+  local output
+  output=$("$@" 2>&1)
   local rc=$?
   set -e
 
   if [[ $rc -ne 0 ]]; then
-    say "${_c_red}FAIL${_c_reset} ${label} (code=$rc)"
-    exit "$rc"
+    say "${_c_red}✗ FAIL${_c_reset} (code=$rc)"
+    _results+=("${_c_red}✗${_c_reset} $label")
+    _failed=$((_failed + 1))
+    return "$rc"
   fi
 
-  say "${_c_green}✓${_c_reset}   ${label}"
+  say "${_c_green}✓ PASS${_c_reset}"
+  _results+=("${_c_green}✓${_c_reset} $label")
+  _passed=$((_passed + 1))
+}
+
+skip_step() {
+  local label="$1"
+  _step=$((_step + 1))
+  
+  printf "${_c_bold}[%2d]${_c_reset} ${_c_cyan}●${_c_reset} %-50s " "$_step" "$label"
+  say "${_c_yellow}⊘ SKIP${_c_reset}"
+  _results+=("${_c_yellow}⊘${_c_reset} $label")
+  _skipped=$((_skipped + 1))
 }
 
 PY="$ROOT_DIR/.venv/bin/python"
@@ -64,9 +88,22 @@ Quality Assurance Script - Auto-fixes all issues
 
 Usage:
   ./run_quality.sh            # Fix all quality issues
-  ./run_quality.sh --clean    # Clean caches then fix
+  ./run_quality.sh --clean    # Clean caches then fix all
   ./run_quality.sh --test     # Only run tests (no fixes)
-  ./run_quality.sh --clean --test
+
+Individual phases:
+  ./run_quality.sh --ruff     # Run ruff auto-fix only
+  ./run_quality.sh --black    # Run black formatting only
+  ./run_quality.sh --isort    # Run isort import sorting only
+  ./run_quality.sh --mypy     # Run type checking only
+  ./run_quality.sh --pydoc    # Run docstring validation only
+  ./run_quality.sh --pylint   # Run static analysis only
+  ./run_quality.sh --vulture  # Run unused code detection only
+
+Combinations:
+  ./run_quality.sh --clean --ruff          # Clean then ruff
+  ./run_quality.sh --clean --test          # Clean then test
+  ./run_quality.sh --clean --all           # Clean then all phases
 
 Features:
   ✓ Auto-format code (black, isort)
@@ -84,9 +121,12 @@ USAGE
 clean_caches() {
   say "${_c_bold}[clean]${_c_reset} Suppression des caches et fichiers temporaires"
   
-  # Python caches
-  find "$ROOT_DIR" -path "$ROOT_DIR/.venv" -prune -o -type d -name '__pycache__' -print0 | xargs -0 -r rm -rf || true
-  find "$ROOT_DIR" -path "$ROOT_DIR/.venv" -prune -o -type f \( -name '*.pyc' -o -name '*.pyo' -o -name '*.pyd' \) -print0 | xargs -0 -r rm -f || true
+  # Python caches - exclude .venv properly
+  find "$ROOT_DIR" \! -path "$ROOT_DIR/.venv" -prune -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
+  find "$ROOT_DIR" \! -path "$ROOT_DIR/.venv/*" -type f \( -name '*.pyc' -o -name '*.pyo' -o -name '*.pyd' \) -delete 2>/dev/null || true
+  
+  # Test caches  
+  find "$ROOT_DIR/tests" -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
 
   # Tool caches
   rm -rf \
@@ -98,10 +138,8 @@ clean_caches() {
     "$ROOT_DIR/.eggs" \
     "$ROOT_DIR/build" \
     "$ROOT_DIR/dist" \
-    "$ROOT_DIR/*.egg-info" || true
-  
-  # Find and remove all .pyc/.pyo recursively (hors .venv)
-  find "$ROOT_DIR" -path "$ROOT_DIR/.venv" -prune -o -name "*.egg-info" -type d -print0 | xargs -0 -r rm -rf || true
+    "$ROOT_DIR"/*.egg-info \
+    2>/dev/null || true
   
   say "${_c_green}✓${_c_reset}   Caches nettoyés"
 }
@@ -130,9 +168,17 @@ apply_all_fixes() {
   say "${_c_bold}PHASE 1: AUTO-FIX (Corrections automatiques)${_c_reset}"
   say "${_c_bold}═══════════════════════════════════════${_c_reset}"
   
-  run_step "Ruff auto-fix (linting)" "$PY" -m ruff check . --fix --unsafe-fixes
-  run_step "isort (tri imports)" "$PY" -m isort --skip .venv "${TARGETS[@]}"
-  run_step "Black (formatage)" "$PY" -m black "${TARGETS[@]}"
+  if [[ "$DO_RUFF" == "1" ]]; then
+    run_step "Ruff auto-fix (linting)" "$PY" -m ruff check . --fix --unsafe-fixes
+  fi
+  
+  if [[ "$DO_ISORT" == "1" ]]; then
+    run_step "isort (tri imports)" "$PY" -m isort --skip .venv "${TARGETS[@]}"
+  fi
+  
+  if [[ "$DO_BLACK" == "1" ]]; then
+    run_step "Black (formatage)" "$PY" -m black "${TARGETS[@]}"
+  fi
   
   say ""
   say "${_c_bold}═══════════════════════════════════════${_c_reset}"
@@ -140,38 +186,157 @@ apply_all_fixes() {
   say "${_c_bold}═══════════════════════════════════════${_c_reset}"
   
   # Verify fixes worked
-  run_step "Black verification" "$PY" -m black --check "${TARGETS[@]}"
-  run_step "isort verification" "$PY" -m isort --check-only --skip .venv "${TARGETS[@]}"
-  run_step "Ruff verification" "$PY" -m ruff check .
+  if [[ "$DO_BLACK" == "1" ]]; then
+    run_step "Black verification" "$PY" -m black --check "${TARGETS[@]}"
+  fi
+  
+  if [[ "$DO_ISORT" == "1" ]]; then
+    run_step "isort verification" "$PY" -m isort --check-only --skip .venv "${TARGETS[@]}"
+  fi
+  
+  if [[ "$DO_RUFF" == "1" ]]; then
+    run_step "Ruff verification" "$PY" -m ruff check .
+  fi
   
   say ""
   say "${_c_bold}═══════════════════════════════════════${_c_reset}"
   say "${_c_bold}PHASE 3: ANALYSE COMPLÈTE${_c_reset}"
   say "${_c_bold}═══════════════════════════════════════${_c_reset}"
   
-  run_step "Type checking (mypy)" "$PY" -m mypy "${TARGETS[@]}"
-  run_step "Docstring validation (pydocstyle)" "$PY" -m pydocstyle "${TARGETS[@]}"
-  run_step "Static analysis (pylint)" "$PY" -m pylint --score=n --enable=duplicate-code "${TARGETS[@]}"
-  run_step "Unused code detection (vulture)" "$PY" -m vulture "$ROOT_DIR" --min-confidence 60 --exclude ".venv,.mypy_cache,.ruff_cache,.pytest_cache"
+  if [[ "$DO_MYPY" == "1" ]]; then
+    run_step "Type checking (mypy)" "$PY" -m mypy "${TARGETS[@]}"
+  fi
+  
+  if [[ "$DO_PYDOC" == "1" ]]; then
+    run_step "Docstring validation (pydocstyle)" "$PY" -m pydocstyle "${TARGETS[@]}"
+  fi
+  
+  if [[ "$DO_PYLINT" == "1" ]]; then
+    run_step "Static analysis (pylint)" "$PY" -m pylint --score=n --enable=duplicate-code "${TARGETS[@]}"
+  fi
+  
+  if [[ "$DO_VULTURE" == "1" ]]; then
+    run_step "Unused code detection (vulture)" "$PY" -m vulture "$ROOT_DIR" --min-confidence 60 --exclude ".venv,.mypy_cache,.ruff_cache,.pytest_cache"
+  fi
   
   say ""
   say "${_c_bold}═══════════════════════════════════════${_c_reset}"
   say "${_c_bold}PHASE 4: TESTS${_c_reset}"
   say "${_c_bold}═══════════════════════════════════════${_c_reset}"
   
-  run_tests
+  if [[ "$DO_TESTS" == "1" ]]; then
+    run_tests
+  fi
+}
+
+print_summary() {
+  local elapsed="${1:-0}"
+  say ""
+  say "${_c_bold}═══════════════════════════════════════════════════════════${_c_reset}"
+  say "${_c_bold}SYNTHÈSE FINALE${_c_reset}"
+  say "${_c_bold}═══════════════════════════════════════════════════════════${_c_reset}"
+  say ""
+  
+  # Résultats détaillés
+  if [[ ${#_results[@]} -gt 0 ]]; then
+    for result in "${_results[@]}"; do
+      say "  $result"
+    done
+    say ""
+  fi
+  
+  # Statistiques
+  local total=$((_passed + _failed + _skipped))
+  say "${_c_bold}Statistiques:${_c_reset}"
+  say "  ${_c_green}✓ Réussis${_c_reset}:    $_passed"
+  
+  if [[ $_failed -gt 0 ]]; then
+    say "  ${_c_red}✗ Échoués${_c_reset}:     $_failed"
+  fi
+  
+  if [[ $_skipped -gt 0 ]]; then
+    say "  ${_c_yellow}⊘ Ignorés${_c_reset}:     $_skipped"
+  fi
+  
+  say "  ${_c_bold}Total${_c_reset}:      $total"
+  
+  if [[ "$elapsed" != "0" ]]; then
+    say ""
+    say "  ${_c_cyan}⏱ Temps:${_c_reset}     ${elapsed}s"
+  fi
+  
+  say ""
+  
+  # Statut final
+  if [[ $_failed -eq 0 ]]; then
+    say "${_c_bold}${_c_green}╔════════════════════════════════════════════════════════╗${_c_reset}"
+    say "${_c_bold}${_c_green}║   ✓ QUALITY ASSURANCE RÉUSSIE                         ║${_c_reset}"
+    say "${_c_bold}${_c_green}╚════════════════════════════════════════════════════════╝${_c_reset}"
+  else
+    say "${_c_bold}${_c_red}╔════════════════════════════════════════════════════════╗${_c_reset}"
+    say "${_c_bold}${_c_red}║   ✗ QUALITY ASSURANCE ÉCHOUÉE ($_failed erreur(s))       ║${_c_reset}"
+    say "${_c_bold}${_c_red}╚════════════════════════════════════════════════════════╝${_c_reset}"
+    exit 1
+  fi
 }
 
 DO_CLEAN=0
+DO_RUFF=0
+DO_BLACK=0
+DO_ISORT=0
+DO_MYPY=0
+DO_PYDOC=0
+DO_PYLINT=0
+DO_VULTURE=0
+DO_TESTS=0
+DO_ALL=0
 TEST_ONLY=0
+
+# Default: enable all if no options specified
+DEFAULT_MODE=1
 
 for arg in "$@"; do
   case "$arg" in
     --clean)
       DO_CLEAN=1
+      DEFAULT_MODE=0
+      ;;
+    --ruff)
+      DO_RUFF=1
+      DEFAULT_MODE=0
+      ;;
+    --black)
+      DO_BLACK=1
+      DEFAULT_MODE=0
+      ;;
+    --isort)
+      DO_ISORT=1
+      DEFAULT_MODE=0
+      ;;
+    --mypy)
+      DO_MYPY=1
+      DEFAULT_MODE=0
+      ;;
+    --pydoc)
+      DO_PYDOC=1
+      DEFAULT_MODE=0
+      ;;
+    --pylint)
+      DO_PYLINT=1
+      DEFAULT_MODE=0
+      ;;
+    --vulture)
+      DO_VULTURE=1
+      DEFAULT_MODE=0
       ;;
     --test)
+      DO_TESTS=1
       TEST_ONLY=1
+      DEFAULT_MODE=0
+      ;;
+    --all)
+      DO_ALL=1
+      DEFAULT_MODE=0
       ;;
     -h|--help)
       usage
@@ -185,6 +350,30 @@ for arg in "$@"; do
   esac
 done
 
+# If no options specified, enable everything
+if [[ "$DEFAULT_MODE" == "1" ]]; then
+  DO_RUFF=1
+  DO_BLACK=1
+  DO_ISORT=1
+  DO_MYPY=1
+  DO_PYDOC=1
+  DO_PYLINT=1
+  DO_VULTURE=1
+  DO_TESTS=1
+fi
+
+# If --all flag set, enable everything (except --clean which needs explicit flag)
+if [[ "$DO_ALL" == "1" ]]; then
+  DO_RUFF=1
+  DO_BLACK=1
+  DO_ISORT=1
+  DO_MYPY=1
+  DO_PYDOC=1
+  DO_PYLINT=1
+  DO_VULTURE=1
+  DO_TESTS=1
+fi
+
 say ""
 say "${_c_bold}╔══════════════════════════════════════════╗${_c_reset}"
 say "${_c_bold}║   QUALITY ASSURANCE - Auto-Fix Mode      ║${_c_reset}"
@@ -197,19 +386,16 @@ if [[ "$DO_CLEAN" == "1" ]]; then
 fi
 
 if [[ "$TEST_ONLY" == "1" ]]; then
-  say "${_c_bold}Tests uniquement (pas de fixes)${_c_reset}"
+  say "${_c_bold}${_c_cyan}Tests uniquement (pas de fixes)${_c_reset}"
   say ""
   run_tests
+  print_summary
 else
   start_ts=$SECONDS
   apply_all_fixes
   elapsed=$((SECONDS - start_ts))
   
-  say ""
-  say "${_c_bold}╔══════════════════════════════════════════╗${_c_reset}"
-  say "${_c_bold}║   ✓ QUALITY ASSURANCE TERMINÉE          ║${_c_reset}"
-  say "${_c_bold}║   Temps: ${elapsed}s                              ║${_c_reset}"
-  say "${_c_bold}╚══════════════════════════════════════════╝${_c_reset}"
+  print_summary "$elapsed"
 fi
 
 say ""
