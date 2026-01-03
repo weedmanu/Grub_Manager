@@ -36,10 +36,10 @@ class TestAppStateManager:
         """Test la transition vers l'état CLEAN."""
         save_btn = MagicMock()
         reload_btn = MagicMock()
-        
+
         with patch("os.geteuid", return_value=0):
             manager.apply_state(AppState.CLEAN, save_btn, reload_btn)
-            
+
             assert manager.state == AppState.CLEAN
             assert manager.modified is False
             save_btn.set_sensitive.assert_called_with(False)
@@ -49,10 +49,10 @@ class TestAppStateManager:
         """Test la transition vers l'état DIRTY."""
         save_btn = MagicMock()
         reload_btn = MagicMock()
-        
+
         with patch("os.geteuid", return_value=0):
             manager.apply_state(AppState.DIRTY, save_btn, reload_btn)
-            
+
             assert manager.state == AppState.DIRTY
             assert manager.modified is True
             save_btn.set_sensitive.assert_called_with(True)
@@ -62,10 +62,10 @@ class TestAppStateManager:
         """Test la transition vers l'état APPLYING."""
         save_btn = MagicMock()
         reload_btn = MagicMock()
-        
+
         with patch("os.geteuid", return_value=0):
             manager.apply_state(AppState.APPLYING, save_btn, reload_btn)
-            
+
             assert manager.state == AppState.APPLYING
             save_btn.set_sensitive.assert_called_with(False)
             reload_btn.set_sensitive.assert_called_with(False)
@@ -74,10 +74,10 @@ class TestAppStateManager:
         """Test quand l'utilisateur n'est pas root."""
         save_btn = MagicMock()
         reload_btn = MagicMock()
-        
+
         with patch("os.geteuid", return_value=1000):
             manager.apply_state(AppState.DIRTY, save_btn, reload_btn)
-            
+
             # Même si DIRTY, save_btn doit être désactivé car pas root
             save_btn.set_sensitive.assert_called_with(False)
 
@@ -86,10 +86,10 @@ class TestAppStateManager:
         save_btn = MagicMock()
         reload_btn = MagicMock()
         manager.entries_visibility_dirty = True
-        
+
         with patch("os.geteuid", return_value=0):
             manager.apply_state(AppState.CLEAN, save_btn, reload_btn)
-            
+
             # Doit pouvoir sauvegarder car visibility_dirty est True
             save_btn.set_sensitive.assert_called_with(True)
 
@@ -97,7 +97,7 @@ class TestAppStateManager:
         """Test mark_dirty."""
         save_btn = MagicMock()
         reload_btn = MagicMock()
-        
+
         with patch("os.geteuid", return_value=0):
             manager.mark_dirty(save_btn, reload_btn)
             assert manager.state == AppState.DIRTY
@@ -107,9 +107,9 @@ class TestAppStateManager:
         save_btn = MagicMock()
         reload_btn = MagicMock()
         manager.state = AppState.APPLYING
-        
+
         manager.mark_dirty(save_btn, reload_btn)
-        assert manager.state == AppState.APPLYING # Inchangé
+        assert manager.state == AppState.APPLYING  # Inchangé
 
     def test_update_state_data(self, manager):
         """Test update_state_data."""

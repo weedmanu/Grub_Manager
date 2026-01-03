@@ -20,7 +20,11 @@ from ..io.core_grub_default_io import (
     read_grub_default,
     write_grub_default,
 )
-from ..io.core_grub_menu_parser import GrubDefaultChoice, read_grub_default_choices, read_grub_default_choices_with_source
+from ..io.core_grub_menu_parser import (
+    GrubDefaultChoice,
+    read_grub_default_choices,
+    read_grub_default_choices_with_source,
+)
 from ..models.core_grub_ui_model import (
     GrubUiModel,
     GrubUiState,

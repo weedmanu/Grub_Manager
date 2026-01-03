@@ -29,7 +29,7 @@ class GrubPreviewDialog:
     def show(self) -> None:
         """Affiche le dialog de preview."""
         # Créer le dialog
-        dialog = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
+        dialog = Gtk.Window()
         dialog.set_title(f"Aperçu GRUB: {self.theme_name}")
         dialog.set_default_size(1000, 700)
         dialog.set_modal(True)

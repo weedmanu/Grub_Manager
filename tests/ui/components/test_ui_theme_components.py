@@ -3,7 +3,8 @@
 from unittest.mock import MagicMock, patch
 
 import gi
-gi.require_version('Gtk', '4.0')
+
+gi.require_version("Gtk", "4.0")
 import pytest
 
 from ui.components.ui_theme_components import ImageScaleSelector, ResolutionSelector, TextEntry
@@ -24,19 +25,15 @@ class TestResolutionSelector:
             mock_dropdown = MagicMock()
             mock_gtk.DropDown.new_from_strings.return_value = mock_dropdown
 
-            yield {
-                'gtk': mock_gtk,
-                'label': mock_label,
-                'dropdown': mock_dropdown
-            }
+            yield {"gtk": mock_gtk, "label": mock_label, "dropdown": mock_dropdown}
 
     def test_initialization_default(self, mock_gtk):
         """Test l'initialisation par défaut."""
         selector = ResolutionSelector()
 
         assert selector.callback is None
-        mock_gtk['gtk'].Label.assert_called_once_with(label="Résolution:")
-        mock_gtk['gtk'].DropDown.new_from_strings.assert_called_once_with(ResolutionSelector.RESOLUTIONS)
+        mock_gtk["gtk"].Label.assert_called_once_with(label="Résolution:")
+        mock_gtk["gtk"].DropDown.new_from_strings.assert_called_once_with(ResolutionSelector.RESOLUTIONS)
 
         # Vérifier que la résolution par défaut est sélectionnée
         selector.dropdown.set_selected.assert_called_once_with(8)  # Index de "1920x1080"
@@ -121,19 +118,15 @@ class TestImageScaleSelector:
             mock_dropdown = MagicMock()
             mock_gtk.DropDown.new_from_strings.return_value = mock_dropdown
 
-            yield {
-                'gtk': mock_gtk,
-                'label': mock_label,
-                'dropdown': mock_dropdown
-            }
+            yield {"gtk": mock_gtk, "label": mock_label, "dropdown": mock_dropdown}
 
     def test_initialization_default(self, mock_gtk):
         """Test l'initialisation par défaut."""
         selector = ImageScaleSelector()
 
         assert selector.callback is None
-        mock_gtk['gtk'].Label.assert_called_once_with(label="Redimensionnement:")
-        mock_gtk['gtk'].DropDown.new_from_strings.assert_called_once_with(ImageScaleSelector.SCALE_METHODS)
+        mock_gtk["gtk"].Label.assert_called_once_with(label="Redimensionnement:")
+        mock_gtk["gtk"].DropDown.new_from_strings.assert_called_once_with(ImageScaleSelector.SCALE_METHODS)
 
         # Vérifier que la méthode par défaut est sélectionnée
         selector.dropdown.set_selected.assert_called_once_with(0)  # Index de "fit"
@@ -218,19 +211,15 @@ class TestTextEntry:
             mock_entry = MagicMock()
             mock_gtk.Entry.return_value = mock_entry
 
-            yield {
-                'gtk': mock_gtk,
-                'label': mock_label,
-                'entry': mock_entry
-            }
+            yield {"gtk": mock_gtk, "label": mock_label, "entry": mock_entry}
 
     def test_initialization_minimal(self, mock_gtk):
         """Test l'initialisation minimale."""
         entry = TextEntry("Test Label")
 
         assert entry.callback is None
-        mock_gtk['gtk'].Label.assert_called_once_with(label="Test Label")
-        mock_gtk['gtk'].Entry.assert_called_once()
+        mock_gtk["gtk"].Label.assert_called_once_with(label="Test Label")
+        mock_gtk["gtk"].Entry.assert_called_once()
         entry.entry.set_text.assert_called_once_with("")
         entry.entry.set_placeholder_text.assert_not_called()
 

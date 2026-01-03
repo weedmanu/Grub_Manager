@@ -11,7 +11,11 @@ from typing import TYPE_CHECKING
 from gi.repository import Gtk
 from loguru import logger
 
-from core.io.core_grub_default_io import create_grub_default_backup, delete_grub_default_backup, list_grub_default_backups
+from core.io.core_grub_default_io import (
+    create_grub_default_backup,
+    delete_grub_default_backup,
+    list_grub_default_backups,
+)
 from ui.ui_widgets import (
     apply_margins,
     box_append_label,
@@ -52,10 +56,10 @@ def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     create_btn = Gtk.Button(label="Créer une sauvegarde")
     restore_btn = Gtk.Button(label="Restaurer")
     restore_btn.set_sensitive(False)
-    restore_btn.get_style_context().add_class("suggested-action")
+    restore_btn.add_css_class("suggested-action")
     delete_btn = Gtk.Button(label="Supprimer")
     delete_btn.set_sensitive(False)
-    delete_btn.get_style_context().add_class("destructive-action")
+    delete_btn.add_css_class("destructive-action")
 
     buttons.append(create_btn)
     buttons.append(restore_btn)
@@ -137,28 +141,23 @@ def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
             controller.show_info("Droits administrateur requis pour créer une sauvegarde", "error")
             return
 
-        logger.debug("[_on_create] Vérification des conditions préalables")
-        from core.config.core_paths import GRUB_DEFAULT_PATH  # pylint: disable=import-outside-toplevel
-
-        # Vérifier que le fichier source existe et a du contenu
-        if not os.path.isfile(GRUB_DEFAULT_PATH):
-            logger.error(f"[_on_create] ERREUR: {GRUB_DEFAULT_PATH} n'existe pas")
-            controller.show_info(f"Erreur: {GRUB_DEFAULT_PATH} introuvable", "error")
-            return
-
         try:
+            logger.debug("[_on_create] Vérification des conditions préalables")
+            from core.config.core_paths import GRUB_DEFAULT_PATH  # pylint: disable=import-outside-toplevel
+
+            # Vérifier que le fichier source existe et a du contenu
+            if not os.path.isfile(GRUB_DEFAULT_PATH):
+                logger.error(f"[_on_create] ERREUR: {GRUB_DEFAULT_PATH} n'existe pas")
+                controller.show_info(f"Erreur: {GRUB_DEFAULT_PATH} introuvable", "error")
+                return
+
             source_size = os.path.getsize(GRUB_DEFAULT_PATH)
             if source_size == 0:
                 logger.error(f"[_on_create] ERREUR: {GRUB_DEFAULT_PATH} est vide")
                 controller.show_info(f"Erreur: {GRUB_DEFAULT_PATH} est vide", "error")
                 return
             logger.debug(f"[_on_create] Fichier source valide: {source_size} bytes")
-        except OSError as e:
-            logger.error(f"[_on_create] ERREUR: Impossible de vérifier le fichier source - {e}")
-            controller.show_info(f"Erreur: Impossible de lire {GRUB_DEFAULT_PATH}: {e}", "error")
-            return
 
-        try:
             logger.debug("[_on_create] Appel de create_grub_default_backup()")
             p = create_grub_default_backup()
 
@@ -400,14 +399,14 @@ def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
         # Sécurité: Vérifications du chemin
         from core.config.core_paths import GRUB_DEFAULT_PATH  # pylint: disable=import-outside-toplevel
 
-        if not str(p).startswith(f"{GRUB_DEFAULT_PATH}.backup"):
-            logger.error(f"[_on_delete] ERREUR SÉCURITÉ: Chemin invalide - {p}")
-            controller.show_info("Erreur sécurité: Chemin invalide", "error")
-            return
-
         if str(p) == GRUB_DEFAULT_PATH:
             logger.error("[_on_delete] ERREUR: Tentative de suppression du fichier canonique")
             controller.show_info("Erreur: Impossible de supprimer le fichier de configuration principal", "error")
+            return
+
+        if not str(p).startswith(f"{GRUB_DEFAULT_PATH}.backup"):
+            logger.error(f"[_on_delete] ERREUR SÉCURITÉ: Chemin invalide - {p}")
+            controller.show_info("Erreur sécurité: Chemin invalide", "error")
             return
 
         if not os.path.isfile(str(p)):

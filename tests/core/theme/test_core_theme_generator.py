@@ -1,6 +1,5 @@
 """Tests pour le générateur de thèmes."""
 
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -26,13 +25,13 @@ class TestThemeGenerator:
     def test_export_grub_config_defaults(self, default_theme):
         """Test l'export de la configuration GRUB avec les valeurs par défaut."""
         config = ThemeGenerator.export_grub_config(default_theme)
-        
+
         assert config["GRUB_DEFAULT"] == "0"
         assert config["GRUB_TIMEOUT"] == "5"
         assert config["GRUB_TIMEOUT_STYLE"] == "menu"
         assert config["GRUB_GFXMODE"] == "auto"
         assert config["GRUB_THEME"].endswith("/TestTheme/theme.txt")
-        
+
         # Vérifie que les options booléennes par défaut (False) ne sont pas présentes
         assert "GRUB_DISABLE_RECOVERY" not in config
         assert "GRUB_DISABLE_OS_PROBER" not in config
@@ -50,9 +49,9 @@ class TestThemeGenerator:
         default_theme.grub_hidden_timeout_quiet = True
         default_theme.grub_init_tune = "480 440 1"
         default_theme.grub_preload_modules = "lvm fat"
-        
+
         config = ThemeGenerator.export_grub_config(default_theme)
-        
+
         assert config["GRUB_TIMEOUT"] == "10"
         assert config["GRUB_DISABLE_RECOVERY"] == "true"
         assert config["GRUB_DISABLE_OS_PROBER"] == "true"
@@ -69,26 +68,26 @@ class TestThemeGenerator:
         """Test la génération du fichier theme.txt de base."""
         default_theme.title_text = "My Custom Title"
         content = ThemeGenerator.generate_theme_txt(default_theme)
-        
-        assert '# GRUB Theme: TestTheme' in content
+
+        assert "# GRUB Theme: TestTheme" in content
         assert 'title-text: "My Custom Title"' in content
         assert 'desktop-color: "#000000"' in content
-        assert '+ boot_menu {' in content
-        assert 'scrollbar = true' in content
-        assert '+ progress_bar {' in content
-        assert '+ label {' in content
+        assert "+ boot_menu {" in content
+        assert "scrollbar = true" in content
+        assert "+ progress_bar {" in content
+        assert "+ label {" in content
 
     def test_generate_theme_txt_with_image(self, default_theme):
         """Test la génération avec une image de fond."""
         default_theme.image.desktop_image = "background.png"
-        
+
         content = ThemeGenerator.generate_theme_txt(default_theme)
-        
+
         assert 'desktop-image: "background.png"' in content
         assert 'desktop-image-scale-method: "stretch"' in content
         assert 'desktop-image-h-align: "center"' in content
         assert 'desktop-image-v-align: "center"' in content
-        assert 'desktop-color' not in content  # Ne doit pas apparaître si image présente
+        assert "desktop-color" not in content  # Ne doit pas apparaître si image présente
 
     def test_generate_theme_txt_options(self, default_theme):
         """Test la génération avec différentes options d'affichage."""
@@ -96,42 +95,42 @@ class TestThemeGenerator:
         default_theme.show_boot_menu = False
         default_theme.show_progress_bar = False
         default_theme.show_timeout_message = False
-        
+
         content = ThemeGenerator.generate_theme_txt(default_theme)
-        
-        assert '+ boot_menu {' not in content
-        assert '+ progress_bar {' not in content
-        assert '+ label {' not in content
+
+        assert "+ boot_menu {" not in content
+        assert "+ progress_bar {" not in content
+        assert "+ label {" not in content
 
         # Cas 2: Menu activé mais scrollbar désactivée
         default_theme.show_boot_menu = True
         default_theme.show_scrollbar = False
         content = ThemeGenerator.generate_theme_txt(default_theme)
-        assert '+ boot_menu {' in content
-        assert 'scrollbar = true' not in content
+        assert "+ boot_menu {" in content
+        assert "scrollbar = true" not in content
 
     def test_save_theme(self, default_theme, tmp_path):
         """Test la sauvegarde d'un thème."""
         theme_file = ThemeGenerator.save_theme(default_theme, tmp_path)
-        
+
         assert theme_file.exists()
         assert theme_file.name == "theme.txt"
         assert str(tmp_path / "TestTheme" / "theme.txt") == str(theme_file)
-        
+
         content = theme_file.read_text()
-        assert '# GRUB Theme: TestTheme' in content
+        assert "# GRUB Theme: TestTheme" in content
 
     def test_create_default_themes(self):
         """Test la création des thèmes par défaut."""
         themes = ThemeGenerator.create_default_themes()
-        
+
         assert len(themes) >= 4
         names = [t.name for t in themes]
         assert "classic" in names
         assert "dark" in names
         assert "blue" in names
         assert "matrix" in names
-        
+
         # Vérifier un détail d'un thème
         matrix = next(t for t in themes if t.name == "matrix")
         assert matrix.colors.title_color == "#00FF00"
@@ -143,7 +142,7 @@ class TestCreateCustomTheme:
     def test_create_custom_theme_defaults(self):
         """Test la création avec les valeurs par défaut."""
         theme = create_custom_theme("MyTheme")
-        
+
         assert theme.name == "MyTheme"
         assert theme.colors.title_color == "#FFFFFF"
         assert theme.colors.desktop_color == "#000000"
@@ -152,12 +151,9 @@ class TestCreateCustomTheme:
     def test_create_custom_theme_custom_values(self):
         """Test la création avec des valeurs personnalisées."""
         theme = create_custom_theme(
-            "MyTheme",
-            title_color="#FF0000",
-            background_color="#0000FF",
-            background_image="bg.png"
+            "MyTheme", title_color="#FF0000", background_color="#0000FF", background_image="bg.png"
         )
-        
+
         assert theme.colors.title_color == "#FF0000"
         assert theme.colors.desktop_color == "#0000FF"
         assert theme.image.desktop_image == "bg.png"

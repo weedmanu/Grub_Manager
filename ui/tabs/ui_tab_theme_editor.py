@@ -244,13 +244,13 @@ class TabThemeEditor:
         container.append(label)
 
         color_btn = Gtk.ColorButton()
-        color_btn.set_use_alpha(False)
+        color_btn.set_property("use-alpha", False)
         # Taille carrée forcée via CSS
         color_btn.set_size_request(50, 50)
 
         # Convertir la couleur hex en RGBA
         rgba = self._parse_color(default_color)
-        color_btn.set_rgba(rgba)
+        color_btn.set_property("rgba", rgba)
         color_btn.connect("color-set", self._on_theme_property_changed)
         container.append(color_btn)
 
@@ -442,12 +442,12 @@ class TabThemeEditor:
         self.grub_timeout_spin.set_value(theme.grub_timeout)
         self.grub_gfxmode_entry.set_text(theme.grub_gfxmode)
 
-        self.title_color_btn.set_rgba(self._parse_color(theme.colors.title_color))
-        self.bg_color_btn.set_rgba(self._parse_color(theme.colors.desktop_color))
-        self.menu_fg_btn.set_rgba(self._parse_color(theme.colors.menu_normal_fg))
-        self.menu_bg_btn.set_rgba(self._parse_color(theme.colors.menu_normal_bg))
-        self.highlight_fg_btn.set_rgba(self._parse_color(theme.colors.menu_highlight_fg))
-        self.highlight_bg_btn.set_rgba(self._parse_color(theme.colors.menu_highlight_bg))
+        self.title_color_btn.set_property("rgba", self._parse_color(theme.colors.title_color))
+        self.bg_color_btn.set_property("rgba", self._parse_color(theme.colors.desktop_color))
+        self.menu_fg_btn.set_property("rgba", self._parse_color(theme.colors.menu_normal_fg))
+        self.menu_bg_btn.set_property("rgba", self._parse_color(theme.colors.menu_normal_bg))
+        self.highlight_fg_btn.set_property("rgba", self._parse_color(theme.colors.menu_highlight_fg))
+        self.highlight_bg_btn.set_property("rgba", self._parse_color(theme.colors.menu_highlight_bg))
 
         self.bg_image_entry.set_text(theme.image.desktop_image)
 
@@ -462,12 +462,12 @@ class TabThemeEditor:
 
         self.current_theme = create_custom_theme(
             name=name,
-            title_color=self._color_to_hex(self.title_color_btn.get_rgba()),
-            background_color=self._color_to_hex(self.bg_color_btn.get_rgba()),
-            menu_fg=self._color_to_hex(self.menu_fg_btn.get_rgba()),
-            menu_bg=self._color_to_hex(self.menu_bg_btn.get_rgba()),
-            highlight_fg=self._color_to_hex(self.highlight_fg_btn.get_rgba()),
-            highlight_bg=self._color_to_hex(self.highlight_bg_btn.get_rgba()),
+            title_color=self._color_to_hex(self.title_color_btn.get_property("rgba")),
+            background_color=self._color_to_hex(self.bg_color_btn.get_property("rgba")),
+            menu_fg=self._color_to_hex(self.menu_fg_btn.get_property("rgba")),
+            menu_bg=self._color_to_hex(self.menu_bg_btn.get_property("rgba")),
+            highlight_fg=self._color_to_hex(self.highlight_fg_btn.get_property("rgba")),
+            highlight_bg=self._color_to_hex(self.highlight_bg_btn.get_property("rgba")),
             background_image=self.bg_image_entry.get_text().strip(),
         )
 
@@ -577,7 +577,7 @@ class TabThemeEditor:
                 f"dans /etc/default/grub et exécutez update-grub."
             )
 
-        except (OSError, IOError) as e:
+        except OSError as e:
             logger.error(f"[TabThemeEditor] Erreur lors de la sauvegarde: {e}")
             self._show_error(f"Erreur lors de la sauvegarde:\n{e}")
 

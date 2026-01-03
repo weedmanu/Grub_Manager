@@ -91,9 +91,7 @@ def check_grub_sync() -> SyncStatus:
                 message=f"Configuration GRUB désynchronisée ({abs(time_diff):.0f}s). Exécutez update-grub.",
             )
 
-        logger.success(
-            f"[check_grub_sync] SYNCHRONISÉ: {GRUB_CFG_PATH} est à jour " f"({time_diff:.1f}s plus récent)"
-        )
+        logger.success(f"[check_grub_sync] SYNCHRONISÉ: {GRUB_CFG_PATH} est à jour " f"({time_diff:.1f}s plus récent)")
         return SyncStatus(
             in_sync=True,
             grub_default_exists=True,

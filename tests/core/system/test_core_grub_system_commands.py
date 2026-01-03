@@ -48,12 +48,9 @@ class TestRunUpdateGrub:
         assert args[0] == "update-grub"
         assert "/usr/sbin" in kwargs["path"]
         assert "/sbin" in kwargs["path"]
-        
+
         mock_subprocess_run.assert_called_once_with(
-            ["/usr/sbin/update-grub"],
-            capture_output=True,
-            text=True,
-            check=False
+            ["/usr/sbin/update-grub"], capture_output=True, text=True, check=False
         )
 
     @patch("core.system.core_grub_system_commands.shutil.which")

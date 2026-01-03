@@ -1,9 +1,6 @@
 """Tests pour le module de lazy loading."""
 
-import sys
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from core.config.core_lazy_loading import LazyComponent, LazyLoader, lazy_import, lazy_property
 
@@ -21,10 +18,10 @@ class TestLazyLoader:
         """Test que le module est chargé lors de l'accès à un attribut."""
         loader = LazyLoader("os")
         assert loader._module is None
-        
+
         # Accès à un attribut (path)
         path_module = loader.path
-        
+
         assert loader._module is not None
         assert loader._module.__name__ == "os"
         assert path_module is not None
@@ -32,14 +29,14 @@ class TestLazyLoader:
     def test_lazy_loader_caches_module(self):
         """Test que le module n'est chargé qu'une seule fois."""
         loader = LazyLoader("sys")
-        
+
         # Premier accès
         _ = loader.version
         module_ref = loader._module
-        
+
         # Deuxième accès
         _ = loader.platform
-        
+
         assert loader._module is module_ref
 
     def test_lazy_import_helper(self):
@@ -56,7 +53,7 @@ class TestLazyComponent:
         """Test l'initialisation du LazyComponent."""
         factory = MagicMock()
         component = LazyComponent(factory)
-        
+
         assert component._factory == factory
         assert component._instance is None
         assert not component.is_loaded()
@@ -67,9 +64,9 @@ class TestLazyComponent:
         expected_instance = "test_instance"
         factory = MagicMock(return_value=expected_instance)
         component = LazyComponent(factory)
-        
+
         instance = component.get()
-        
+
         assert instance == expected_instance
         assert component._instance == expected_instance
         assert component.is_loaded()
@@ -79,10 +76,10 @@ class TestLazyComponent:
         """Test que get() retourne l'instance mise en cache."""
         factory = MagicMock(return_value="instance")
         component = LazyComponent(factory)
-        
+
         instance1 = component.get()
         instance2 = component.get()
-        
+
         assert instance1 is instance2
         factory.assert_called_once()
 
@@ -90,14 +87,14 @@ class TestLazyComponent:
         """Test la réinitialisation du composant."""
         factory = MagicMock(return_value="instance")
         component = LazyComponent(factory)
-        
+
         component.get()
         assert component.is_loaded()
-        
+
         component.reset()
         assert not component.is_loaded()
         assert component._instance is None
-        
+
         # Vérifie qu'on peut recharger après reset
         component.get()
         assert component.is_loaded()
@@ -107,7 +104,7 @@ class TestLazyComponent:
         """Test la réinitialisation quand le composant n'est pas chargé."""
         factory = MagicMock(return_value="instance")
         component = LazyComponent(factory)
-        
+
         # Reset sans avoir chargé l'instance
         assert not component.is_loaded()
         component.reset()
@@ -121,26 +118,26 @@ class TestLazyProperty:
 
     def test_lazy_property_decorator(self):
         """Test le fonctionnement du décorateur lazy_property."""
-        
+
         class TestClass:
             def __init__(self):
                 self.factory_called = 0
-                
+
             @lazy_property
             def heavy_resource(self):
                 self.factory_called += 1
                 return "heavy_data"
 
         obj = TestClass()
-        
+
         # Vérifie que la factory n'est pas appelée à l'init
         assert obj.factory_called == 0
-        
+
         # Premier accès
         val1 = obj.heavy_resource
         assert val1 == "heavy_data"
         assert obj.factory_called == 1
-        
+
         # Deuxième accès (doit utiliser le cache)
         val2 = obj.heavy_resource
         assert val2 == "heavy_data"

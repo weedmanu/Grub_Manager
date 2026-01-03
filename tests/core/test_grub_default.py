@@ -115,8 +115,9 @@ def test_ensure_initial_grub_default_backup_os_error(tmp_path: Path) -> None:
     """Test backup initial avec erreur système."""
     base = tmp_path / "grub"
     base.write_text("test")
-    
+
     from unittest.mock import patch
+
     with patch("shutil.copy2", side_effect=OSError("Permission denied")):
         result = ensure_initial_grub_default_backup(str(base))
         assert result is None
@@ -137,7 +138,7 @@ def test_create_grub_default_backup_with_fallback(tmp_path: Path) -> None:
     base = tmp_path / "grub"
     fallback = tmp_path / "grub.backup.current"
     fallback.write_text("FALLBACK CONTENT")
-    
+
     # base n'existe pas, mais fallback existe
     created = create_grub_default_backup(str(base))
     assert Path(created).read_text() == "FALLBACK CONTENT"
@@ -148,7 +149,7 @@ def test_delete_grub_default_backup_invalid_path(tmp_path: Path) -> None:
     base = tmp_path / "grub"
     with pytest.raises(ValueError, match="Chemin de sauvegarde invalide"):
         delete_grub_default_backup("/tmp/other", path=str(base))
-    
+
     # Pour déclencher "Refus de supprimer le fichier canonique", il faut que le chemin
     # commence par allowed_prefix MAIS soit égal au fichier canonique après abspath.
     # On utilise ".." pour tromper le startswith.
@@ -171,8 +172,9 @@ def test_read_grub_default_os_error_on_restore(tmp_path: Path) -> None:
     base = tmp_path / "grub"
     fallback = tmp_path / "grub.backup.current"
     fallback.write_text("KEY=VAL")
-    
+
     from unittest.mock import patch
+
     with patch("shutil.copy2", side_effect=OSError("Read-only file system")):
         # Devrait quand même lire le fallback
         cfg = read_grub_default(str(base))
@@ -183,13 +185,14 @@ def test_write_grub_default_os_error(tmp_path: Path) -> None:
     """Test erreur d'écriture dans write_grub_default."""
     base = tmp_path / "grub"
     base.write_text("test")
-    
+
     from unittest.mock import patch
+
     # Cas 1: Échec du backup
     with patch("shutil.copy2", side_effect=OSError("Disk full")):
         with pytest.raises(OSError):
             write_grub_default({}, str(base))
-    
+
     # Cas 2: Succès du backup, échec de l'écriture
     with patch("shutil.copy2", return_value=None):
         with patch("builtins.open", side_effect=OSError("Permission denied")):
@@ -199,22 +202,26 @@ def test_write_grub_default_os_error(tmp_path: Path) -> None:
 
 def test_touch_now_os_error() -> None:
     """Test _touch_now avec erreur (ne doit pas lever)."""
-    from core.io.core_grub_default_io import _touch_now
     from unittest.mock import patch
+
+    from core.io.core_grub_default_io import _touch_now
+
     with patch("os.utime", side_effect=OSError):
-        _touch_now("/nonexistent") # Ne doit pas lever
+        _touch_now("/nonexistent")  # Ne doit pas lever
 
 
 def test_prune_manual_backups_os_error(tmp_path: Path) -> None:
     """Test _prune_manual_backups avec erreur de suppression."""
     from core.io.core_grub_default_io import _prune_manual_backups
+
     base = tmp_path / "grub"
     b1 = tmp_path / "grub.backup.manual.1"
     b2 = tmp_path / "grub.backup.manual.2"
     b1.write_text("1")
     b2.write_text("2")
-    
+
     from unittest.mock import patch
+
     with patch("os.remove", side_effect=OSError):
         deleted = _prune_manual_backups(str(base), keep=1)
         assert len(deleted) == 0

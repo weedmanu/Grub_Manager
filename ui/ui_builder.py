@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from gi.repository import Gtk
 from loguru import logger
 
+from ui.tabs.ui_tab_backups import build_backups_tab
 from ui.tabs.ui_tab_display import build_display_tab
 from ui.tabs.ui_tab_entries import build_entries_tab
 from ui.tabs.ui_tab_general import build_general_tab
@@ -103,7 +104,7 @@ class UIBuilder:
         button_box.append(window.reload_btn)
 
         window.save_btn = Gtk.Button(label="Appliquer")
-        window.save_btn.get_style_context().add_class("suggested-action")
+        window.save_btn.add_css_class("suggested-action")
         window.save_btn.connect("clicked", window.on_save)
         button_box.append(window.save_btn)
 
@@ -136,6 +137,7 @@ class UIBuilder:
         theme_config_tab = theme_config.build()
         notebook.append_page(theme_config_tab, Gtk.Label(label="Thèmes"))
 
+        build_backups_tab(window, notebook)
         build_maintenance_tab(window, notebook)
 
         # === Connect tab switch signal ===

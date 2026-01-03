@@ -1,8 +1,6 @@
 """Tests pour le service GRUB."""
 
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from core.services.core_grub_service import GrubConfig, GrubService, MenuEntry
 

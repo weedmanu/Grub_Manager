@@ -189,6 +189,9 @@ class TabThemeConfig:
         """Scanne les répertoires système pour trouver les thèmes."""
         self.available_themes.clear()
 
+        if self.theme_list_box is None:
+            return
+
         # Nettoyer la liste des thèmes dans l'UI
         while True:
             child = self.theme_list_box.get_first_child()
@@ -301,13 +304,15 @@ class TabThemeConfig:
 
     def _scan_grub_scripts(self) -> None:
         """Scanne /etc/grub.d/ pour détecter les scripts de thème."""
+        if self.scripts_info_box is None:
+            return
+
         # Nettoyer l'affichage précédent
-        if self.scripts_info_box:
-            while True:
-                child = self.scripts_info_box.get_first_child()
-                if child is None:
-                    break
-                self.scripts_info_box.remove(child)
+        while True:
+            child = self.scripts_info_box.get_first_child()
+            if child is None:
+                break
+            self.scripts_info_box.remove(child)
 
         logger.debug("[TabThemeConfig._scan_grub_scripts] Scan des scripts GRUB")
 

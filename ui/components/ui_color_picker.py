@@ -38,7 +38,7 @@ class ColorPicker:
 
         # Créer le ColorButton
         self.color_button = Gtk.ColorButton()
-        self.color_button.set_use_alpha(False)
+        self.color_button.set_property("use-alpha", False)
 
         # Définir la couleur initiale
         self.set_color(initial_color)
@@ -66,7 +66,7 @@ class ColorPicker:
         Returns:
             Couleur au format hexadécimal
         """
-        rgba = self.color_button.get_rgba()
+        rgba = self.color_button.get_property("rgba")
         r = int(rgba.red * 255)
         g = int(rgba.green * 255)
         b = int(rgba.blue * 255)
@@ -81,7 +81,7 @@ class ColorPicker:
         try:
             rgba = Gdk.RGBA()
             rgba.parse(color_hex)
-            self.color_button.set_rgba(rgba)
+            self.color_button.set_property("rgba", rgba)
             logger.debug(f"[ColorPicker] Couleur définie: {color_hex}")
         except ValueError as e:
             logger.warning(f"[ColorPicker] Couleur invalide '{color_hex}': {e}")

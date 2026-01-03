@@ -1,6 +1,5 @@
 """Tests pour les exceptions UI."""
 
-import pytest
 
 from ui.ui_exceptions import UiError, UiStateError, UiValidationError, UiWidgetError
 

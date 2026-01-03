@@ -1,9 +1,7 @@
 """Tests pour le gestionnaire de visibilité des entrées GRUB."""
 
 import json
-import os
-from glob import glob
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -185,7 +183,9 @@ class TestCandidateGrubCfgPaths:
     def test_candidate_grub_cfg_paths(self, mock_glob):
         """Test génération des chemins candidats avec doublons."""
         # On simule des doublons entre GRUB_CFG_PATHS et glob
-        with patch("core.managers.core_entry_visibility_manager.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg", "/boot/grub/grub.cfg"]):
+        with patch(
+            "core.managers.core_entry_visibility_manager.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg", "/boot/grub/grub.cfg"]
+        ):
             mock_glob.return_value = ["/boot/grub/grub.cfg", "/boot/efi/EFI/ubuntu/grub.cfg"]
 
             result = _candidate_grub_cfg_paths()
@@ -256,11 +256,11 @@ class TestApplyHiddenEntriesToGrubCfg:
     def test_apply_hidden_entries_would_hide_all(self, tmp_path):
         """Test protection contre masquage de toutes les entrées."""
         config_file = tmp_path / "grub.cfg"
-        config_content = '''menuentry "Ubuntu" --id ubuntu {
+        config_content = """menuentry "Ubuntu" --id ubuntu {
 }
 menuentry "Windows" --id windows {
 }
-'''
+"""
         config_file.write_text(config_content)
 
         # Tenter de masquer les 2 entrées
@@ -272,7 +272,7 @@ menuentry "Windows" --id windows {
     def test_apply_hidden_entries_success(self, tmp_path):
         """Test masquage réussi."""
         config_file = tmp_path / "grub.cfg"
-        config_content = '''menuentry "Ubuntu" --id ubuntu {
+        config_content = """menuentry "Ubuntu" --id ubuntu {
 echo "Loading Ubuntu"
 }
 menuentry "Windows" --id windows {
@@ -281,10 +281,10 @@ echo "Loading Windows"
 menuentry "Debian" --id debian {
 echo "Loading Debian"
 }
-'''
+"""
         config_file.write_text(config_content)
 
-        hidden_ids = {"ubuntu"} # Il restera 2 entrées (Windows, Debian)
+        hidden_ids = {"ubuntu"}  # Il restera 2 entrées (Windows, Debian)
 
         result_path, count = apply_hidden_entries_to_grub_cfg(hidden_ids, grub_cfg_path=str(config_file))
 
@@ -318,7 +318,7 @@ echo "Loading Debian"
         config_content = 'menuentry "Ubuntu" --id ubuntu {\n}\nmenuentry "Windows" --id windows {\n}'
         config_file.write_text(config_content)
 
-        hidden_ids = {"ubuntu"} # Il restera Windows (1 seule entrée)
+        hidden_ids = {"ubuntu"}  # Il restera Windows (1 seule entrée)
 
         result_path, count = apply_hidden_entries_to_grub_cfg(hidden_ids, grub_cfg_path=str(config_file))
         assert count == 1

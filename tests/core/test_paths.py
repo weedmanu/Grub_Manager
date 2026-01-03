@@ -50,53 +50,57 @@ class TestThemePaths:
         """Test retourne le premier répertoire existant."""
         from pathlib import Path
         from unittest.mock import patch
-        from core.config.core_paths import get_grub_themes_dir, GRUB_THEMES_DIRS
+
+        from core.config.core_paths import GRUB_THEMES_DIRS, get_grub_themes_dir
 
         with patch.object(Path, "exists") as mock_exists:
             # Le premier existe
             mock_exists.side_effect = [True, False, False]
-            
+
             path = get_grub_themes_dir()
-            
+
             assert path == Path(GRUB_THEMES_DIRS[0])
 
     def test_get_grub_themes_dir_second_exists(self):
         """Test retourne le deuxième si le premier n'existe pas."""
         from pathlib import Path
         from unittest.mock import patch
-        from core.config.core_paths import get_grub_themes_dir, GRUB_THEMES_DIRS
+
+        from core.config.core_paths import GRUB_THEMES_DIRS, get_grub_themes_dir
 
         with patch.object(Path, "exists") as mock_exists:
             # Le premier n'existe pas, le deuxième oui
             mock_exists.side_effect = [False, True, False]
-            
+
             path = get_grub_themes_dir()
-            
+
             assert path == Path(GRUB_THEMES_DIRS[1])
 
     def test_get_grub_themes_dir_none_exists(self):
         """Test retourne le défaut si aucun n'existe."""
         from pathlib import Path
         from unittest.mock import patch
-        from core.config.core_paths import get_grub_themes_dir, GRUB_THEMES_DIR
+
+        from core.config.core_paths import GRUB_THEMES_DIR, get_grub_themes_dir
 
         with patch.object(Path, "exists", return_value=False):
             path = get_grub_themes_dir()
-            
+
             assert path == Path(GRUB_THEMES_DIR)
 
     def test_get_all_grub_themes_dirs(self):
         """Test retourne tous les répertoires existants."""
         from pathlib import Path
         from unittest.mock import patch
-        from core.config.core_paths import get_all_grub_themes_dirs, GRUB_THEMES_DIRS
+
+        from core.config.core_paths import GRUB_THEMES_DIRS, get_all_grub_themes_dirs
 
         with patch.object(Path, "exists") as mock_exists:
             # Le premier et le troisième existent
             mock_exists.side_effect = [True, False, True]
-            
+
             paths = get_all_grub_themes_dirs()
-            
+
             assert len(paths) == 2
             assert Path(GRUB_THEMES_DIRS[0]) in paths
             assert Path(GRUB_THEMES_DIRS[2]) in paths

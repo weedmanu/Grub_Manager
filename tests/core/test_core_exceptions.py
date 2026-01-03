@@ -1,6 +1,5 @@
 """Tests pour les exceptions personnalisées de Grub Manager."""
 
-import pytest
 
 from core.core_exceptions import (
     GrubBackupError,
@@ -143,12 +142,7 @@ class TestGrubCommandError:
 
     def test_grub_command_error_with_all_fields(self):
         """Test GrubCommandError avec tous les champs."""
-        error = GrubCommandError(
-            "Commande échouée",
-            command="grub-install",
-            returncode=2,
-            stderr="Disque non trouvé"
-        )
+        error = GrubCommandError("Commande échouée", command="grub-install", returncode=2, stderr="Disque non trouvé")
         error_str = str(error)
         assert "Commande échouée" in error_str
         assert "Commande: grub-install" in error_str

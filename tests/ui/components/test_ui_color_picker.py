@@ -3,8 +3,9 @@
 from unittest.mock import MagicMock, patch
 
 import gi
-gi.require_version('Gtk', '4.0')
-gi.require_version('Gdk', '4.0')
+
+gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
 import pytest
 
 from ui.components.ui_color_picker import ColorPicker, create_color_grid_row
@@ -16,8 +17,10 @@ class TestColorPicker:
     @pytest.fixture
     def mock_gtk(self):
         """Mock pour les composants GTK."""
-        with patch("ui.components.ui_color_picker.Gtk") as mock_gtk, \
-             patch("ui.components.ui_color_picker.Gdk") as mock_gdk:
+        with (
+            patch("ui.components.ui_color_picker.Gtk") as mock_gtk,
+            patch("ui.components.ui_color_picker.Gdk") as mock_gdk,
+        ):
             # Mock Label
             mock_label = MagicMock()
             mock_gtk.Label.return_value = mock_label
@@ -35,25 +38,25 @@ class TestColorPicker:
             mock_gdk.RGBA.return_value = mock_rgba
 
             yield {
-                'gtk': mock_gtk,
-                'gdk': mock_gdk,
-                'label': mock_label,
-                'color_button': mock_color_button,
-                'box': mock_box,
-                'rgba': mock_rgba
+                "gtk": mock_gtk,
+                "gdk": mock_gdk,
+                "label": mock_label,
+                "color_button": mock_color_button,
+                "box": mock_box,
+                "rgba": mock_rgba,
             }
 
     def test_initialization(self, mock_gtk):
         """Test l'initialisation du ColorPicker."""
-        with patch.object(ColorPicker, 'set_color') as mock_set_color:
+        with patch.object(ColorPicker, "set_color") as mock_set_color:
             picker = ColorPicker("Test Color", "#FF0000")
 
             assert picker.label_text == "Test Color"
             assert picker.callback is None
 
             # Vérifier que les widgets ont été créés
-            mock_gtk['gtk'].Label.assert_called_once_with(label="Test Color")
-            mock_gtk['gtk'].ColorButton.assert_called_once()
+            mock_gtk["gtk"].Label.assert_called_once_with(label="Test Color")
+            mock_gtk["gtk"].ColorButton.assert_called_once()
 
             # Vérifier que set_color a été appelé
             mock_set_color.assert_called_once_with("#FF0000")
@@ -77,41 +80,44 @@ class TestColorPicker:
         mock_rgba.red = 0.5
         mock_rgba.green = 0.25
         mock_rgba.blue = 1.0
-        picker.color_button.get_rgba.return_value = mock_rgba
+        picker.color_button.get_property.return_value = mock_rgba
 
         color = picker.get_color()
 
         assert color == "#7F3FFF"  # 0.5*255=127.5->7F, 0.25*255=63.75->3F, 1.0*255=255->FF
+        picker.color_button.get_property.assert_called_with("rgba")
 
     def test_set_color_valid(self, mock_gtk):
         """Test la définition d'une couleur valide."""
         picker = ColorPicker("Test", "#FFFFFF")
 
         # Reset les mocks pour ignorer les appels d'initialisation
-        mock_gtk['gdk'].RGBA.return_value.parse.reset_mock()
-        picker.color_button.set_rgba.reset_mock()
+        mock_gtk["gdk"].RGBA.return_value.parse.reset_mock()
+        picker.color_button.set_property.reset_mock()
 
         picker.set_color("#123456")
 
         # Vérifier que RGBA.parse a été appelé
-        mock_gtk['gdk'].RGBA.return_value.parse.assert_called_once_with("#123456")
-        # Vérifier que set_rgba a été appelé
-        picker.color_button.set_rgba.assert_called_once()
+        mock_gtk["gdk"].RGBA.return_value.parse.assert_called_once_with("#123456")
+        # Vérifier que set_property a été appelé
+        picker.color_button.set_property.assert_called_with("rgba", mock_gtk["gdk"].RGBA.return_value)
 
     def test_set_color_invalid(self, mock_gtk):
         """Test la définition d'une couleur invalide."""
         picker = ColorPicker("Test", "#FFFFFF")
 
         # Reset le mock pour ignorer l'appel initial
-        picker.color_button.set_rgba.reset_mock()
+        picker.color_button.set_property.reset_mock()
 
         # Mock une exception lors du parsing
-        mock_gtk['gdk'].RGBA.return_value.parse.side_effect = ValueError("Invalid color")
+        mock_gtk["gdk"].RGBA.return_value.parse.side_effect = ValueError("Invalid color")
 
         picker.set_color("invalid")
 
-        # Vérifier que set_rgba n'a pas été appelé
-        picker.color_button.set_rgba.assert_not_called()
+        # Vérifier que set_property n'a pas été appelé avec "rgba"
+        # Note: set_property peut être appelé pour d'autres choses (comme use-alpha)
+        # mais ici on vérifie qu'il n'est pas appelé après l'erreur
+        assert not any(call.args[0] == "rgba" for call in picker.color_button.set_property.call_args_list)
 
     def test_on_color_changed_with_callback(self, mock_gtk):
         """Test le callback lors du changement de couleur."""
@@ -141,13 +147,13 @@ class TestColorPicker:
         widget = picker.get_widget()
 
         # Vérifier que Box a été créé
-        mock_gtk['gtk'].Box.assert_called_once_with(orientation=mock_gtk['gtk'].Orientation.HORIZONTAL, spacing=10)
+        mock_gtk["gtk"].Box.assert_called_once_with(orientation=mock_gtk["gtk"].Orientation.HORIZONTAL, spacing=10)
 
         # Vérifier que les widgets ont été ajoutés
         widget.append.assert_any_call(picker.label)
         widget.append.assert_any_call(picker.color_button)
 
-        assert widget == mock_gtk['box']
+        assert widget == mock_gtk["box"]
 
 
 class TestCreateColorGridRow:

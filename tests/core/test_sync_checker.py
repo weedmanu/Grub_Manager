@@ -110,21 +110,21 @@ def test_sync_checker_os_error(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr("core.system.core_sync_checker.GRUB_DEFAULT_PATH", str(grub_default))
     monkeypatch.setattr("core.system.core_sync_checker.GRUB_CFG_PATH", str(grub_cfg))
 
-    from unittest.mock import patch, MagicMock
-    
+    from unittest.mock import MagicMock, patch
+
     # On simule que exists() fonctionne (renvoie True) mais stat() échoue ensuite
     # exists() appelle stat() en interne.
     # 1. exists(grub_default) -> appelle stat -> success
     # 2. exists(grub_cfg) -> appelle stat -> success
     # 3. grub_default_path.stat() -> OSError
-    
+
     mock_stat = MagicMock()
     mock_stat.side_effect = [
-        MagicMock(st_mtime=1000), # pour exists(grub_default)
-        MagicMock(st_mtime=2000), # pour exists(grub_cfg)
-        OSError("Permission denied") # pour le stat() explicite
+        MagicMock(st_mtime=1000),  # pour exists(grub_default)
+        MagicMock(st_mtime=2000),  # pour exists(grub_cfg)
+        OSError("Permission denied"),  # pour le stat() explicite
     ]
-    
+
     with patch("pathlib.Path.stat", mock_stat):
         status = check_grub_sync()
         assert status.in_sync is False

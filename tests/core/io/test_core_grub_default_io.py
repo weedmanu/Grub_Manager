@@ -1,10 +1,8 @@
 """Tests pour les opérations I/O sur /etc/default/grub."""
 
 import os
-import shutil
 import tempfile
-from pathlib import Path
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -374,8 +372,10 @@ class TestReadGrubDefault:
         fallback_path = tmp_path / "grub.backup.current"
         fallback_path.write_text("GRUB_TIMEOUT=10\n")
 
-        with patch("core.io.core_grub_default_io._best_fallback_for_missing_config") as mock_fallback, \
-             patch("shutil.copy2", side_effect=OSError):
+        with (
+            patch("core.io.core_grub_default_io._best_fallback_for_missing_config") as mock_fallback,
+            patch("shutil.copy2", side_effect=OSError),
+        ):
             mock_fallback.return_value = str(fallback_path)
             result = read_grub_default(str(config_path))
 

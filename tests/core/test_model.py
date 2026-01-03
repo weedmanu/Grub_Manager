@@ -98,11 +98,7 @@ def test_merged_config_empty_strings() -> None:
 def test_merged_config_all_flags() -> None:
     """Test fusion avec tous les drapeaux activés."""
     model = GrubUiModel(
-        save_default=True,
-        disable_submenu=True,
-        disable_recovery=True,
-        disable_os_prober=True,
-        terminal_color=True
+        save_default=True, disable_submenu=True, disable_recovery=True, disable_os_prober=True, terminal_color=True
     )
     merged = merged_config_from_model({}, model)
     assert merged["GRUB_SAVEDEFAULT"] == "true"
@@ -121,14 +117,17 @@ def test_load_save_grub_ui_state(tmp_path, monkeypatch) -> None:
     grub_cfg.write_text("menuentry 'Ubuntu' --id ubuntu {\n}\n", encoding="utf-8")
 
     from unittest.mock import patch
-    
+
     # On mocke les fonctions IO pour éviter de dépendre de leur implémentation exacte ici
-    with patch("core.models.core_grub_ui_model.read_grub_default") as mock_read_default, \
-         patch("core.models.core_grub_ui_model.read_grub_default_choices_with_source") as mock_read_choices, \
-         patch("core.models.core_grub_ui_model.write_grub_default") as mock_write_default:
-        
+    with (
+        patch("core.models.core_grub_ui_model.read_grub_default") as mock_read_default,
+        patch("core.models.core_grub_ui_model.read_grub_default_choices_with_source") as mock_read_choices,
+        patch("core.models.core_grub_ui_model.write_grub_default") as mock_write_default,
+    ):
+
         mock_read_default.return_value = {"GRUB_TIMEOUT": "5"}
         from core.io.core_grub_menu_parser import GrubDefaultChoice
+
         mock_read_choices.return_value = ([GrubDefaultChoice("ubuntu", "Ubuntu")], str(grub_cfg))
         mock_write_default.return_value = str(grub_default) + ".bak"
 

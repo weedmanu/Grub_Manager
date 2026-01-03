@@ -41,11 +41,7 @@ def configure_logging(level: str = INFO, *, enable_file_logging: bool = True) ->
             "<level>{message}</level>"
         )
     else:
-        log_format = (
-            "<green>{time:HH:mm:ss}</green> | "
-            "<level>{level: <7}</level> | "
-            "<level>{message}</level>"
-        )
+        log_format = "<green>{time:HH:mm:ss}</green> | " "<level>{level: <7}</level> | " "<level>{message}</level>"
 
     # Handler console
     logger.add(

@@ -18,6 +18,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Gio", "2.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
+from core.io.core_grub_default_io import read_grub_default  # noqa: E402
 from core.managers.core_apply_manager import GrubApplyManager  # noqa: E402
 from core.managers.core_entry_visibility_manager import apply_hidden_entries_to_grub_cfg  # noqa: E402
 from core.models.core_grub_ui_model import merged_config_from_model  # noqa: E402
@@ -28,9 +29,9 @@ from core.system.core_grub_system_commands import (  # noqa: E402
     load_grub_ui_state,
 )
 from core.system.core_sync_checker import check_grub_sync  # noqa: E402
-from core.io.core_grub_default_io import read_grub_default  # noqa: E402
 from ui.tabs.ui_entries_renderer import render_entries as render_entries_view  # noqa: E402
 from ui.ui_builder import UIBuilder  # noqa: E402
+from ui.ui_gtk_helpers import GtkHelper  # noqa: E402
 from ui.ui_state import AppState, AppStateManager  # noqa: E402
 
 INFO = "info"
@@ -93,32 +94,11 @@ class GrubConfigManager(Gtk.ApplicationWindow):
     def _get_timeout_value(self) -> int:
         if self.timeout_dropdown is None:
             return 5
-        idx = self.timeout_dropdown.get_selected()
-        model = self.timeout_dropdown.get_model()
-        if idx is None or model is None:
-            return 5
+        val_str = GtkHelper.dropdown_get_value(self.timeout_dropdown, auto_prefix="NO_AUTO_PREFIX")
         try:
-            return int(str(model.get_string(int(idx))))
-        except (TypeError, ValueError):
+            return int(val_str)
+        except (ValueError, TypeError):
             return 5
-
-    def _stringlist_find(self, model, wanted: str) -> int | None:
-        if model is None:
-            return None
-        for i in range(model.get_n_items()):
-            if str(model.get_string(i)) == wanted:
-                return i
-        return None
-
-    def _stringlist_insert(self, model, index: int, value: str) -> None:
-        try:
-            logger.debug(f"[_stringlist_insert] splice at index {index} with value '{value}'")
-            model.splice(index, 0, [value])
-            logger.debug("[_stringlist_insert] splice succeeded")
-        except Exception as e:
-            logger.debug(f"[_stringlist_insert] splice failed: {e}, using append with value '{value}'")
-            model.append(value)
-            logger.debug("[_stringlist_insert] append succeeded")
 
     def _sync_timeout_choices(self, current: int) -> None:
         if self.timeout_dropdown is None:
@@ -139,18 +119,9 @@ class GrubConfigManager(Gtk.ApplicationWindow):
 
         logger.debug(f"[_sync_timeout_choices] current={current}, ordered={ordered}")
 
-        try:
-            model.splice(0, model.get_n_items(), ordered)
-            logger.debug(f"[_sync_timeout_choices] splice succeeded, items count={model.get_n_items()}")
-        except Exception as e:
-            logger.debug(f"[_sync_timeout_choices] splice failed: {e}, using append loop")
-            while model.get_n_items() > 0:
-                model.remove(0)
-            for v in ordered:
-                model.append(v)
-            logger.debug(f"[_sync_timeout_choices] append loop completed, items count={model.get_n_items()}")
+        GtkHelper.stringlist_replace_all(model, ordered)
 
-        idx = self._stringlist_find(model, str(int(current)))
+        idx = GtkHelper.stringlist_find(model, str(int(current)))
         logger.debug(f"[_sync_timeout_choices] found idx={idx} for value={int(current)!s}")
         if idx is not None:
             self.timeout_dropdown.set_selected(idx)
@@ -164,7 +135,7 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         model = self.timeout_dropdown.get_model()
         if model is None:
             return None
-        existing = self._stringlist_find(model, wanted)
+        existing = GtkHelper.stringlist_find(model, wanted)
         if existing is not None:
             return existing
 
@@ -184,8 +155,8 @@ class GrubConfigManager(Gtk.ApplicationWindow):
                     insert_at = i
                     break
 
-        self._stringlist_insert(model, insert_at, wanted)
-        return self._stringlist_find(model, wanted)
+        GtkHelper.stringlist_insert(model, insert_at, wanted)
+        return GtkHelper.stringlist_find(model, wanted)
 
     def _set_timeout_value(self, value: int) -> None:
         if self.timeout_dropdown is None:
@@ -196,66 +167,6 @@ class GrubConfigManager(Gtk.ApplicationWindow):
             self.timeout_dropdown.set_selected(idx)
             return
         self.timeout_dropdown.set_selected(0)
-
-    def _dropdown_get_value(self, dropdown: Gtk.DropDown, *, auto_prefix: str = "auto") -> str:
-        idx = dropdown.get_selected()
-        model = dropdown.get_model()
-        if idx is None or model is None:
-            logger.debug(f"[_dropdown_get_value] idx={idx}, model={model is not None}, returning ''")
-            return ""
-        try:
-            label = str(model.get_string(int(idx)))
-            logger.debug(f"[_dropdown_get_value] idx={idx}, label='{label}'")
-        except Exception as e:
-            logger.debug(f"[_dropdown_get_value] exception getting string: {e}, returning ''")
-            return ""
-        if label.startswith(auto_prefix):
-            logger.debug(f"[_dropdown_get_value] label starts with '{auto_prefix}', returning ''")
-            return ""
-        return label
-
-    def _dropdown_set_value(self, dropdown: Gtk.DropDown, value: str, *, auto_prefix: str = "auto") -> None:
-        model = dropdown.get_model()
-        if model is None:
-            logger.debug(f"[_dropdown_set_value] model is None, cannot set value '{value}'")
-            return
-
-        wanted = (value or "").strip()
-        logger.debug(f"[_dropdown_set_value] wanted='{wanted}', model has {model.get_n_items()} items")
-
-        if not wanted:
-            logger.debug(f"[_dropdown_set_value] wanted is empty, looking for '{auto_prefix}' prefix")
-            for i in range(model.get_n_items()):
-                item = str(model.get_string(i))
-                if item.startswith(auto_prefix):
-                    logger.debug(f"[_dropdown_set_value] found auto item at index {i}: '{item}'")
-                    dropdown.set_selected(i)
-                    return
-            logger.debug("[_dropdown_set_value] no auto item found, selecting index 0")
-            dropdown.set_selected(0)
-            return
-
-        for i in range(model.get_n_items()):
-            item = str(model.get_string(i))
-            if item == wanted:
-                logger.debug(f"[_dropdown_set_value] found exact match at index {i}: '{item}'")
-                dropdown.set_selected(i)
-                return
-
-        logger.debug(f"[_dropdown_set_value] no exact match found, adding '{wanted}' to model")
-        has_auto = model.get_n_items() >= 1 and str(model.get_string(0)).startswith(auto_prefix)
-        insert_at = 1 if has_auto else model.get_n_items()
-        self._stringlist_insert(model, insert_at, wanted)
-        idx = self._stringlist_find(model, wanted)
-        if idx is not None:
-            dropdown.set_selected(idx)
-            return
-
-        for i in range(model.get_n_items()):
-            if str(model.get_string(i)).startswith(auto_prefix):
-                dropdown.set_selected(i)
-                return
-        dropdown.set_selected(0)
 
     def _refresh_default_choices(self, entries: list[GrubDefaultChoice]) -> None:
         if self.default_dropdown is None:
@@ -269,13 +180,7 @@ class GrubConfigManager(Gtk.ApplicationWindow):
             items.append(choice.title)
             ids.append(choice.id)
         self.state_manager.update_default_choice_ids(ids)
-        try:
-            model.splice(0, model.get_n_items(), items)
-        except Exception:
-            while model.get_n_items() > 0:
-                model.remove(0)
-            for it in items:
-                model.append(it)
+        GtkHelper.stringlist_replace_all(model, items)
 
     def _get_default_choice(self) -> str:
         if self.default_dropdown is None:
@@ -343,10 +248,10 @@ class GrubConfigManager(Gtk.ApplicationWindow):
                 logger.debug(f"[_apply_model_to_ui] hidden_timeout_check.set_active({bool(model.hidden_timeout)})")
 
             if self.gfxmode_dropdown is not None:
-                self._dropdown_set_value(self.gfxmode_dropdown, model.gfxmode)
+                GtkHelper.dropdown_set_value(self.gfxmode_dropdown, model.gfxmode)
                 logger.debug(f"[_apply_model_to_ui] gfxmode_dropdown set to '{model.gfxmode}'")
             if self.gfxpayload_dropdown is not None:
-                self._dropdown_set_value(self.gfxpayload_dropdown, model.gfxpayload_linux)
+                GtkHelper.dropdown_set_value(self.gfxpayload_dropdown, model.gfxpayload_linux)
                 logger.debug(f"[_apply_model_to_ui] gfxpayload_dropdown set to '{model.gfxpayload_linux}'")
 
             if self.disable_submenu_check is not None:
@@ -391,12 +296,14 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         logger.debug(f"[_read_model_from_ui] hidden_timeout={hidden_timeout}")
 
         gfxmode = (
-            (self._dropdown_get_value(self.gfxmode_dropdown) or "").strip() if self.gfxmode_dropdown is not None else ""
+            (GtkHelper.dropdown_get_value(self.gfxmode_dropdown) or "").strip()
+            if self.gfxmode_dropdown is not None
+            else ""
         )
         logger.debug(f"[_read_model_from_ui] gfxmode='{gfxmode}'")
 
         gfxpayload = (
-            (self._dropdown_get_value(self.gfxpayload_dropdown) or "").strip()
+            (GtkHelper.dropdown_get_value(self.gfxpayload_dropdown) or "").strip()
             if self.gfxpayload_dropdown is not None
             else ""
         )
@@ -566,12 +473,13 @@ class GrubConfigManager(Gtk.ApplicationWindow):
             dialog.set_default_button(1)
 
             def _on_choice(dlg, result):
+                idx = None
                 try:
                     idx = dlg.choose_finish(result)
                     logger.debug(f"[on_reload._on_choice] Dialog result: {idx}")
                 except GLib.Error as e:
                     logger.debug(f"[on_reload._on_choice] Dialog cancelled: {e}")
-                    return
+                
                 if idx == 1:
                     logger.debug("[on_reload._on_choice] User confirmed reload")
                     self.load_config()
@@ -606,13 +514,13 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         dialog.set_default_button(1)
 
         def _on_response(dlg, result):
+            idx = None
             try:
                 idx = dlg.choose_finish(result)
                 logger.debug(f"[on_save._on_response] Dialog result: {idx}")
             except GLib.Error as e:
                 logger.debug(f"[on_save._on_response] Dialog cancelled: {e}")
-                return
-
+            
             if idx == 1:
                 logger.debug("[on_save._on_response] User confirmed save")
                 self._perform_save(apply_now=True)
@@ -641,11 +549,13 @@ class GrubConfigManager(Gtk.ApplicationWindow):
                 # Vérification post-application: lire le fichier pour confirmer
                 try:
                     verified_config = read_grub_default()
-                    timeout_match = verified_config.get("GRUB_TIMEOUT") == str(model.timeout)
-                    default_match = verified_config.get("GRUB_DEFAULT") == model.default
-                    logger.debug(f"[_perform_save] Vérification: timeout={timeout_match}, default={default_match}")
+                    matches = (
+                        verified_config.get("GRUB_TIMEOUT") == str(model.timeout) and
+                        verified_config.get("GRUB_DEFAULT") == model.default
+                    )
+                    logger.debug(f"[_perform_save] Vérification: matches={matches}")
 
-                    if not (timeout_match and default_match):
+                    if not matches:
                         logger.warning("[_perform_save] ATTENTION: Valeurs écrites ne correspondent pas au modèle")
                 except Exception as e:
                     logger.warning(f"[_perform_save] Impossible de vérifier les valeurs écrites: {e}")
@@ -685,6 +595,12 @@ class GrubConfigManager(Gtk.ApplicationWindow):
             self.state_manager.apply_state(AppState.DIRTY, self.save_btn, self.reload_btn)
             self.show_info(f"Erreur inattendue: {e}", ERROR)
 
+    def _hide_info_callback(self):
+        if self.info_revealer is None:
+            return False
+        self.info_revealer.set_reveal_child(False)
+        return False
+
     def show_info(self, message, msg_type):
         """Display temporary message in info area."""
         if self.info_label is None:
@@ -701,14 +617,6 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         if msg_type in (INFO, WARNING, ERROR):
             ctx.add_class(msg_type)
 
-        if self.info_revealer is None:
-            return
         self.info_revealer.set_reveal_child(True)
 
-        def _hide():
-            if self.info_revealer is None:
-                return False
-            self.info_revealer.set_reveal_child(False)
-            return False
-
-        GLib.timeout_add_seconds(5, _hide)
+        GLib.timeout_add_seconds(5, self._hide_info_callback)
