@@ -26,7 +26,7 @@ class GtkHelper:
             logger.debug(f"[stringlist_insert] splice at index {index} with value '{value}'")
             model.splice(index, 0, [value])
             logger.debug("[stringlist_insert] splice succeeded")
-        except Exception as e:
+        except (TypeError, AttributeError) as e:
             logger.debug(f"[stringlist_insert] splice failed: {e}, using append with value '{value}'")
             model.append(value)
             logger.debug("[stringlist_insert] append succeeded")
@@ -45,7 +45,7 @@ class GtkHelper:
                 return ""
             label = str(val)
             logger.debug(f"[dropdown_get_value] idx={idx}, label='{label}'")
-        except Exception as e:
+        except (TypeError, AttributeError) as e:
             logger.debug(f"[dropdown_get_value] exception getting string: {e}, returning ''")
             return ""
         if label.startswith(auto_prefix):
@@ -106,7 +106,7 @@ class GtkHelper:
         try:
             model.splice(0, model.get_n_items(), items)
             logger.debug(f"[stringlist_replace_all] splice succeeded, items count={model.get_n_items()}")
-        except Exception as e:
+        except (TypeError, AttributeError) as e:
             logger.debug(f"[stringlist_replace_all] splice failed: {e}, using remove/append loop")
             while model.get_n_items() > 0:
                 model.remove(0)

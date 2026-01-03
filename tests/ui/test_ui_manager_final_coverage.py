@@ -61,7 +61,7 @@ def test_ensure_timeout_choice_exception(ui_manager):
     model.get_string.side_effect = lambda i: ["1", "5", "10"][i]
 
     # Make splice raise an exception to trigger the fallback
-    model.splice.side_effect = Exception("Splice failed")
+    model.splice.side_effect = TypeError("Splice failed")
 
     ui_manager.timeout_dropdown.get_model.return_value = model
 

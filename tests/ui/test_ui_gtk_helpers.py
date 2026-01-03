@@ -39,12 +39,12 @@ class MockStringList(GObject.Object):
 
 class MockStringListWithSpliceError(MockStringList):
     def splice(self, position, n_removals, additions):
-        raise RuntimeError("Splice failed")
+        raise TypeError("Splice failed")
 
 
 class MockStringListWithGetStringError(MockStringList):
     def get_string(self, index):
-        raise RuntimeError("Get string failed")
+        raise TypeError("Get string failed")
 
 
 def test_stringlist_find():
