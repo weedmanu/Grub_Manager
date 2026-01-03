@@ -100,10 +100,12 @@ class UIBuilder:
         bottom_box.append(button_box)
 
         window.reload_btn = Gtk.Button(label="Recharger")
+        window.reload_btn.set_sensitive(False)  # Désactivé par défaut
         window.reload_btn.connect("clicked", window.on_reload)
         button_box.append(window.reload_btn)
 
         window.save_btn = Gtk.Button(label="Appliquer")
+        window.save_btn.set_sensitive(False)  # Désactivé par défaut
         window.save_btn.add_css_class("suggested-action")
         window.save_btn.connect("clicked", window.on_save)
         button_box.append(window.save_btn)
@@ -146,32 +148,18 @@ class UIBuilder:
             tab_label = nb.get_tab_label_text(page)
             logger.info(f"[_on_switch_page] User switched to tab #{page_num}: '{tab_label}'")
 
+            # Désactiver les boutons Appliquer/Recharger sur les onglets qui n'en ont pas besoin
+            if tab_label in ("Sauvegardes", "Maintenance"):
+                window.save_btn.set_sensitive(False)
+                window.reload_btn.set_sensitive(False)
+                logger.debug(f"[_on_switch_page] Boutons Appliquer/Recharger désactivés pour l'onglet '{tab_label}'")
+            elif not window.state_manager.is_dirty():
+                # Sur les autres onglets, restaurer l'état normal (désactivés si pas de modifications)
+                window.save_btn.set_sensitive(False)
+                window.reload_btn.set_sensitive(False)
+
         notebook.connect("switch-page", _on_switch_page)
         logger.debug("[UIBuilder._create_notebook] Tab switch signal connected")
 
         logger.debug("[UIBuilder._create_notebook] Onglets construits")
         return notebook
-
-    @staticmethod
-    def _create_info_area(_window: GrubConfigManager, _container: Gtk.Box) -> None:
-        """Crée la zone d'information pour les messages temporaires (OBSOLÈTE - voir _create_bottom_bar).
-
-        Args:
-            _window: Fenêtre principale de l'application
-            _container: Container GTK où ajouter la zone d'info
-        """
-        # Cette fonction est maintenant intégrée dans _create_bottom_bar
-        # Conservée pour compatibilité si utilisée ailleurs
-        logger.debug("[UIBuilder._create_info_area] OBSOLÈTE - utiliser _create_bottom_bar")
-
-    @staticmethod
-    def _create_action_buttons(_window: GrubConfigManager, _container: Gtk.Box) -> None:
-        """Crée les boutons d'action (OBSOLÈTE - voir _create_bottom_bar).
-
-        Args:
-            _window: Fenêtre principale de l'application
-            container: Container GTK où ajouter les boutons
-        """
-        # Cette fonction est maintenant intégrée dans _create_bottom_bar
-        # Conservée pour compatibilité si utilisée ailleurs
-        logger.debug("[UIBuilder._create_action_buttons] OBSOLÈTE - utiliser _create_bottom_bar")

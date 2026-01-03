@@ -140,3 +140,31 @@ def run_command_popup(controller: GrubConfigManager, command: list[str], title: 
 
     thread = threading.Thread(target=run_in_thread, daemon=True)
     thread.start()
+
+
+def confirm_action(callback, message: str, controller: GrubConfigManager) -> None:
+    """Affiche une boîte de dialogue de confirmation avant d'exécuter une action.
+
+    Args:
+        callback: Fonction à appeler si l'utilisateur confirme
+        message: Message de confirmation à afficher
+        controller: GrubConfigManager instance (parent window)
+    """
+    dialog = Gtk.AlertDialog()
+    dialog.set_modal(True)
+    dialog.set_message("Confirmation")
+    dialog.set_detail(message)
+    dialog.set_buttons(["Annuler", "Confirmer"])
+    dialog.set_default_button(0)
+    dialog.set_cancel_button(0)
+
+    def on_response(d: Gtk.AlertDialog, result) -> None:
+        try:
+            choice = d.choose_finish(result)
+            if choice == 1:  # Index 1 = Confirmer
+                callback()
+        except Exception as e:
+            # Ignorer les erreurs de dialog (annulation, erreur GTK, etc.)
+            pass
+
+    dialog.choose(controller, None, on_response)

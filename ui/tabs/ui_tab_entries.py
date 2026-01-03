@@ -7,7 +7,13 @@ from typing import TYPE_CHECKING
 from gi.repository import Gtk
 from loguru import logger
 
-from ui.ui_widgets import apply_margins, box_append_label, box_append_section_title
+from ui.ui_widgets import (
+    apply_margins,
+    box_append_label,
+    box_append_section_title,
+    create_info_box,
+    create_two_column_layout,
+)
 
 if TYPE_CHECKING:
     from ui.ui_manager import GrubConfigManager
@@ -24,42 +30,111 @@ def build_entries_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     apply_margins(box, 12)
 
     box_append_section_title(box, "Entrées du menu")
-    box_append_label(box, "Activez le switch pour masquer une entrée.", italic=True)
+    box_append_label(box, "Gérez la visibilité et les options des entrées de démarrage.", italic=True)
+
+    # === Conteneur 2 colonnes ===
+    _, left_section, right_section = create_two_column_layout(box)
+
+    # === COLONNE GAUCHE : Liste des entrées ===
+    left_title = Gtk.Label(xalign=0)
+    left_title.set_markup("<b>Liste des entrées</b>")
+    left_title.add_css_class("section-title")
+    left_section.append(left_title)
+
+    box_append_label(left_section, "Décochez pour masquer une entrée.", italic=True)
 
     # === Liste des entrées avec toggles ===
     logger.debug("[build_entries_tab] Création scrolled listbox pour entrées")
     scroll = Gtk.ScrolledWindow()
     scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
     scroll.set_vexpand(True)
+    scroll.add_css_class("frame")  # Ajout d'une bordure visuelle
 
     controller.entries_listbox = Gtk.ListBox()
     controller.entries_listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
+    controller.entries_listbox.add_css_class("rich-list")
     scroll.set_child(controller.entries_listbox)
-    box.append(scroll)
+    left_section.append(scroll)
 
-    box.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+    # two_columns.append(left_section) # Déjà ajouté par create_two_column_layout
 
-    box_append_section_title(box, "Options du menu")
-    box_append_label(box, "Ces options influencent les entrées générées par GRUB.", italic=True)
+    # === COLONNE DROITE : Options du menu ===
+    right_title = Gtk.Label(xalign=0)
+    right_title.set_markup("<b>Options globales</b>")
+    right_title.add_css_class("section-title")
+    right_section.append(right_title)
+
+    box_append_label(right_section, "Ces options s'appliquent à tout le menu.", italic=True)
 
     # === Options d'affichage ===
-    logger.debug("[build_entries_tab] Création checkboxes options du menu")
-    controller.disable_recovery_check = Gtk.CheckButton(label="Masquer les entrées de récupération")
-    controller.disable_recovery_check.connect("toggled", controller.on_menu_options_toggled)
-    controller.disable_recovery_check._option_name = "Disable Recovery"  # DEV: Pour logging
-    box.append(controller.disable_recovery_check)
+    logger.debug("[build_entries_tab] Création switches options du menu")
 
-    controller.disable_os_prober_check = Gtk.CheckButton(label="Désactiver os-prober (ne pas détecter d'autres OS)")
-    controller.disable_os_prober_check.connect("toggled", controller.on_menu_options_toggled)
-    controller.disable_os_prober_check._option_name = "Disable OS Prober"  # DEV: Pour logging
-    box.append(controller.disable_os_prober_check)
+    # Conteneur pour les switches
+    switches_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+    switches_box.set_margin_top(8)
 
-    controller.disable_submenu_check = Gtk.CheckButton(label="Désactiver les sous-menus")
-    controller.disable_submenu_check.connect("toggled", controller.on_menu_options_toggled)
-    controller.disable_submenu_check._option_name = "Disable Submenu"  # DEV: Pour logging
-    box.append(controller.disable_submenu_check)
+    controller.disable_recovery_check = Gtk.Switch()
+    controller.disable_recovery_check.connect("notify::active", controller.on_menu_options_toggled)
+    controller.disable_recovery_check._option_name = "Disable Recovery"
+    _add_styled_switch(
+        switches_box, "Masquer 'Recovery Mode'", controller.disable_recovery_check, "Cache les options de dépannage."
+    )
 
-    box_append_label(box, "L'entrée par défaut se règle dans l'onglet Général.", italic=True)
+    controller.disable_os_prober_check = Gtk.Switch()
+    controller.disable_os_prober_check.connect("notify::active", controller.on_menu_options_toggled)
+    controller.disable_os_prober_check._option_name = "Disable OS Prober"
+    _add_styled_switch(
+        switches_box,
+        "Désactiver OS Prober",
+        controller.disable_os_prober_check,
+        "Ne pas détecter les autres systèmes (Windows, etc).",
+    )
+
+    controller.disable_submenu_check = Gtk.Switch()
+    controller.disable_submenu_check.connect("notify::active", controller.on_menu_options_toggled)
+    controller.disable_submenu_check._option_name = "Disable Submenu"
+    _add_styled_switch(
+        switches_box,
+        "Menu plat (Pas de sous-menus)",
+        controller.disable_submenu_check,
+        "Affiche toutes les entrées au premier niveau.",
+    )
+
+    right_section.append(switches_box)
+
+    # Info box
+    info_box = create_info_box("Note:", "L'entrée par défaut se règle dans l'onglet Général.")
+    right_section.append(info_box)
+
+    # two_columns.append(right_section) # Déjà ajouté par create_two_column_layout
 
     notebook.append_page(box, Gtk.Label(label="Menu"))
     logger.success("[build_entries_tab] Onglet Entrées construit")
+
+
+def _add_styled_switch(
+    container: Gtk.Box, label_text: str, switch_widget: Gtk.Switch, description: str | None = None
+) -> None:
+    """Ajoute un switch avec label et description optionnelle dans un conteneur."""
+    row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+
+    vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+    vbox.set_hexpand(True)
+
+    lbl = Gtk.Label(xalign=0, label=label_text)
+    lbl.add_css_class("title-4")
+    vbox.append(lbl)
+
+    if description:
+        desc = Gtk.Label(xalign=0, label=description)
+        desc.add_css_class("caption")
+        desc.set_wrap(True)
+        vbox.append(desc)
+
+    row.append(vbox)
+
+    switch_widget.set_valign(Gtk.Align.CENTER)
+    row.append(switch_widget)
+
+    container.append(row)
+    container.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))

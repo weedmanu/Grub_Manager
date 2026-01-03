@@ -35,20 +35,23 @@ class GrubPreviewDialog:
         dialog.set_modal(True)
 
         # Container principal
-        main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        main_box.set_margin_start(15)
-        main_box.set_margin_end(15)
-        main_box.set_margin_top(15)
-        main_box.set_margin_bottom(15)
+        main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        main_box.set_margin_start(12)
+        main_box.set_margin_end(12)
+        main_box.set_margin_top(12)
+        main_box.set_margin_bottom(12)
 
         # Titre
         title = Gtk.Label()
         title.set_markup(f"<b>Aperçu du menu GRUB avec {self.theme_name}</b>")
-        title.set_xalign(0)
+        title.set_halign(Gtk.Align.START)
+        title.add_css_class("section-title")
         main_box.append(title)
 
         # Zone de prévisualisation GRUB
         frame = Gtk.Frame()
+        frame.set_vexpand(True)
+
         preview_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         preview_box.set_margin_start(20)
         preview_box.set_margin_end(20)
@@ -64,9 +67,12 @@ class GrubPreviewDialog:
         # Bouton fermer
         button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         button_box.set_halign(Gtk.Align.END)
+
         close_btn = Gtk.Button(label="Fermer")
+        close_btn.add_css_class("suggested-action")
         close_btn.connect("clicked", lambda b: dialog.close())
         button_box.append(close_btn)
+
         main_box.append(button_box)
 
         dialog.set_child(main_box)

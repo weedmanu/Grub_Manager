@@ -6,7 +6,6 @@ import pytest
 from gi.repository import Gtk
 
 from ui.ui_widgets import (
-    WidgetFactory,
     apply_margins,
     box_append_label,
     box_append_section_title,
@@ -15,6 +14,8 @@ from ui.ui_widgets import (
     create_error_dialog,
     create_list_box_row_with_margins,
     create_main_box,
+    create_section_header,
+    create_section_title,
     create_success_dialog,
     grid_add_check,
     grid_add_labeled,
@@ -22,12 +23,12 @@ from ui.ui_widgets import (
 )
 
 
-def test_widget_factory():
-    header = WidgetFactory.create_section_header("Header")
+def test_section_widgets():
+    header = create_section_header("Header")
     assert isinstance(header, Gtk.Label)
     assert "Header" in header.get_label()
 
-    title = WidgetFactory.create_section_title("Title")
+    title = create_section_title("Title")
     assert isinstance(title, Gtk.Label)
     assert "Title" in title.get_label()
 

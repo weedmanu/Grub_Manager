@@ -10,7 +10,13 @@ from typing import TYPE_CHECKING
 from gi.repository import Gtk
 from loguru import logger
 
-from ui.ui_widgets import grid_add_check, grid_add_labeled, make_scrolled_grid
+from ui.ui_widgets import (
+    apply_margins,
+    box_append_label,
+    box_append_section_title,
+    create_two_column_layout,
+    grid_add_labeled,
+)
 
 if TYPE_CHECKING:
     from ui.ui_manager import GrubConfigManager
@@ -39,28 +45,35 @@ _GRUB_COLORS: list[str] = [
 def build_display_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> None:
     """Build Display tab with basic GRUB display options.
 
-    Note: Les couleurs et thèmes sont maintenant gérés dans l'onglet "Thèmes".
-    Cet onglet ne contient que les options de base d'affichage.
+    Note: Les options de mode terminal/graphique sont gérées dans l'onglet "Thèmes".
+    Cet onglet ne contient que les options de résolution graphique.
     """
     logger.debug("[build_display_tab] Construction de l'onglet Affichage")
-    scroll, grid = make_scrolled_grid()
 
-    row = 0
+    # Conteneur principal avec marges harmonisées
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+    apply_margins(root, 12)
 
-    title = Gtk.Label()
-    title.set_markup("<b>Affichage</b>")
-    title.set_halign(Gtk.Align.START)
-    grid.attach(title, 0, row, 2, 1)
-    row += 1
+    # Titre et description
+    box_append_section_title(root, "Affichage")
+    box_append_label(root, "Options de résolution graphique.", italic=True)
 
-    note = Gtk.Label(xalign=0)
-    note.set_markup(
-        "<i>Options de résolution graphique. "
-        "Pour personnaliser les couleurs et l'apparence, utilisez l'onglet <b>Thèmes</b>.</i>"
-    )
-    note.set_wrap(True)
-    grid.attach(note, 0, row, 2, 1)
-    row += 1
+    # === Conteneur 2 colonnes ===
+    _, left_section, right_section = create_two_column_layout(root)
+
+    # === COLONNE GAUCHE : Résolution Menu ===
+    left_title = Gtk.Label(xalign=0)
+    left_title.set_markup("<b>Résolution du Menu GRUB</b>")
+    left_title.add_css_class("section-title")
+    left_section.append(left_title)
+
+    # Grid gauche
+    grid_left = Gtk.Grid()
+    grid_left.set_row_spacing(12)
+    grid_left.set_column_spacing(12)
+    left_section.append(grid_left)
+
+    row_left = 0
 
     # === Résolution graphique ===
     logger.debug("[build_display_tab] Création dropdown Gfxmode")
@@ -78,9 +91,38 @@ def build_display_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
         ]
     )
     controller.gfxmode_dropdown.connect("notify::selected", controller.on_modified)
-    controller.gfxmode_dropdown.set_halign(Gtk.Align.START)
-    controller.gfxmode_dropdown.set_size_request(220, -1)
-    row = grid_add_labeled(grid, row, "Résolution du menu:", controller.gfxmode_dropdown)
+    controller.gfxmode_dropdown.set_halign(Gtk.Align.FILL)
+    row_left = grid_add_labeled(grid_left, row_left, "Résolution:", controller.gfxmode_dropdown)
+
+    # Explication gfxmode
+    gfxmode_info = Gtk.Label(xalign=0)
+    gfxmode_info.set_markup(
+        "<small><i>Définit la résolution d'affichage du menu de sélection GRUB au démarrage.</i></small>"
+    )
+    gfxmode_info.set_wrap(True)
+    gfxmode_info.set_margin_top(8)
+    gfxmode_info.add_css_class("dim-label")
+    left_section.append(gfxmode_info)
+
+    # Checkbox couleur terminal
+    controller.terminal_color_check = Gtk.CheckButton(label="Forcer le terminal en noir et blanc")
+    controller.terminal_color_check.set_margin_top(12)
+    controller.terminal_color_check.connect("toggled", controller.on_modified)
+    left_section.append(controller.terminal_color_check)
+
+    # === COLONNE DROITE : Résolution Kernel ===
+    right_title = Gtk.Label(xalign=0)
+    right_title.set_markup("<b>Résolution du Système (Kernel)</b>")
+    right_title.add_css_class("section-title")
+    right_section.append(right_title)
+
+    # Grid droite
+    grid_right = Gtk.Grid()
+    grid_right.set_row_spacing(12)
+    grid_right.set_column_spacing(12)
+    right_section.append(grid_right)
+
+    row_right = 0
 
     # === Gfxpayload (affichage du kernel) ===
     logger.debug("[build_display_tab] Création dropdown Gfxpayload")
@@ -97,42 +139,29 @@ def build_display_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
         ]
     )
     controller.gfxpayload_dropdown.connect("notify::selected", controller.on_modified)
-    controller.gfxpayload_dropdown.set_halign(Gtk.Align.START)
-    controller.gfxpayload_dropdown.set_size_request(220, -1)
-    row = grid_add_labeled(grid, row, "Affichage Linux (gfxpayload):", controller.gfxpayload_dropdown)
+    controller.gfxpayload_dropdown.set_halign(Gtk.Align.FILL)
+    row_right = grid_add_labeled(grid_right, row_right, "Résolution:", controller.gfxpayload_dropdown)
 
-    # === Terminal couleur ===
-    logger.debug("[build_display_tab] Création checkbox TerminalColor")
-    controller.terminal_color_check = Gtk.CheckButton(label="Activer le terminal en couleur")
-    controller.terminal_color_check.connect("toggled", controller.on_modified)
-    row = grid_add_check(grid, row, controller.terminal_color_check)
-
-    # Espacement
-    spacer = Gtk.Label(label="")
-    spacer.set_vexpand(True)
-    grid.attach(spacer, 0, row, 2, 1)
-    row += 1
-
-    # Information sur les thèmes
-    info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-    info_box.set_margin_top(20)
-
-    info_title = Gtk.Label()
-    info_title.set_markup("<b>Personnalisation visuelle</b>")
-    info_title.set_xalign(0)
-    info_box.append(info_title)
-
-    info_text = Gtk.Label(xalign=0)
-    info_text.set_markup(
-        "Pour personnaliser l'apparence complète de GRUB (couleurs, images de fond, "
-        "polices, mise en page), utilisez les onglets:\n\n"
-        "• <b>Thèmes</b> - Sélectionner et activer un thème existant\n"
-        "• <b>Éditeur de thèmes</b> - Créer un thème personnalisé"
+    # Explication gfxpayload
+    gfxpayload_info = Gtk.Label(xalign=0)
+    gfxpayload_info.set_markup(
+        "<small><i>Résolution transmise au kernel Linux après le démarrage.\n"
+        "• <b>keep</b> : Garde la résolution du menu GRUB\n"
+        "• <b>text</b> : Force le mode texte\n"
+        "• <b>auto</b> : Laisse le système décider</i></small>"
     )
-    info_text.set_wrap(True)
-    info_box.append(info_text)
+    gfxpayload_info.set_wrap(True)
+    gfxpayload_info.set_margin_top(8)
+    gfxpayload_info.add_css_class("dim-label")
+    right_section.append(gfxpayload_info)
 
-    grid.attach(info_box, 0, row, 2, 1)
+    # two_columns.append(right_section) # Déjà ajouté par create_two_column_layout
+
+    # ScrolledWindow pour l'ensemble
+    scroll = Gtk.ScrolledWindow()
+    scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+    scroll.set_vexpand(True)
+    scroll.set_child(root)
 
     notebook.append_page(scroll, Gtk.Label(label="Affichage"))
     logger.success("[build_display_tab] Onglet Affichage construit")

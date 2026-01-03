@@ -51,21 +51,21 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         logger.debug("[GrubConfigManager.__init__] Démarrage initialisation de la fenêtre principale")
         title = "Gestionnaire de Configuration GRUB"
         super().__init__(application=application, title=title)
-        self.set_default_size(1000, 700)
+        self.set_default_size(850, 700)
 
         # Membres initialisés par les onglets (déclarés ici pour la lisibilité et pylint).
         # DEV: Ces références sont remplies par build_*_tab() lors de create_ui()
         self.timeout_dropdown: Gtk.DropDown | None = None
         self.default_dropdown: Gtk.DropDown | None = None
-        self.hidden_timeout_check: Gtk.CheckButton | None = None
+        self.hidden_timeout_check: Gtk.Switch | None = None
+        self.cmdline_dropdown: Gtk.DropDown | None = None
 
         self.gfxmode_dropdown: Gtk.DropDown | None = None
         self.gfxpayload_dropdown: Gtk.DropDown | None = None
-        self.terminal_color_check: Gtk.CheckButton | None = None
 
-        self.disable_submenu_check: Gtk.CheckButton | None = None
-        self.disable_recovery_check: Gtk.CheckButton | None = None
-        self.disable_os_prober_check: Gtk.CheckButton | None = None
+        self.disable_submenu_check: Gtk.Switch | None = None
+        self.disable_recovery_check: Gtk.Switch | None = None
+        self.disable_os_prober_check: Gtk.Switch | None = None
 
         self.entries_listbox: Gtk.ListBox | None = None
 
@@ -90,6 +90,21 @@ class GrubConfigManager(Gtk.ApplicationWindow):
     # ========================================================================
     # HELPERS: Manipulation de widgets GTK (timeout, dropdown, etc.)
     # ========================================================================
+
+    def _get_cmdline_value(self) -> str:
+        """Obtient la valeur de GRUB_CMDLINE_LINUX_DEFAULT depuis le dropdown."""
+        cmdline_dropdown = getattr(self, "cmdline_dropdown", None)
+        if cmdline_dropdown is None:
+            return "quiet splash"
+        selected = cmdline_dropdown.get_selected()
+        if selected == 0:  # quiet splash (recommandé)
+            return "quiet splash"
+        if selected == 1:  # quiet
+            return "quiet"
+        if selected == 2:  # splash
+            return "splash"
+        # verbose (aucun paramètre)
+        return ""
 
     def _get_timeout_value(self) -> int:
         if self.timeout_dropdown is None:
@@ -234,8 +249,7 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         logger.debug(f"[_apply_model_to_ui] Graphics: gfxmode={model.gfxmode}, gfxpayload={model.gfxpayload_linux}")
         logger.debug(
             f"[_apply_model_to_ui] Flags: disable_submenu={model.disable_submenu}, "
-            f"disable_recovery={model.disable_recovery}, disable_os_prober={model.disable_os_prober}, "
-            f"terminal_color={model.terminal_color}"
+            f"disable_recovery={model.disable_recovery}, disable_os_prober={model.disable_os_prober}"
         )
 
         self.state_manager.set_loading(True)
@@ -246,6 +260,19 @@ class GrubConfigManager(Gtk.ApplicationWindow):
             if self.hidden_timeout_check is not None:
                 self.hidden_timeout_check.set_active(bool(model.hidden_timeout))
                 logger.debug(f"[_apply_model_to_ui] hidden_timeout_check.set_active({bool(model.hidden_timeout)})")
+
+            # Configurer le dropdown cmdline selon les valeurs quiet/splash
+            cmdline_dropdown = getattr(self, "cmdline_dropdown", None)
+            if cmdline_dropdown is not None:
+                if model.quiet and model.splash:
+                    cmdline_dropdown.set_selected(0)  # quiet splash
+                elif model.quiet:
+                    cmdline_dropdown.set_selected(1)  # quiet
+                elif model.splash:
+                    cmdline_dropdown.set_selected(2)  # splash
+                else:
+                    cmdline_dropdown.set_selected(3)  # verbose
+                logger.debug(f"[_apply_model_to_ui] cmdline_dropdown set to index {cmdline_dropdown.get_selected()}")
 
             if self.gfxmode_dropdown is not None:
                 GtkHelper.dropdown_set_value(self.gfxmode_dropdown, model.gfxmode)
@@ -265,9 +292,6 @@ class GrubConfigManager(Gtk.ApplicationWindow):
                 logger.debug(
                     f"[_apply_model_to_ui] disable_os_prober_check.set_active({bool(model.disable_os_prober)})"
                 )
-            if self.terminal_color_check is not None:
-                self.terminal_color_check.set_active(bool(model.terminal_color))
-                logger.debug(f"[_apply_model_to_ui] terminal_color_check.set_active({bool(model.terminal_color)})")
 
             self._refresh_default_choices(entries)
             logger.debug(f"[_apply_model_to_ui] refresh_default_choices completed with {len(entries)} entries")
@@ -318,14 +342,35 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         disable_os_prober = (
             bool(self.disable_os_prober_check.get_active()) if self.disable_os_prober_check is not None else False
         )
-        terminal_color = (
-            bool(self.terminal_color_check.get_active()) if self.terminal_color_check is not None else False
-        )
         logger.debug(
             f"[_read_model_from_ui] flags: disable_submenu={disable_submenu}, "
-            f"disable_recovery={disable_recovery}, disable_os_prober={disable_os_prober}, "
-            f"terminal_color={terminal_color}"
+            f"disable_recovery={disable_recovery}, disable_os_prober={disable_os_prober}"
         )
+
+        # Lire les paramètres kernel depuis le dropdown
+        cmdline_value = self._get_cmdline_value()
+        quiet = "quiet" in cmdline_value
+        splash = "splash" in cmdline_value
+        logger.debug(f"[_read_model_from_ui] cmdline='{cmdline_value}', quiet={quiet}, splash={splash}")
+
+        # Lire le thème actif depuis le gestionnaire de thème
+        grub_theme = ""
+        try:
+            # pylint: disable=import-outside-toplevel
+            from core.config.core_paths import get_grub_themes_dir
+            from core.theme.core_active_theme_manager import ActiveThemeManager
+
+            # pylint: enable=import-outside-toplevel
+
+            theme_manager = ActiveThemeManager()
+            active_theme = theme_manager.get_active_theme()
+            if active_theme and active_theme.name:
+                # Construire le chemin vers le fichier theme.txt
+                theme_dir = get_grub_themes_dir()
+                grub_theme = str(theme_dir / active_theme.name / "theme.txt")
+                logger.debug(f"[_read_model_from_ui] grub_theme='{grub_theme}'")
+        except (OSError, RuntimeError) as e:
+            logger.debug(f"[_read_model_from_ui] Pas de thème actif: {e}")
 
         model = GrubUiModel(
             timeout=timeout_val,
@@ -337,7 +382,9 @@ class GrubConfigManager(Gtk.ApplicationWindow):
             disable_submenu=disable_submenu,
             disable_recovery=disable_recovery,
             disable_os_prober=disable_os_prober,
-            terminal_color=terminal_color,
+            grub_theme=grub_theme,
+            quiet=quiet,
+            splash=splash,
         )
         logger.success("[_read_model_from_ui] Modèle extrait avec succès")
         return model

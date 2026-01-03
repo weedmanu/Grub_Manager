@@ -335,7 +335,7 @@ def test_init_coverage():
         mock_create_ui.assert_called_once()
         mock_load_config.assert_called_once()
         mock_check_permissions.assert_called_once()
-        mock_set_size.assert_called_with(1000, 700)
+        mock_set_size.assert_called_with(850, 700)
         assert isinstance(mgr.state_manager, AppStateManager)
 
 
@@ -379,7 +379,7 @@ def test_on_reload_dialog_cancel(manager):
     with patch("ui.ui_manager.Gtk.AlertDialog") as MockDialog:
         dialog_instance = MockDialog.return_value
 
-        def side_effect_choose(parent, cancellable, callback):
+        def side_effect_choose(parent, _, callback):
             # Simulate callback execution
             callback(dialog_instance, MagicMock())
 
@@ -397,7 +397,7 @@ def test_on_save_dialog_cancel(manager):
 
         dialog_instance = MockDialog.return_value
 
-        def side_effect_choose(parent, cancellable, callback):
+        def side_effect_choose(parent, _, callback):
             callback(dialog_instance, MagicMock())
 
         dialog_instance.choose.side_effect = side_effect_choose
@@ -559,7 +559,7 @@ def test_on_reload_cancel(manager):
     with patch("ui.ui_manager.Gtk.AlertDialog") as MockDialog:
         dialog_instance = MockDialog.return_value
 
-        def choose_side_effect(parent, cancellable, callback):
+        def choose_side_effect(parent, _, callback):
             # Simulate callback with result
             callback(dialog_instance, MagicMock())
 
@@ -581,7 +581,7 @@ def test_on_save_cancel(manager):
 
         dialog_instance = MockDialog.return_value
 
-        def choose_side_effect(parent, cancellable, callback):
+        def choose_side_effect(parent, _, callback):
             callback(dialog_instance, MagicMock())
 
         dialog_instance.choose.side_effect = choose_side_effect
@@ -659,7 +659,7 @@ def test_on_save_dialog_exception(manager):
             dialog_instance = MockDialog.return_value
 
             # Mock choose to call callback immediately
-            def side_effect_choose(parent, cancellable, callback):
+            def side_effect_choose(parent, _, callback):
                 callback(dialog_instance, MagicMock())
 
             dialog_instance.choose.side_effect = side_effect_choose
@@ -683,7 +683,7 @@ def test_on_reload_dialog_exception(manager):
     with patch("gi.repository.Gtk.AlertDialog") as MockDialog, patch("ui.ui_manager.logger") as mock_logger:
         dialog_instance = MockDialog.return_value
 
-        def side_effect_choose(parent, cancellable, callback):
+        def side_effect_choose(parent, _, callback):
             callback(dialog_instance, MagicMock())
 
         dialog_instance.choose.side_effect = side_effect_choose
@@ -739,4 +739,3 @@ def test_perform_save_verification_exception_coverage(manager):
         manager._perform_save(apply_now=True)
         # Should catch exception and log warning
         assert any("Impossible de vérifier les valeurs écrites" in str(call) for call in mock_logger.warning.mock_calls)
-

@@ -23,7 +23,7 @@ def test_build_general_tab():
     # Verify that widgets were created and assigned to controller
     assert isinstance(controller.timeout_dropdown, Gtk.DropDown)
     assert isinstance(controller.default_dropdown, Gtk.DropDown)
-    assert isinstance(controller.hidden_timeout_check, Gtk.CheckButton)
+    assert isinstance(controller.hidden_timeout_check, Gtk.Switch)
 
     # Verify that notebook has one page
     assert notebook.get_n_pages() == 1

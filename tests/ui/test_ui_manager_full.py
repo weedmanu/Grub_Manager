@@ -213,7 +213,7 @@ def test_read_model_from_ui(manager):
         assert model.save_default is True
         assert model.hidden_timeout is True
         assert model.disable_submenu is True
-        assert model.terminal_color is True
+        assert model.quiet is True
 
 
 def test_apply_model_to_ui(manager):
@@ -226,7 +226,7 @@ def test_apply_model_to_ui(manager):
         disable_submenu=True,
         disable_recovery=True,
         disable_os_prober=True,
-        terminal_color=True,
+        quiet=True,
     )
     entries = [GrubDefaultChoice(id="id1", title="Title 1")]
 
@@ -248,7 +248,6 @@ def test_apply_model_to_ui(manager):
         manager.disable_submenu_check.set_active.assert_called_with(True)
         manager.disable_recovery_check.set_active.assert_called_with(True)
         manager.disable_os_prober_check.set_active.assert_called_with(True)
-        manager.terminal_color_check.set_active.assert_called_with(True)
 
         mock_refresh_defaults.assert_called_with(entries)
         mock_set_default.assert_called_with("id1")
@@ -274,7 +273,7 @@ def test_on_save_root_confirm(manager):
 
         mock_dlg_instance = MockDialog.return_value
 
-        def side_effect_choose(parent, cancellable, callback):
+        def side_effect_choose(parent, _, callback):
             mock_res = MagicMock()
             callback(mock_dlg_instance, mock_res)
 
@@ -331,7 +330,7 @@ def test_on_reload_modified_confirm(manager):
 
         mock_dlg_instance = MockDialog.return_value
 
-        def side_effect_choose(parent, cancellable, callback):
+        def side_effect_choose(parent, _, callback):
             mock_res = MagicMock()
             callback(mock_dlg_instance, mock_res)
 

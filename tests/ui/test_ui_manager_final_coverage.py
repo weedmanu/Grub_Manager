@@ -95,7 +95,7 @@ def test_on_reload_confirmed_explicit(ui_manager):
         dlg = MockDialog.return_value
 
         # Setup the callback execution
-        def side_effect(parent, cancellable, callback):
+        def side_effect(parent, _, callback):
             # Simulate callback with result 1
             callback(dlg, 1)
 
@@ -180,7 +180,7 @@ def test_on_reload_dialog_glib_error(ui_manager):
         dialog_instance = MockDialog.return_value
 
         # Simulate dialog choice callback
-        def side_effect(parent, cancellable, callback):
+        def side_effect(parent, _, callback):
             # Create a mock dialog that raises GLib.Error on choose_finish
             mock_dlg = MagicMock()
             mock_dlg.choose_finish.side_effect = GLib.Error("Cancelled")
@@ -259,7 +259,7 @@ def test_on_reload_dialog_glib_error_coverage(ui_manager):
     with patch("ui.ui_manager.Gtk.AlertDialog") as MockDialog:
         dialog_instance = MockDialog.return_value
 
-        def side_effect(parent, cancellable, callback):
+        def side_effect(parent, _, callback):
             mock_dlg = MagicMock()
             # Ensure this raises the specific GLib.Error that the except block catches
             mock_dlg.choose_finish.side_effect = GLib.Error("Cancelled")
@@ -287,7 +287,7 @@ def test_on_save_dialog_glib_error_coverage(ui_manager):
         with patch("ui.ui_manager.Gtk.AlertDialog") as MockDialog:
             dialog_instance = MockDialog.return_value
 
-            def side_effect(parent, cancellable, callback):
+            def side_effect(parent, _, callback):
                 mock_dlg = MagicMock()
                 mock_dlg.choose_finish.side_effect = GLib.Error("Cancelled")
                 callback(mock_dlg, MagicMock())

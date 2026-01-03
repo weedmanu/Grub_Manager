@@ -10,44 +10,40 @@ from gi.repository import Gtk
 from loguru import logger
 
 # ============================================================================
-# FACTORY DE WIDGETS
+# CRÉATION DE WIDGETS
 # ============================================================================
 
 
-class WidgetFactory:
-    """Factory pour créer des widgets réutilisables."""
+def create_section_header(text: str) -> Gtk.Label:
+    """Crée un en-tête de section stylisé.
 
-    @staticmethod
-    def create_section_header(text: str) -> Gtk.Label:
-        """Crée un en-tête de section stylisé.
+    Args:
+        text: Texte de l'en-tête
 
-        Args:
-            text: Texte de l'en-tête
+    Returns:
+        Label formaté comme en-tête
+    """
+    label = Gtk.Label()
+    label.set_markup(f"<span size='large' weight='bold'>{text}</span>")
+    label.set_halign(Gtk.Align.START)
+    label.add_css_class("section-header")
+    return label
 
-        Returns:
-            Label formaté comme en-tête
-        """
-        label = Gtk.Label()
-        label.set_markup(f"<span size='large' weight='bold'>{text}</span>")
-        label.set_halign(Gtk.Align.START)
-        label.add_css_class("section-header")
-        return label
 
-    @staticmethod
-    def create_section_title(text: str) -> Gtk.Label:
-        """Crée un titre de section.
+def create_section_title(text: str) -> Gtk.Label:
+    """Crée un titre de section.
 
-        Args:
-            text: Texte du titre
+    Args:
+        text: Texte du titre
 
-        Returns:
-            Label formaté comme titre
-        """
-        label = Gtk.Label()
-        label.set_markup(f"<b>{text}</b>")
-        label.set_halign(Gtk.Align.START)
-        label.add_css_class("section-title")
-        return label
+    Returns:
+        Label formaté comme titre
+    """
+    label = Gtk.Label()
+    label.set_markup(f"<b>{text}</b>")
+    label.set_halign(Gtk.Align.START)
+    label.add_css_class("section-title")
+    return label
 
 
 # ============================================================================
@@ -103,6 +99,33 @@ def grid_add_check(grid: Gtk.Grid, row: int, check: Gtk.CheckButton, *, colspan:
     return row + 1
 
 
+def grid_add_switch(grid: Gtk.Grid, row: int, label_text: str, switch: Gtk.Switch) -> int:
+    """Ajoute un Switch avec son label dans le Grid (aligné professionnellement).
+
+    Args:
+        grid: Grid cible
+        row: Index de ligne
+        label_text: Texte du label
+        switch: Switch à ajouter
+
+    Returns:
+        Prochain index de ligne
+    """
+    logger.debug(f"[grid_add_switch] Ligne {row}: {label_text[:50]}")
+
+    # Box pour organiser label + switch
+    hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+    hbox.set_hexpand(True)
+
+    label = Gtk.Label(label=label_text, xalign=0)
+    label.set_hexpand(True)
+    hbox.append(label)
+    hbox.append(switch)
+
+    grid.attach(hbox, 0, row, 2, 1)
+    return row + 1
+
+
 # ============================================================================
 # HELPERS DE DISPOSITION (BOX)
 # ============================================================================
@@ -151,8 +174,34 @@ def box_append_section_title(box: Gtk.Box, text: str) -> Gtk.Label:
     label = Gtk.Label()
     label.set_markup(f"<b>{text}</b>")
     label.set_halign(Gtk.Align.START)
+    label.add_css_class("section-title")
     box.append(label)
     return label
+
+
+def box_append_switch(box: Gtk.Box, label_text: str, switch: Gtk.Switch) -> Gtk.Box:
+    """Ajoute un Switch avec son label dans une Box (aligné professionnellement).
+
+    Args:
+        box: Box cible
+        label_text: Texte du label
+        switch: Switch à ajouter
+
+    Returns:
+        Box horizontale créée contenant label + switch
+    """
+    logger.debug(f"[box_append_switch] Switch: {label_text[:50]}")
+
+    hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+    hbox.set_hexpand(True)
+
+    label = Gtk.Label(label=label_text, xalign=0)
+    label.set_hexpand(True)
+    hbox.append(label)
+    hbox.append(switch)
+
+    box.append(hbox)
+    return hbox
 
 
 # ============================================================================
@@ -263,6 +312,62 @@ def create_list_box_row_with_margins(
 
     row.set_child(hbox)
     return row, hbox
+
+
+def create_two_column_layout(parent_box: Gtk.Box, spacing: int = 12) -> tuple[Gtk.Box, Gtk.Box, Gtk.Box]:
+    """Crée une disposition à deux colonnes homogènes.
+
+    Args:
+        parent_box: Conteneur parent
+        spacing: Espacement entre les colonnes
+
+    Returns:
+        Tuple (conteneur_principal, colonne_gauche, colonne_droite)
+    """
+    columns = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=spacing)
+    columns.set_homogeneous(True)
+    columns.set_hexpand(True)
+    columns.set_vexpand(True)
+    parent_box.append(columns)
+
+    left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=spacing)
+    left.set_hexpand(True)
+    left.set_vexpand(True)
+    columns.append(left)
+
+    right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=spacing)
+    right.set_hexpand(True)
+    right.set_vexpand(True)
+    columns.append(right)
+
+    return columns, left, right
+
+
+def create_info_box(title: str, text: str, css_class: str = "info-box") -> Gtk.Box:
+    """Crée une boîte d'information stylisée.
+
+    Args:
+        title: Titre de la boîte
+        text: Texte du contenu
+        css_class: Classe CSS à appliquer
+
+    Returns:
+        Widget Gtk.Box contenant l'info
+    """
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+    box.add_css_class(css_class)
+    box.set_margin_top(12)
+
+    if title:
+        lbl_title = Gtk.Label(xalign=0)
+        lbl_title.set_markup(f"<b>{title}</b>")
+        box.append(lbl_title)
+
+    lbl_text = Gtk.Label(xalign=0, label=text)
+    lbl_text.set_wrap(True)
+    box.append(lbl_text)
+
+    return box
 
 
 def clear_listbox(listbox: Gtk.ListBox) -> None:

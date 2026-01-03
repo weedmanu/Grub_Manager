@@ -13,7 +13,21 @@ from core.core_exceptions import GrubCommandError, GrubScriptNotFoundError
 from core.services.core_grub_script_service import GrubScriptService
 from core.theme.core_active_theme_manager import ActiveThemeManager
 from core.theme.core_theme_generator import GrubTheme
-from ui.tabs.ui_tab_theme_config import TabThemeConfig
+from ui.tabs.ui_tab_theme_config import (
+    TabThemeConfig,
+    _on_activate_script,
+    _on_activate_theme,
+    _on_delete_confirmed,
+    _on_delete_selected_theme,
+    _on_delete_theme,
+    _on_edit_selected_theme,
+    _on_edit_theme,
+    _on_open_editor,
+    _on_preview_theme,
+    _on_theme_selected,
+    _on_theme_switch_toggled,
+    _scan_grub_scripts,
+)
 from ui.ui_state import AppStateManager
 
 
@@ -51,7 +65,9 @@ def test_load_themes_active(tab_theme_config):
 
     with (
         patch.object(tab_theme_config.theme_manager, "load_active_theme", return_value=mock_theme),
+        patch.object(tab_theme_config.theme_service, "is_theme_enabled_in_grub", return_value=True),
         patch.object(tab_theme_config, "_scan_system_themes") as mock_scan,
+        patch("ui.tabs.ui_tab_theme_config._scan_grub_scripts") as mock_scan_scripts,
     ):
 
         tab_theme_config.build()
@@ -61,6 +77,7 @@ def test_load_themes_active(tab_theme_config):
         assert tab_theme_config.theme_switch.get_active()
         # _scan_system_themes est appelé explicitement dans _load_themes quand un thème est actif
         assert mock_scan.called
+        assert mock_scan_scripts.called
 
 
 def test_load_themes_no_active(tab_theme_config):
@@ -95,22 +112,12 @@ def test_scan_system_themes_found(tab_theme_config):
     """Test le scan avec des thèmes trouvés."""
     tab_theme_config.build()
 
-    mock_theme_dir = MagicMock(spec=Path)
-    mock_theme_dir.name = "MyTheme"
-    mock_theme_dir.is_dir.return_value = True
-    (mock_theme_dir / "theme.txt").exists.return_value = True
-
-    mock_root = MagicMock(spec=Path)
-    mock_root.exists.return_value = True
-    mock_root.iterdir.return_value = [mock_theme_dir]
-
     mock_theme = GrubTheme(name="MyTheme")
+    mock_path = Path("/path/to/MyTheme")
 
-    with (
-        patch("ui.tabs.ui_tab_theme_config.get_all_grub_themes_dirs", return_value=[mock_root]),
-        patch("ui.tabs.ui_tab_theme_config.create_custom_theme", return_value=mock_theme),
+    with patch.object(
+        tab_theme_config.theme_service, "scan_system_themes", return_value={"MyTheme": (mock_theme, mock_path)}
     ):
-
         tab_theme_config._scan_system_themes()
 
         assert "MyTheme" in tab_theme_config.available_themes
@@ -131,7 +138,7 @@ def test_on_theme_selected(tab_theme_config):
     row = MagicMock(spec=Gtk.ListBoxRow)
     row.get_index.return_value = 0
 
-    tab_theme_config._on_theme_selected(tab_theme_config.theme_list_box, row)
+    _on_theme_selected(tab_theme_config.theme_list_box, row, tab_theme_config)
 
     assert tab_theme_config.current_theme == mock_theme
     assert tab_theme_config.activate_btn.get_sensitive()
@@ -141,7 +148,7 @@ def test_on_theme_selected(tab_theme_config):
 def test_on_theme_selected_none(tab_theme_config):
     """Test la désélection d'un thème."""
     tab_theme_config.build()
-    tab_theme_config._on_theme_selected(tab_theme_config.theme_list_box, None)
+    _on_theme_selected(tab_theme_config.theme_list_box, None, tab_theme_config)
 
     assert tab_theme_config.current_theme is None
     assert not tab_theme_config.activate_btn.get_sensitive()
@@ -153,18 +160,18 @@ def test_on_theme_switch_toggled(tab_theme_config):
     tab_theme_config.build()
 
     with (
-        patch.object(tab_theme_config, "_scan_grub_scripts") as mock_scan_scripts,
+        patch("ui.tabs.ui_tab_theme_config._scan_grub_scripts") as mock_scan_scripts,
         patch.object(tab_theme_config, "_scan_system_themes") as mock_scan_themes,
     ):
 
         tab_theme_config.theme_switch.set_active(True)
         # Le signal notify::active est émis
         # Mais comme on n'est pas dans une boucle GTK, on appelle directement
-        tab_theme_config._on_theme_switch_toggled(tab_theme_config.theme_switch, None)
+        _on_theme_switch_toggled(tab_theme_config.theme_switch, None, tab_theme_config)
 
         assert mock_scan_scripts.called
         assert mock_scan_themes.called
-        assert tab_theme_config.theme_list_box.get_sensitive()
+        assert tab_theme_config.theme_sections_container.get_visible()
 
 
 def test_scan_grub_scripts(tab_theme_config):
@@ -177,7 +184,7 @@ def test_scan_grub_scripts(tab_theme_config):
     mock_script.path = "/etc/grub.d/01_script"
 
     with patch.object(tab_theme_config.script_service, "scan_theme_scripts", return_value=[mock_script]):
-        tab_theme_config._scan_grub_scripts()
+        _scan_grub_scripts(tab_theme_config)
 
         assert tab_theme_config.scripts_info_box.get_first_child() is not None
 
@@ -186,11 +193,11 @@ def test_on_activate_script_success(tab_theme_config):
     """Test l'activation réussie d'un script."""
     with (
         patch.object(tab_theme_config.script_service, "make_executable", return_value=True),
-        patch.object(tab_theme_config, "_scan_grub_scripts") as mock_scan,
+        patch("ui.tabs.ui_tab_theme_config._scan_grub_scripts") as mock_scan,
         patch("ui.tabs.ui_tab_theme_config.create_success_dialog") as mock_dialog,
     ):
 
-        tab_theme_config._on_activate_script(MagicMock(), "/path/to/script")
+        _on_activate_script(MagicMock(), "/path/to/script", tab_theme_config)
 
         assert mock_dialog.called
         assert mock_scan.called
@@ -203,7 +210,7 @@ def test_on_activate_script_failure(tab_theme_config):
         patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_dialog,
     ):
 
-        tab_theme_config._on_activate_script(MagicMock(), "/path/to/script")
+        _on_activate_script(MagicMock(), "/path/to/script", tab_theme_config)
 
         assert mock_dialog.called
 
@@ -223,7 +230,7 @@ def test_on_activate_script_exceptions(tab_theme_config):
             patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_dialog,
         ):
 
-            tab_theme_config._on_activate_script(MagicMock(), "/path/to/script")
+            _on_activate_script(MagicMock(), "/path/to/script", tab_theme_config)
             assert mock_dialog.called
 
 
@@ -237,7 +244,7 @@ def test_on_open_editor(tab_theme_config):
     with patch("ui.tabs.ui_tab_theme_config.ThemeEditorDialog") as mock_dialog_class:
         mock_dialog = mock_dialog_class.return_value
 
-        tab_theme_config._on_open_editor(MagicMock())
+        _on_open_editor(tab_theme_config)
 
         assert mock_dialog.present.called
 
@@ -246,13 +253,10 @@ def test_on_open_editor_no_parent(tab_theme_config):
     """Test l'ouverture de l'éditeur sans fenêtre parente."""
     tab_theme_config.build()
     tab_theme_config.parent_window = None
-
-    # Simuler un bouton sans parent window
-    mock_btn = MagicMock(spec=Gtk.Button)
-    mock_btn.get_parent.return_value = None
+    tab_theme_config.get_root = MagicMock(return_value=None)
 
     with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_dialog:
-        tab_theme_config._on_open_editor(mock_btn)
+        _on_open_editor(tab_theme_config)
         assert mock_dialog.called
 
 
@@ -263,7 +267,7 @@ def test_on_preview_theme(tab_theme_config):
     with patch("ui.tabs.ui_tab_theme_config.GrubPreviewDialog") as mock_dialog_class:
         mock_dialog = mock_dialog_class.return_value
 
-        tab_theme_config._on_preview_theme(MagicMock())
+        _on_preview_theme(tab_theme_config)
 
         assert mock_dialog.show.called
 
@@ -273,7 +277,7 @@ def test_on_preview_theme_no_selection(tab_theme_config):
     tab_theme_config.current_theme = None
 
     with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_dialog:
-        tab_theme_config._on_preview_theme(MagicMock())
+        _on_preview_theme(tab_theme_config)
         assert mock_dialog.called
 
 
@@ -286,7 +290,7 @@ def test_on_activate_theme(tab_theme_config):
         patch("ui.tabs.ui_tab_theme_config.create_success_dialog") as mock_dialog,
     ):
 
-        tab_theme_config._on_activate_theme(MagicMock())
+        _on_activate_theme(tab_theme_config)
 
         assert tab_theme_config.theme_manager.active_theme == tab_theme_config.current_theme
         assert mock_save.called
@@ -298,7 +302,7 @@ def test_on_activate_theme_no_selection(tab_theme_config):
     tab_theme_config.current_theme = None
 
     with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_dialog:
-        tab_theme_config._on_activate_theme(MagicMock())
+        _on_activate_theme(tab_theme_config)
         assert mock_dialog.called
 
 
@@ -311,7 +315,7 @@ def test_on_activate_theme_error(tab_theme_config):
         patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_dialog,
     ):
 
-        tab_theme_config._on_activate_theme(MagicMock())
+        _on_activate_theme(tab_theme_config)
         assert mock_dialog.called
 
 
@@ -366,15 +370,15 @@ def test_on_theme_switch_toggled_widgets_none(tab_theme_config):
     switch = MagicMock()
     switch.get_active.return_value = True
 
-    with patch.object(tab_theme_config, "_scan_grub_scripts"), patch.object(tab_theme_config, "_scan_system_themes"):
-        tab_theme_config._on_theme_switch_toggled(switch, None)
+    with patch("ui.tabs.ui_tab_theme_config._scan_grub_scripts"), patch.object(tab_theme_config, "_scan_system_themes"):
+        _on_theme_switch_toggled(switch, None, tab_theme_config)
         # Should run without error
 
 
 def test_scan_grub_scripts_no_box(tab_theme_config):
     """Test scan_grub_scripts when scripts_info_box is None."""
     tab_theme_config.scripts_info_box = None
-    tab_theme_config._scan_grub_scripts()
+    _scan_grub_scripts(tab_theme_config)
     # Should run without error
 
 
@@ -382,7 +386,7 @@ def test_scan_grub_scripts_empty(tab_theme_config):
     """Test scan_grub_scripts with no scripts found."""
     tab_theme_config.build()
     with patch.object(tab_theme_config.script_service, "scan_theme_scripts", return_value=[]):
-        tab_theme_config._scan_grub_scripts()
+        _scan_grub_scripts(tab_theme_config)
         # Should not add children
 
 
@@ -396,7 +400,7 @@ def test_scan_grub_scripts_not_executable(tab_theme_config):
     mock_script.path = "/etc/grub.d/01_script"
 
     with patch.object(tab_theme_config.script_service, "scan_theme_scripts", return_value=[mock_script]):
-        tab_theme_config._scan_grub_scripts()
+        _scan_grub_scripts(tab_theme_config)
         # Should add activate button
 
 
@@ -410,7 +414,7 @@ def test_on_open_editor_exception(tab_theme_config):
         patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_dialog,
     ):
 
-        tab_theme_config._on_open_editor(MagicMock())
+        _on_open_editor(tab_theme_config)
         assert mock_dialog.called
 
 
@@ -423,7 +427,7 @@ def test_on_preview_theme_exception(tab_theme_config):
         patch("ui.tabs.ui_tab_theme_config.GrubPreviewDialog", side_effect=OSError("Preview fail")),
         patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_err,
     ):
-        tab_theme_config._on_preview_theme(None)
+        _on_preview_theme(tab_theme_config)
         assert mock_err.called
 
 
@@ -432,18 +436,18 @@ def test_on_theme_switch_toggled_inactive(tab_theme_config):
     tab_theme_config.build()
 
     with (
-        patch.object(tab_theme_config, "_scan_grub_scripts") as mock_scan_scripts,
+        patch("ui.tabs.ui_tab_theme_config._scan_grub_scripts") as mock_scan_scripts,
         patch.object(tab_theme_config, "_scan_system_themes") as mock_scan_themes,
     ):
 
         switch = MagicMock()
         switch.get_active.return_value = False
 
-        tab_theme_config._on_theme_switch_toggled(switch, None)
+        _on_theme_switch_toggled(switch, None, tab_theme_config)
 
         assert not mock_scan_scripts.called
         assert not mock_scan_themes.called
-        assert not tab_theme_config.theme_list_box.get_sensitive()
+        assert not tab_theme_config.theme_sections_container.get_visible()
 
 
 def test_load_themes_scan_exception(tab_theme_config):
@@ -470,7 +474,7 @@ def test_on_theme_selected_invalid_index(tab_theme_config):
     row = MagicMock(spec=Gtk.ListBoxRow)
     row.get_index.return_value = 10  # Out of bounds
 
-    tab_theme_config._on_theme_selected(tab_theme_config.theme_list_box, row)
+    _on_theme_selected(tab_theme_config.theme_list_box, row, tab_theme_config)
 
     # Should not change current theme (or keep it None)
     assert tab_theme_config.current_theme is None
@@ -530,32 +534,23 @@ def test_on_open_editor_exception_coverage():
     tab = TabThemeConfig(mock_state_manager)
     tab.parent_window = MagicMock()  # Set parent window to avoid the search loop for this test
 
-    btn = MagicMock(spec=Gtk.Button)
-
     # Mock ThemeEditorDialog to raise RuntimeError
     with patch("ui.tabs.ui_tab_theme_config.ThemeEditorDialog", side_effect=RuntimeError("Dialog fail")):
         # Also mock create_error_dialog to avoid UI calls
         with patch("ui.tabs.ui_tab_theme_config.create_error_dialog"):
-            tab._on_open_editor(btn)
+            _on_open_editor(tab)
 
 
 def test_on_open_editor_find_parent_window():
     """Test finding the parent window in _on_open_editor."""
     mock_state_manager = MagicMock(spec=AppStateManager)
+    from ui.tabs.ui_tab_theme_config import _on_open_editor
 
     tab = TabThemeConfig(mock_state_manager)
-    tab.parent_window = None  # Ensure it's None to trigger search
-
-    # Create a widget hierarchy: Window -> Box -> Button
-    mock_window = MagicMock(spec=Gtk.Window)
-    mock_box = MagicMock(spec=Gtk.Box)
-    mock_btn = MagicMock(spec=Gtk.Button)
-
-    mock_btn.get_parent.return_value = mock_box
-    mock_box.get_parent.return_value = mock_window
-    mock_window.get_parent.return_value = None
+    mock_window = MagicMock()
+    mock_window.present = MagicMock()
+    tab.get_root = MagicMock(return_value=mock_window)
 
     with patch("ui.tabs.ui_tab_theme_config.ThemeEditorDialog"):
-        tab._on_open_editor(mock_btn)
-
-    assert tab.parent_window == mock_window
+        _on_open_editor(tab)
+        assert tab.parent_window == mock_window

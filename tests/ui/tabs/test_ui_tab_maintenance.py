@@ -9,6 +9,9 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk
 
 from ui.tabs.ui_tab_maintenance import (
+    _on_exec_diag,
+    _on_exec_restore,
+    _on_view_config,
     _reinstall_grub_bios,
     _reinstall_grub_uefi,
     _run_consult_command,
@@ -51,8 +54,22 @@ def test_build_maintenance_tab(mock_controller, mock_notebook):
 
         assert mock_notebook.append_page.called
         args, _ = mock_notebook.append_page.call_args
-        assert isinstance(args[0], Gtk.ScrolledWindow)
+        assert isinstance(args[0], Gtk.Box)
         assert args[1].get_label() == "Maintenance"
+
+
+def test_build_maintenance_tab_empty_grub_d(mock_controller, mock_notebook):
+    """Test build_maintenance_tab when /etc/grub.d is empty."""
+    with (
+        patch("ui.tabs.ui_tab_maintenance.os.path.exists", return_value=True),
+        patch("ui.tabs.ui_tab_maintenance.os.listdir", return_value=[]),
+        patch("ui.tabs.ui_tab_maintenance.shutil.which", return_value=None),
+        patch("ui.tabs.ui_tab_maintenance.MaintenanceService") as MockService,
+    ):
+        mock_service_instance = MockService.return_value
+        mock_service_instance.get_restore_command.return_value = None
+        build_maintenance_tab(mock_controller, mock_notebook)
+        # This should cover the False case of the any() generator
 
 
 def test_run_consult_command_find_theme(mock_controller, mock_service):
@@ -153,7 +170,7 @@ def test_reinstall_grub_uefi_success(mock_controller):
 
         mock_dialog = mock_dialog_class.return_value
 
-        def mock_choose(parent, cancellable, callback):
+        def mock_choose(parent, _, callback):
             mock_result = MagicMock()
             mock_dialog.choose_finish.return_value = 1
             callback(mock_dialog, mock_result)
@@ -175,7 +192,7 @@ def test_reinstall_grub_bios_success(mock_controller):
 
         mock_dialog = mock_dialog_class.return_value
 
-        def mock_choose(parent, cancellable, callback):
+        def mock_choose(parent, _, callback):
             mock_result = MagicMock()
             mock_dialog.choose_finish.return_value = 1
             callback(mock_dialog, mock_result)
@@ -300,7 +317,7 @@ def test_reinstall_grub_uefi_exception(mock_controller):
 
         mock_dialog = mock_dialog_class.return_value
 
-        def mock_choose(parent, cancellable, callback):
+        def mock_choose(parent, _, callback):
             mock_result = MagicMock()
             mock_dialog.choose_finish.side_effect = OSError("Fail")
             callback(mock_dialog, mock_result)
@@ -327,7 +344,7 @@ def test_reinstall_grub_bios_exception(mock_controller):
 
         mock_dialog = mock_dialog_class.return_value
 
-        def mock_choose(parent, cancellable, callback):
+        def mock_choose(parent, _, callback):
             mock_result = MagicMock()
             mock_dialog.choose_finish.side_effect = RuntimeError("Fail")
             callback(mock_dialog, mock_result)
@@ -348,7 +365,7 @@ def test_reinstall_grub_uefi_cancel(mock_controller):
 
         mock_dialog = mock_dialog_class.return_value
 
-        def mock_choose(parent, cancellable, callback):
+        def mock_choose(parent, _, callback):
             mock_result = MagicMock()
             mock_dialog.choose_finish.return_value = 0  # Cancel
             callback(mock_dialog, mock_result)
@@ -369,7 +386,7 @@ def test_reinstall_grub_bios_cancel(mock_controller):
 
         mock_dialog = mock_dialog_class.return_value
 
-        def mock_choose(parent, cancellable, callback):
+        def mock_choose(parent, _, callback):
             mock_result = MagicMock()
             mock_dialog.choose_finish.return_value = 0  # Cancel
             callback(mock_dialog, mock_result)
@@ -498,103 +515,99 @@ def test_run_restore_command_unhandled_data(mock_controller, mock_service):
 
 
 def test_button_clicks(mock_controller, mock_service):
-    """Test clicking the execution buttons."""
+    """Test that the buttons are created with correct labels."""
     notebook = MagicMock()
-
     build_maintenance_tab(mock_controller, notebook)
 
     assert notebook.append_page.called
-    child_widget = notebook.append_page.call_args[0][0]
+    root = notebook.append_page.call_args[0][0]
 
-    assert isinstance(child_widget, Gtk.ScrolledWindow)
-    grid = child_widget.get_child()
-
-    if isinstance(grid, Gtk.Viewport):
-        grid = grid.get_child()
-
-    assert isinstance(grid, Gtk.Grid)
-
+    # Find all buttons in the hierarchy
     buttons = []
-    current = grid.get_first_child()
-    while current:
-        if isinstance(current, Gtk.Button):
-            buttons.append(current)
-        current = current.get_next_sibling()
 
-    assert len(buttons) >= 2
+    def find_buttons(widget):
+        if isinstance(widget, Gtk.Button):
+            buttons.append(widget)
+        child = widget.get_first_child()
+        while child:
+            find_buttons(child)
+            child = child.get_next_sibling()
 
-    with (
-        patch("ui.tabs.ui_tab_maintenance._run_consult_command") as mock_consult,
-        patch("ui.tabs.ui_tab_maintenance._run_restore_command") as mock_restore,
-    ):
+    find_buttons(root)
 
-        for btn in buttons:
-            btn.emit("clicked")
+    # We expect at least 3 buttons: View Config, Exec Diag, Exec Restore
+    assert len(buttons) >= 3
 
-        assert mock_consult.called
-        assert mock_restore.called
+    labels = [btn.get_label() for btn in buttons if btn.get_label() is not None]
+    assert any("Afficher" in l for l in labels)
+    assert any("Exécuter la commande" in l for l in labels)
+    assert any("Exécuter l'action" in l for l in labels)
 
 
-def test_selection_changes_button_sensitivity(mock_controller, mock_service):
-    """Test that selecting a row enables the execute button."""
+def test_dropdown_selections(mock_controller, mock_service):
+    """Test that dropdown selections work."""
     notebook = MagicMock()
     build_maintenance_tab(mock_controller, notebook)
 
-    # Get the scrolled window
-    scrolled = notebook.append_page.call_args[0][0]
-    grid = scrolled.get_child()
-    if isinstance(grid, Gtk.Viewport):
-        grid = grid.get_child()
+    root = notebook.append_page.call_args[0][0]
 
-    # Find listboxes and buttons
-    consult_listbox = None
-    restore_listbox = None
-    consult_btn = None
-    restore_btn = None
+    # Find all dropdowns
+    dropdowns = []
 
-    child = grid.get_first_child()
-    while child:
-        if isinstance(child, Gtk.ScrolledWindow):
-            # Check if it contains a listbox
-            content = child.get_child()
-            if isinstance(content, Gtk.Viewport):
-                content = content.get_child()
+    def find_dropdowns(widget):
+        if isinstance(widget, Gtk.DropDown):
+            dropdowns.append(widget)
+        child = widget.get_first_child()
+        while child:
+            find_dropdowns(child)
+            child = child.get_next_sibling()
 
-            if isinstance(content, Gtk.ListBox):
-                if consult_listbox is None:
-                    consult_listbox = content
-                else:
-                    restore_listbox = content
-        elif isinstance(child, Gtk.Button):
-            if consult_btn is None:
-                consult_btn = child
-            else:
-                restore_btn = child
-        child = child.get_next_sibling()
+    find_dropdowns(root)
+    assert len(dropdowns) >= 3
 
-    assert consult_listbox is not None
-    assert restore_listbox is not None
-    assert consult_btn is not None
-    assert restore_btn is not None
+    for dd in dropdowns:
+        dd.set_selected(0)
+        assert dd.get_selected() == 0
 
-    # Initially disabled
-    assert not consult_btn.get_sensitive()
-    assert not restore_btn.get_sensitive()
 
-    # Select row in consult listbox
-    row = Gtk.ListBoxRow()
-    consult_listbox.emit("row-selected", row)
-    assert consult_btn.get_sensitive()
+def test_on_view_config_success(mock_controller):
+    dropdown = MagicMock()
+    dropdown.get_selected.return_value = 0
+    config_files = [("Test", "/path/to/file")]
 
-    # Deselect
-    consult_listbox.emit("row-selected", None)
-    assert not consult_btn.get_sensitive()
+    with (
+        patch("ui.tabs.ui_tab_maintenance.os.path.exists", return_value=True),
+        patch("ui.tabs.ui_tab_maintenance.run_command_popup") as mock_popup,
+    ):
+        _on_view_config(mock_controller, dropdown, config_files)
+        mock_popup.assert_called_once()
 
-    # Select row in restore listbox
-    row = Gtk.ListBoxRow()
-    restore_listbox.emit("row-selected", row)
-    assert restore_btn.get_sensitive()
 
-    # Deselect
-    restore_listbox.emit("row-selected", None)
-    assert not restore_btn.get_sensitive()
+def test_on_view_config_not_found(mock_controller):
+    dropdown = MagicMock()
+    dropdown.get_selected.return_value = 0
+    config_files = [("Test", "/path/to/file")]
+
+    with patch("ui.tabs.ui_tab_maintenance.os.path.exists", return_value=False):
+        _on_view_config(mock_controller, dropdown, config_files)
+        mock_controller.show_info.assert_called_once()
+
+
+def test_on_exec_diag(mock_controller):
+    dropdown = MagicMock()
+    dropdown.get_selected.return_value = 0
+    diag_commands = [("Test", ["cmd"])]
+
+    with patch("ui.tabs.ui_tab_maintenance.run_command_popup") as mock_popup:
+        _on_exec_diag(mock_controller, dropdown, diag_commands)
+        mock_popup.assert_called_once_with(mock_controller, ["cmd"], "Test")
+
+
+def test_on_exec_restore(mock_controller, mock_service):
+    dropdown = MagicMock()
+    dropdown.get_selected.return_value = 0
+    restore_commands = [("Test", ["cmd"])]
+
+    with patch("ui.tabs.ui_tab_maintenance._run_restore_command_direct") as mock_restore:
+        _on_exec_restore(mock_controller, dropdown, restore_commands, mock_service)
+        mock_restore.assert_called_once_with(mock_controller, "Test", ["cmd"], mock_service)

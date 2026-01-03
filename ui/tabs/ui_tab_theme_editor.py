@@ -13,9 +13,10 @@ from core.theme.core_theme_generator import (
 )
 from ui.tabs.ui_grub_preview_dialog import GrubPreviewDialog
 from ui.ui_widgets import (
-    WidgetFactory,
     create_error_dialog,
     create_main_box,
+    create_section_header,
+    create_section_title,
     create_success_dialog,
 )
 
@@ -73,38 +74,57 @@ class TabThemeEditor:
         main_box = create_main_box(spacing=10, margin=10)
 
         # En-tête
-        header = WidgetFactory.create_section_header("Générateur de Thèmes GRUB")
+        header = create_section_header("Générateur de Thèmes GRUB")
         main_box.append(header)
 
-        # Zone scrollable
-        scrolled = Gtk.ScrolledWindow()
-        scrolled.set_vexpand(True)
-        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        # === Conteneur 2 colonnes ===
+        two_columns = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        two_columns.set_homogeneous(True)
+        two_columns.set_hexpand(True)
+        two_columns.set_vexpand(True)
+        main_box.append(two_columns)
 
-        content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=15)
-        content_box.set_margin_start(5)
-        content_box.set_margin_end(5)
-        scrolled.set_child(content_box)
+        # === COLONNE GAUCHE : Configuration ===
+        left_scroll = Gtk.ScrolledWindow()
+        left_scroll.set_vexpand(True)
+        left_scroll.set_hexpand(True)
+        left_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+
+        left_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=15)
+        left_content.set_margin_start(5)
+        left_content.set_margin_end(5)
+        left_content.set_margin_bottom(10)
+        left_scroll.set_child(left_content)
 
         # Section: Informations du thème
-        content_box.append(self._build_theme_info_section())
+        left_content.append(self._build_theme_info_section())
 
         # Section: Couleurs
-        content_box.append(self._build_colors_section())
+        left_content.append(self._build_colors_section())
 
         # Section: Image de fond
-        content_box.append(self._build_background_section())
+        left_content.append(self._build_background_section())
 
         # Section: Options d'affichage
-        content_box.append(self._build_display_options_section())
+        left_content.append(self._build_display_options_section())
+
+        two_columns.append(left_scroll)
+
+        # === COLONNE DROITE : Prévisualisation et Actions ===
+        right_column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        right_column.set_hexpand(True)
+        right_column.set_vexpand(True)
 
         # Section: Prévisualisation
-        content_box.append(self._build_preview_section())
+        # On veut que la preview prenne tout l'espace disponible
+        preview_section = self._build_preview_section()
+        preview_section.set_vexpand(True)
+        right_column.append(preview_section)
 
-        # Section: Actions
-        content_box.append(self._build_actions_section())
+        # Section: Actions (en bas)
+        right_column.append(self._build_actions_section())
 
-        main_box.append(scrolled)
+        two_columns.append(right_column)
 
         # Charger le thème par défaut
         self._load_default_theme()
@@ -116,7 +136,7 @@ class TabThemeEditor:
         """Construit la section d'informations du thème."""
         section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
 
-        title = WidgetFactory.create_section_title("Informations")
+        title = create_section_title("Informations")
         section.append(title)
 
         frame = Gtk.Frame()
@@ -196,7 +216,7 @@ class TabThemeEditor:
         """Construit la section de configuration des couleurs."""
         section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
 
-        title = WidgetFactory.create_section_title("Couleurs")
+        title = create_section_title("Couleurs")
         section.append(title)
 
         frame = Gtk.Frame()
@@ -284,7 +304,7 @@ class TabThemeEditor:
         """Construit la section de configuration de l'image de fond."""
         section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
 
-        title = WidgetFactory.create_section_title("Image de fond (optionnel)")
+        title = create_section_title("Image de fond (optionnel)")
         section.append(title)
 
         frame = Gtk.Frame()
@@ -335,7 +355,7 @@ class TabThemeEditor:
         """Construit la section des options d'affichage."""
         section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
 
-        title = WidgetFactory.create_section_title("Options d'affichage")
+        title = create_section_title("Options d'affichage")
         section.append(title)
 
         frame = Gtk.Frame()
@@ -373,7 +393,7 @@ class TabThemeEditor:
         """Construit la section de prévisualisation du code."""
         section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
 
-        title = WidgetFactory.create_section_title("Aperçu du fichier theme.txt")
+        title = create_section_title("Aperçu du fichier theme.txt")
         section.append(title)
 
         frame = Gtk.Frame()

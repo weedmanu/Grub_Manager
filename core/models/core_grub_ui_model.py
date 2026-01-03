@@ -35,7 +35,11 @@ class GrubUiModel:
     disable_submenu: bool = False
     disable_recovery: bool = False
     disable_os_prober: bool = False
-    terminal_color: bool = False
+    grub_theme: str = ""  # Chemin vers le fichier theme.txt
+
+    # Paramètres kernel (GRUB_CMDLINE_LINUX_DEFAULT)
+    quiet: bool = True  # Mode silencieux
+    splash: bool = True  # Écran de démarrage
 
 
 @dataclass(frozen=True)
@@ -62,6 +66,8 @@ _MANAGED_KEYS: Final[set[str]] = {
     "GRUB_GFXMODE",
     "GRUB_GFXPAYLOAD_LINUX",
     "GRUB_TERMINAL",
+    "GRUB_THEME",
+    "GRUB_CMDLINE_LINUX_DEFAULT",
 }
 
 
@@ -89,7 +95,11 @@ def model_from_config(config: dict[str, str]) -> GrubUiModel:
     timeout = _int(config.get("GRUB_TIMEOUT", "5"), 5)
     default_value = (config.get("GRUB_DEFAULT", "0") or "0").strip() or "0"
     hidden_timeout = config.get("GRUB_TIMEOUT_STYLE", "menu") == "hidden"
-    terminal_color = "console" in config.get("GRUB_TERMINAL", "")
+
+    # Analyser GRUB_CMDLINE_LINUX_DEFAULT pour quiet et splash
+    cmdline = config.get("GRUB_CMDLINE_LINUX_DEFAULT", "quiet splash")
+    quiet = "quiet" in cmdline
+    splash = "splash" in cmdline
 
     return GrubUiModel(
         timeout=timeout,
@@ -101,7 +111,9 @@ def model_from_config(config: dict[str, str]) -> GrubUiModel:
         disable_submenu=_as_bool(config, "GRUB_DISABLE_SUBMENU", {"y"}),
         disable_recovery=_as_bool(config, "GRUB_DISABLE_RECOVERY", {"true"}),
         disable_os_prober=_as_bool(config, "GRUB_DISABLE_OS_PROBER", {"true"}),
-        terminal_color=terminal_color,
+        grub_theme=config.get("GRUB_THEME", ""),
+        quiet=quiet,
+        splash=splash,
     )
 
 
@@ -147,10 +159,21 @@ def merged_config_from_model(base_config: dict[str, str], model: GrubUiModel) ->
     if model.gfxpayload_linux.strip():
         cfg["GRUB_GFXPAYLOAD_LINUX"] = model.gfxpayload_linux.strip()
 
-    # === TERMINAL (présent si mode console demandé) ===
-    if model.terminal_color:
-        cfg["GRUB_TERMINAL"] = "console"
-    # Sinon : clé absente = terminal graphique par défaut
+    # === THÈME (présent si défini) ===
+    if model.grub_theme.strip():
+        cfg["GRUB_THEME"] = model.grub_theme.strip()
+    # Sinon : clé absente = pas de thème
+
+    # === PARAMÈTRES KERNEL (GRUB_CMDLINE_LINUX_DEFAULT) ===
+    cmdline_parts = []
+    if model.quiet:
+        cmdline_parts.append("quiet")
+    if model.splash:
+        cmdline_parts.append("splash")
+
+    if cmdline_parts:
+        cfg["GRUB_CMDLINE_LINUX_DEFAULT"] = " ".join(cmdline_parts)
+    # Sinon : clé absente = aucun paramètre par défaut
 
     logger.debug(
         f"[merged_config_from_model] Succès - merged keys={len(cfg)}, "

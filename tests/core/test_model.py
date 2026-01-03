@@ -35,7 +35,6 @@ def test_model_from_config_defaults_and_flags() -> None:
     assert model.disable_os_prober is True
     assert model.gfxmode == "1920x1080"
     assert model.gfxpayload_linux == "keep"
-    assert model.terminal_color is True
     # Color attributes removed - now managed by theme system
 
 
@@ -58,7 +57,6 @@ def test_merged_config_preserves_unknown_keys_and_replaces_managed() -> None:
         disable_submenu=False,
         disable_recovery=False,
         disable_os_prober=False,
-        terminal_color=True,
     )
 
     merged = merged_config_from_model(base, model)
@@ -73,7 +71,6 @@ def test_merged_config_preserves_unknown_keys_and_replaces_managed() -> None:
     assert merged["GRUB_SAVEDEFAULT"] == "true"
     assert merged["GRUB_GFXMODE"] == "1024x768"
     assert merged["GRUB_GFXPAYLOAD_LINUX"] == "text"
-    assert merged["GRUB_TERMINAL"] == "console"
     # Color attributes removed - now managed by theme system
 
     # A disabled flag should not be present.
@@ -97,15 +94,12 @@ def test_merged_config_empty_strings() -> None:
 
 def test_merged_config_all_flags() -> None:
     """Test fusion avec tous les drapeaux activés."""
-    model = GrubUiModel(
-        save_default=True, disable_submenu=True, disable_recovery=True, disable_os_prober=True, terminal_color=True
-    )
+    model = GrubUiModel(save_default=True, disable_submenu=True, disable_recovery=True, disable_os_prober=True)
     merged = merged_config_from_model({}, model)
     assert merged["GRUB_SAVEDEFAULT"] == "true"
     assert merged["GRUB_DISABLE_SUBMENU"] == "y"
     assert merged["GRUB_DISABLE_RECOVERY"] == "true"
     assert merged["GRUB_DISABLE_OS_PROBER"] == "true"
-    assert merged["GRUB_TERMINAL"] == "console"
 
 
 def test_load_save_grub_ui_state(tmp_path, monkeypatch) -> None:

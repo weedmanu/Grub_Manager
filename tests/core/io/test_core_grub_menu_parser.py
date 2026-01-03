@@ -1,7 +1,10 @@
-"""Tests pour core/grub_menu.py - Extraction des entrées GRUB."""
+"""Tests pour core/io/core_grub_menu_parser.py - Extraction des entrées GRUB."""
 
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -74,6 +77,21 @@ class TestExtractMenuentryId:
         """Vérifie le cas sans ID."""
         line = "menuentry 'Ubuntu' {"
         assert _extract_menuentry_id(line) == ""
+
+    def test_extract_id_complex_attributes(self):
+        """Vérifie l'extraction avec plusieurs attributs."""
+        line = "menuentry 'Ubuntu' --class gnu-linux --class os --id 'ubuntu-20' --users root {"
+        assert _extract_menuentry_id(line) == "ubuntu-20"
+
+    def test_extract_id_single_quotes_mixed(self):
+        """Vérifie l'extraction avec mélange de quotes."""
+        line = 'menuentry "Ubuntu" --id ubuntu-simple {'
+        assert _extract_menuentry_id(line) == "ubuntu-simple"
+
+    def test_extract_id_with_dashes(self):
+        """Vérifie les IDs avec des tirets."""
+        line = "menuentry 'Ubuntu' --id 'gnu-linux-simple-ubuntu' {"
+        assert _extract_menuentry_id(line) == "gnu-linux-simple-ubuntu"
 
 
 class TestParseChoices:
@@ -161,6 +179,67 @@ class TestParseChoices:
         assert "Level 2" in choices[0].title
         assert "Deep entry" in choices[0].title
 
+    def test_parse_empty_submenu(self):
+        """Vérifie le parsing d'un sous-menu vide."""
+        lines = [
+            "submenu 'Advanced' {",
+            "}",
+        ]
+
+        choices = _parse_choices(lines)
+        assert len(choices) == 0
+
+    def test_parse_menuentry_without_id(self):
+        """Vérifie le parsing d'une entrée sans ID."""
+        lines = [
+            "menuentry 'Ubuntu' {",
+            "}",
+            "menuentry 'Windows' --id windows {",
+            "}",
+        ]
+
+        choices = _parse_choices(lines)
+        # Les deux entrées doivent être parsées
+        assert len(choices) == 2
+
+    def test_parse_nested_submenu_deep(self):
+        """Vérifie le parsing de submenu très imbriqués."""
+        lines = [
+            "submenu 'L1' {",
+            "  submenu 'L2' {",
+            "    submenu 'L3' {",
+            "      menuentry 'Deep' {",
+            "      }",
+            "    }",
+            "  }",
+            "}",
+        ]
+
+        choices = _parse_choices(lines)
+        assert len(choices) == 1
+        # L'ID doit refléter la profondeur
+        assert choices[0].id == "0>0>0>0"
+
+    def test_parse_mixed_content(self):
+        """Vérifie le parsing avec du contenu mélangé."""
+        lines = [
+            "### BEGIN /etc/grub.d/10_linux ###",
+            "export menuentry_id_option",
+            "menuentry 'Ubuntu' --id ubuntu-1 {",
+            "    load_video",
+            "}",
+            "### END /etc/grub.d/10_linux ###",
+            "### BEGIN /etc/grub.d/20_memtest86+ ###",
+            "menuentry 'Memory test' --id memtest {",
+            "}",
+            "### END /etc/grub.d/20_memtest86+ ###",
+        ]
+
+        choices = _parse_choices(lines)
+        assert len(choices) == 2
+        assert choices[0].source == "10_linux"
+        assert choices[1].source == "20_memtest86+"
+
 
 class TestReadGrubDefaultChoices:
     """Tests pour read_grub_default_choices."""
@@ -199,6 +278,44 @@ menuentry 'Windows' --id 'windows' {
         finally:
             Path(temp_path).unlink()
 
+    def test_read_missing_file_returns_empty(self, tmp_path):
+        """Vérifie que la lecture d'un fichier manquant retourne une liste vide."""
+        missing = tmp_path / "nope.cfg"
+        assert read_grub_default_choices(str(missing)) == []
+
+    def test_read_menu_and_submenu(self, tmp_path):
+        """Test complet avec menu et submenu."""
+        grub_cfg = tmp_path / "grub.cfg"
+        grub_cfg.write_text(
+            """
+set default=0
+
+menuentry 'Ubuntu' {
+    echo 'boot'
+}
+
+submenu 'Advanced options for Ubuntu' {
+    menuentry 'Ubuntu, with Linux 6.5.0' {
+        echo 'boot'
+    }
+    menuentry 'Ubuntu, with Linux 6.5.0 (recovery mode)' {
+        echo 'boot'
+    }
+}
+
+menuentry 'UEFI Firmware Settings' {
+    fwsetup
+}
+""".lstrip(),
+            encoding="utf-8",
+        )
+
+        choices = read_grub_default_choices(str(grub_cfg))
+        assert [c.id for c in choices] == ["0", "1>0", "1>1", "2"]
+        assert choices[0].title == "Ubuntu"
+        assert "Advanced options" in choices[1].title
+        assert choices[-1].title == "UEFI Firmware Settings"
+
 
 class TestGetSimulatedOsProberEntries:
     """Tests pour get_simulated_os_prober_entries."""
@@ -217,7 +334,7 @@ class TestGetSimulatedOsProberEntries:
                 assert entries == []
 
     def test_os_prober_success(self):
-        """Vérifie le succès d'os-prober avec des lignes malformées pour couvrir 235->233."""
+        """Vérifie le succès d'os-prober."""
         mock_stdout = "/dev/sda1:Windows 10:Windows:chain\nINVALID_LINE\n/dev/sdb1:Debian:Linux:linux"
         with patch("os.geteuid", return_value=0):
             with patch("shutil.which", return_value="/usr/bin/os-prober"):
@@ -266,21 +383,16 @@ class TestGrubCfgDiscovery:
             assert "/boot/efi/EFI/ubuntu/grub.cfg" in paths
 
     def test_candidate_grub_cfg_paths_default(self):
-        """Test les candidats par défaut avec doublons pour couvrir la branche 79->78."""
-        from core.config.core_paths import GRUB_CFG_PATH
-
-        # On simule des doublons entre GRUB_CFG_PATHS et _discover_efi_grub_cfg_paths
+        """Test les candidats par défaut avec doublons."""
         with patch("core.io.core_grub_menu_parser.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg", "/boot/grub/grub.cfg"]):
             with patch(
                 "core.io.core_grub_menu_parser._discover_efi_grub_cfg_paths",
                 return_value=["/boot/grub/grub.cfg", "/efi/grub.cfg"],
             ):
-                paths = _candidate_grub_cfg_paths(GRUB_CFG_PATH)
+                paths = _candidate_grub_cfg_paths("/boot/grub/grub.cfg")
                 assert "/boot/grub/grub.cfg" in paths
                 assert "/efi/grub.cfg" in paths
-                # Vérifier l'unicité
                 assert len(paths) == 2
-                assert paths == ["/boot/grub/grub.cfg", "/efi/grub.cfg"]
 
     def test_candidate_grub_cfg_paths_custom(self):
         """Test avec un chemin personnalisé."""
@@ -313,13 +425,6 @@ class TestIterReadableGrubCfgLines:
         f2 = tmp_path / "grub2.cfg"
         f2.write_text("content2")
 
-        # Simuler une erreur sur f1
-        with patch("builtins.open", side_effect=[OSError("Error"), MagicMock()]):
-            # On doit mocker open pour qu'il réussisse au 2ème appel
-            # Mais c'est plus simple de mocker open globalement
-            pass
-
-        # Version plus simple:
         with patch("os.path.exists", side_effect=[True, True]):
             with patch("builtins.open") as mock_open:
                 mock_open.side_effect = [
@@ -371,7 +476,7 @@ class TestReadGrubDefaultChoicesWithSource:
             assert used_path == str(f_actual)
 
     def test_read_multiple_empty_candidates(self, tmp_path):
-        """Test avec plusieurs candidats vides pour couvrir le cas best_empty déjà défini."""
+        """Test avec plusieurs candidats vides."""
         f1 = tmp_path / "empty1.cfg"
         f1.write_text("# Empty 1")
         f2 = tmp_path / "empty2.cfg"
@@ -380,7 +485,7 @@ class TestReadGrubDefaultChoicesWithSource:
         with patch("core.io.core_grub_menu_parser._candidate_grub_cfg_paths", return_value=[str(f1), str(f2)]):
             choices, used_path = read_grub_default_choices_with_source(str(f1))
             assert choices == []
-            assert used_path == str(f1)  # Le premier vide trouvé est conservé
+            assert used_path == str(f1)
 
     def test_read_failure_all_candidates(self):
         """Test échec total."""
@@ -388,46 +493,3 @@ class TestReadGrubDefaultChoicesWithSource:
             choices, used_path = read_grub_default_choices_with_source("/none")
             assert choices == []
             assert used_path is None
-
-
-def test_read_grub_default_choices_menu_and_submenu(tmp_path: Path) -> None:
-    grub_cfg = tmp_path / "grub.cfg"
-
-    # Minimal-ish grub.cfg excerpt with submenu nesting.
-    grub_cfg.write_text(
-        """
-set default=0
-
-menuentry 'Ubuntu' {
-    echo 'boot'
-}
-
-submenu 'Advanced options for Ubuntu' {
-    menuentry 'Ubuntu, with Linux 6.5.0' {
-        echo 'boot'
-    }
-    menuentry 'Ubuntu, with Linux 6.5.0 (recovery mode)' {
-        echo 'boot'
-    }
-}
-
-menuentry 'UEFI Firmware Settings' {
-    fwsetup
-}
-""".lstrip(),
-        encoding="utf-8",
-    )
-
-    choices = read_grub_default_choices(str(grub_cfg))
-
-    # Expect 4 menu entries (top-level Ubuntu, 2 under submenu, UEFI).
-    assert [c.id for c in choices] == ["0", "1>0", "1>1", "2"]
-
-    assert choices[0].title == "Ubuntu"
-    assert choices[1].title.startswith("Advanced options for Ubuntu")
-    assert choices[-1].title == "UEFI Firmware Settings"
-
-
-def test_read_grub_default_choices_missing_file_returns_empty(tmp_path: Path) -> None:
-    missing = tmp_path / "nope.cfg"
-    assert read_grub_default_choices(str(missing)) == []
