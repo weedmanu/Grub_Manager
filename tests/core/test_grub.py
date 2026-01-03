@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.grub import CommandResult, run_update_grub
+from core.system.core_grub_system_commands import CommandResult, run_update_grub
 
 
 class TestCommandResult:
@@ -29,15 +29,13 @@ class TestCommandResult:
 class TestRunUpdateGrub:
     """Tests pour run_update_grub."""
 
-    @patch("core.grub.subprocess.run")
-    @patch("core.grub.shutil.which")
+    @patch("core.system.core_grub_system_commands.subprocess.run")
+    @patch("core.system.core_grub_system_commands.shutil.which")
     def test_success(self, mock_which, mock_run):
         """Vérifie l'exécution réussie d'update-grub."""
         mock_which.return_value = "/usr/sbin/update-grub"
         mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout="Generating grub configuration file ...\ndone\n",
-            stderr=""
+            returncode=0, stdout="Generating grub configuration file ...\ndone\n", stderr=""
         )
 
         result = run_update_grub()
@@ -47,24 +45,20 @@ class TestRunUpdateGrub:
         assert result.stderr == ""
         mock_run.assert_called_once()
 
-    @patch("core.grub.subprocess.run")
-    @patch("core.grub.shutil.which")
+    @patch("core.system.core_grub_system_commands.subprocess.run")
+    @patch("core.system.core_grub_system_commands.shutil.which")
     def test_failure(self, mock_which, mock_run):
         """Vérifie le cas d'échec d'update-grub."""
         mock_which.return_value = "/usr/sbin/update-grub"
-        mock_run.return_value = MagicMock(
-            returncode=1,
-            stdout="",
-            stderr="Error: permission denied"
-        )
+        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="Error: permission denied")
 
         result = run_update_grub()
 
         assert result.returncode == 1
         assert result.stderr == "Error: permission denied"
 
-    @patch("core.grub.subprocess.run")
-    @patch("core.grub.shutil.which")
+    @patch("core.system.core_grub_system_commands.subprocess.run")
+    @patch("core.system.core_grub_system_commands.shutil.which")
     def test_command_not_found(self, mock_which, mock_run):
         """Vérifie le cas où update-grub n'est pas trouvé."""
         mock_which.return_value = None
@@ -75,8 +69,8 @@ class TestRunUpdateGrub:
         # La fonction devrait gérer l'exception et retourner un code d'erreur
         assert result.returncode != 0
 
-    @patch("core.grub.subprocess.run")
-    @patch("core.grub.shutil.which")
+    @patch("core.system.core_grub_system_commands.subprocess.run")
+    @patch("core.system.core_grub_system_commands.shutil.which")
     def test_uses_expanded_path(self, mock_which, mock_run):
         """Vérifie que la recherche utilise un PATH élargi."""
         mock_which.return_value = "/usr/sbin/update-grub"
@@ -97,15 +91,15 @@ class TestImports:
 
     def test_all_exports_exist(self):
         """Vérifie que tous les exports de __all__ sont disponibles."""
-        import core.grub
-        from core.grub import __all__
+        import core.system.core_grub_system_commands
+        from core.system.core_grub_system_commands import __all__
 
         for name in __all__:
-            assert hasattr(core.grub, name), f"{name} n'est pas exporté"
+            assert hasattr(core.system.core_grub_system_commands, name), f"{name} n'est pas exporté"
 
     def test_grub_default_functions(self):
         """Vérifie que les fonctions grub_default sont disponibles."""
-        from core.grub import (
+        from core.system.core_grub_system_commands import (
             format_grub_default,
             parse_grub_default,
             read_grub_default,
@@ -119,7 +113,7 @@ class TestImports:
 
     def test_grub_menu_functions(self):
         """Vérifie que les fonctions grub_menu sont disponibles."""
-        from core.grub import (
+        from core.system.core_grub_system_commands import (
             GrubDefaultChoice,
             read_grub_default_choices,
             read_grub_default_choices_with_source,
@@ -131,7 +125,7 @@ class TestImports:
 
     def test_model_functions(self):
         """Vérifie que les fonctions model sont disponibles."""
-        from core.grub import (
+        from core.system.core_grub_system_commands import (
             GrubUiModel,
             GrubUiState,
             load_grub_ui_state,
@@ -145,7 +139,7 @@ class TestImports:
 
     def test_paths_constants(self):
         """Vérifie que les constantes de chemin sont disponibles."""
-        from core.grub import GRUB_CFG_PATH, GRUB_DEFAULT_PATH
+        from core.system.core_grub_system_commands import GRUB_CFG_PATH, GRUB_DEFAULT_PATH
 
         assert isinstance(GRUB_CFG_PATH, str)
         assert isinstance(GRUB_DEFAULT_PATH, str)

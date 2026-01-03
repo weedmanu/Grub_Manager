@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from core.apply_manager import ApplyState, GrubApplyManager
+from core.managers.core_apply_manager import ApplyState, GrubApplyManager
 
 
 class TestApplyWorkflow:
@@ -29,7 +29,8 @@ menuentry 'Ubuntu' {
 ### END /etc/grub.d/00_footer ###
 """
 
-            with patch("core.apply_manager.subprocess.run") as mock_run:
+            with patch("core.managers.core_apply_manager.subprocess.run") as mock_run:
+
                 def run_side_effect(cmd, *args, **kwargs):
                     # Si c'est grub-mkconfig, créer le fichier de test
                     if "grub-mkconfig" in cmd:
@@ -41,7 +42,7 @@ menuentry 'Ubuntu' {
                             Path(output_file).write_text(test_config_content)
                     return MagicMock(returncode=0, stdout="OK", stderr="")
 
-                mock_run.side_effect = run_side_effect
+                mock_run.side_effect = run_side_effect  # pylint: disable=E1102
 
                 config = {"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "1"}
                 result = manager.apply_configuration(config, apply_changes=False)
@@ -74,7 +75,7 @@ menuentry 'Ubuntu' {
 ### END /etc/grub.d/00_footer ###
 """
 
-            with patch("core.apply_manager.subprocess.run") as mock_run:
+            with patch("core.managers.core_apply_manager.subprocess.run") as mock_run:
                 # Simulation: grub-mkconfig réussit, mais grub-script-check échoue
                 def run_side_effect(cmd, *args, **kwargs):
                     cmd_str = " ".join(cmd) if isinstance(cmd, list) else str(cmd)
@@ -91,7 +92,7 @@ menuentry 'Ubuntu' {
 
                 mock_run.side_effect = run_side_effect
 
-                with patch("core.apply_manager.shutil.which") as mock_which:
+                with patch("core.managers.core_apply_manager.shutil.which") as mock_which:
                     mock_which.return_value = "/usr/bin/grub-script-check"
 
                     config = {"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "1"}
@@ -124,13 +125,15 @@ menuentry 'Ubuntu' {
 
             # Intercepter les transitions
             original_transition = manager._transition_to
+
             def track_transition(state):
                 states_visited.append(state)
                 original_transition(state)
 
             manager._transition_to = track_transition
 
-            with patch("core.apply_manager.subprocess.run") as mock_run:
+            with patch("core.managers.core_apply_manager.subprocess.run") as mock_run:
+
                 def run_side_effect(cmd, *args, **kwargs):
                     if "grub-mkconfig" in cmd:
                         output_file = None
@@ -167,7 +170,7 @@ menuentry 'Ubuntu' {
             manager = GrubApplyManager(str(grub_file))
 
             # Injecter une erreur après l'écriture
-            with patch("core.apply_manager.subprocess.run") as mock_run:
+            with patch("core.managers.core_apply_manager.subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="Erreur")
 
                 config = {"GRUB_TIMEOUT": "10"}
@@ -202,7 +205,7 @@ menuentry 'Ubuntu' {
 
             manager = GrubApplyManager(str(grub_file))
 
-            with patch("core.apply_manager.subprocess.run") as mock_run:
+            with patch("core.managers.core_apply_manager.subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
                 # Config vide
@@ -240,8 +243,8 @@ menuentry 'Ubuntu' {
                         Path(output_file).write_text(test_config_content)
                 return MagicMock(returncode=0, stdout="", stderr="")
 
-            with patch("core.apply_manager.subprocess.run", side_effect=mock_run):
-                with patch("core.apply_manager.shutil.which") as mock_which:
+            with patch("core.managers.core_apply_manager.subprocess.run", side_effect=mock_run):
+                with patch("core.managers.core_apply_manager.shutil.which") as mock_which:
                     mock_which.side_effect = lambda x, *args, **kwargs: f"/usr/bin/{x}"
 
                     config = {"GRUB_TIMEOUT": "10"}
@@ -270,7 +273,8 @@ menuentry 'Ubuntu' {
 ### END /etc/grub.d/00_footer ###
 """
 
-            with patch("core.apply_manager.subprocess.run") as mock_run:
+            with patch("core.managers.core_apply_manager.subprocess.run") as mock_run:
+
                 def run_side_effect(cmd, *args, **kwargs):
                     if "grub-mkconfig" in cmd:
                         output_file = None
@@ -296,7 +300,7 @@ menuentry 'Ubuntu' {
 
             manager = GrubApplyManager(str(grub_file))
 
-            with patch("core.apply_manager.subprocess.run") as mock_run:
+            with patch("core.managers.core_apply_manager.subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="Error")
 
                 manager.apply_configuration({"GRUB_TIMEOUT": "10"}, apply_changes=False)

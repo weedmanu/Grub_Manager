@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.model import GrubUiModel, merged_config_from_model, model_from_config
+from core.models.core_grub_ui_model import GrubUiModel, merged_config_from_model, model_from_config
 
 
 def test_disable_os_prober_persistence_when_false() -> None:

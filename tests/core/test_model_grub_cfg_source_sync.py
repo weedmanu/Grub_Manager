@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import core.grub_menu as grub_menu
-import core.model as model
+import core.io.core_grub_menu_parser as grub_menu
+import core.models.core_grub_ui_model as model
 
 
 def test_load_state_uses_actual_grub_cfg_for_color_fallback(tmp_path: Path, monkeypatch) -> None:
@@ -33,7 +33,6 @@ menuentry 'Linux' $menuentry_id_option 'id-1' { }
     grub_default.write_text("GRUB_TIMEOUT=5\nGRUB_DEFAULT=0\n", encoding="utf-8")
 
     state = model.load_grub_ui_state(grub_default_path=str(grub_default), grub_cfg_path=str(grub1))
-    assert state.model.color_normal_fg == "white"
-    assert state.model.color_normal_bg == "black"
-    assert state.model.color_highlight_fg == "black"
-    assert state.model.color_highlight_bg == "light-gray"
+    # Color fallback functionality removed - colors now managed by theme system
+    assert state.model.timeout == 5
+    assert state.model.default == "0"

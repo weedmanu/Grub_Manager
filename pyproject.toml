@@ -41,6 +41,7 @@ Issues = "https://github.com/yourusername/grub_manager/issues"
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    "pytest-benchmark>=4.0.0",
     "black>=23.0.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
@@ -49,6 +50,7 @@ dev = [
     "pylint>=2.17.0",
     "vulture>=2.7.0",
     "flake8>=6.0.0",
+    "memory-profiler>=0.61.0",
 ]
 
 [tool.setuptools]
@@ -185,3 +187,7 @@ max-line-length = 120
 [tool.pydocstyle]
 convention = "pep257"
 match = '(?!test_).*\.py'
+
+[tool.vulture]
+paths = ["core", "ui", "main.py"]
+min_confidence = 65

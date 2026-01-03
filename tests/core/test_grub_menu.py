@@ -2,17 +2,25 @@
 
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.grub_menu import (
+from core.io.core_grub_menu_parser import (
     GrubDefaultChoice,
+    _candidate_grub_cfg_paths,
+    _discover_efi_grub_cfg_paths,
     _extract_menuentry_id,
+    _iter_readable_grub_cfg_lines,
     _parse_choices,
     get_simulated_os_prober_entries,
     read_grub_default_choices,
+    read_grub_default_choices_with_source,
 )
 
 
@@ -29,12 +37,7 @@ class TestGrubDefaultChoice:
 
     def test_creation_complete(self):
         """Vérifie la création complète d'un choix."""
-        choice = GrubDefaultChoice(
-            id="0",
-            title="Ubuntu 22.04",
-            menu_id="gnulinux-simple",
-            source="10_linux"
-        )
+        choice = GrubDefaultChoice(id="0", title="Ubuntu 22.04", menu_id="gnulinux-simple", source="10_linux")
         assert choice.id == "0"
         assert choice.title == "Ubuntu 22.04"
         assert choice.menu_id == "gnulinux-simple"
@@ -133,6 +136,16 @@ class TestParseChoices:
         assert "Advanced options" in choices[1].title
         assert "Older kernel" in choices[1].title
 
+    def test_parse_submenu_closing_on_same_line(self):
+        """Vérifie le parsing d'un sous-menu qui se ferme sur la même ligne ou immédiatement."""
+        lines = [
+            "submenu 'Empty' { }",
+            "menuentry 'After' { }",
+        ]
+        choices = _parse_choices(lines)
+        assert len(choices) == 1
+        assert choices[0].id == "1" # Index 0 était le submenu, index 1 est le menuentry
+
     def test_parse_nested_submenus(self):
         """Vérifie le parsing de sous-menus imbriqués."""
         lines = [
@@ -157,15 +170,17 @@ class TestReadGrubDefaultChoices:
 
     def test_read_from_valid_file(self):
         """Vérifie la lecture depuis un fichier valide."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.cfg', delete=False) as f:
-            f.write("""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".cfg", delete=False) as f:
+            f.write(
+                """
 menuentry 'Ubuntu' --id 'ubuntu' {
     echo test
 }
 menuentry 'Windows' --id 'windows' {
     echo test2
 }
-""")
+"""
+            )
             temp_path = f.name
 
         try:
@@ -178,7 +193,7 @@ menuentry 'Windows' --id 'windows' {
 
     def test_read_empty_file(self):
         """Vérifie le comportement avec un fichier vide."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.cfg', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".cfg", delete=False) as f:
             temp_path = f.name
 
         try:
@@ -193,15 +208,178 @@ class TestGetSimulatedOsProberEntries:
 
     def test_requires_root(self):
         """Vérifie que os-prober nécessite root."""
-        import os
-        if os.geteuid() != 0:
+        with patch("os.geteuid", return_value=1000):
             entries = get_simulated_os_prober_entries()
             assert entries == []
 
-    def test_returns_list(self):
-        """Vérifie que la fonction retourne toujours une liste."""
-        entries = get_simulated_os_prober_entries()
-        assert isinstance(entries, list)
+    def test_os_prober_not_found(self):
+        """Vérifie quand os-prober n'est pas installé."""
+        with patch("os.geteuid", return_value=0):
+            with patch("shutil.which", return_value=None):
+                entries = get_simulated_os_prober_entries()
+                assert entries == []
+
+    def test_os_prober_success(self):
+        """Vérifie le succès d'os-prober avec des lignes malformées pour couvrir 235->233."""
+        mock_stdout = "/dev/sda1:Windows 10:Windows:chain\nINVALID_LINE\n/dev/sdb1:Debian:Linux:linux"
+        with patch("os.geteuid", return_value=0):
+            with patch("shutil.which", return_value="/usr/bin/os-prober"):
+                with patch("subprocess.run") as mock_run:
+                    mock_run.return_value = MagicMock(returncode=0, stdout=mock_stdout)
+                    entries = get_simulated_os_prober_entries()
+                    assert len(entries) == 2
+                    assert entries[0].title == "Windows 10 (détecté)"
+                    assert "osprober-simulated-/dev/sda1" in entries[0].id
+                    assert entries[1].title == "Debian (détecté)"
+
+    def test_os_prober_empty_output(self):
+        """Vérifie quand os-prober retourne une sortie vide."""
+        with patch("os.geteuid", return_value=0):
+            with patch("shutil.which", return_value="/usr/bin/os-prober"):
+                with patch("subprocess.run") as mock_run:
+                    mock_run.return_value = MagicMock(returncode=0, stdout="")
+                    entries = get_simulated_os_prober_entries()
+                    assert entries == []
+
+    def test_os_prober_failure(self):
+        """Vérifie l'échec d'os-prober."""
+        with patch("os.geteuid", return_value=0):
+            with patch("shutil.which", return_value="/usr/bin/os-prober"):
+                with patch("subprocess.run") as mock_run:
+                    mock_run.return_value = MagicMock(returncode=1, stdout="")
+                    entries = get_simulated_os_prober_entries()
+                    assert entries == []
+
+    def test_os_prober_exception(self):
+        """Vérifie la gestion d'exception dans os-prober."""
+        with patch("os.geteuid", return_value=0):
+            with patch("shutil.which", return_value="/usr/bin/os-prober"):
+                with patch("subprocess.run", side_effect=Exception("Crash")):
+                    entries = get_simulated_os_prober_entries()
+                    assert entries == []
+
+
+class TestGrubCfgDiscovery:
+    """Tests pour la découverte de grub.cfg."""
+
+    def test_discover_efi_grub_cfg_paths(self):
+        """Test la découverte des chemins EFI."""
+        with patch("core.io.core_grub_menu_parser.glob", return_value=["/boot/efi/EFI/ubuntu/grub.cfg"]):
+            paths = _discover_efi_grub_cfg_paths()
+            assert "/boot/efi/EFI/ubuntu/grub.cfg" in paths
+
+    def test_candidate_grub_cfg_paths_default(self):
+        """Test les candidats par défaut avec doublons pour couvrir la branche 79->78."""
+        from core.config.core_paths import GRUB_CFG_PATH
+        # On simule des doublons entre GRUB_CFG_PATHS et _discover_efi_grub_cfg_paths
+        with patch("core.io.core_grub_menu_parser.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg", "/boot/grub/grub.cfg"]):
+            with patch("core.io.core_grub_menu_parser._discover_efi_grub_cfg_paths", return_value=["/boot/grub/grub.cfg", "/efi/grub.cfg"]):
+                paths = _candidate_grub_cfg_paths(GRUB_CFG_PATH)
+                assert "/boot/grub/grub.cfg" in paths
+                assert "/efi/grub.cfg" in paths
+                # Vérifier l'unicité
+                assert len(paths) == 2
+                assert paths == ["/boot/grub/grub.cfg", "/efi/grub.cfg"]
+
+    def test_candidate_grub_cfg_paths_custom(self):
+        """Test avec un chemin personnalisé."""
+        paths = _candidate_grub_cfg_paths("/tmp/grub.cfg")
+        assert paths == ["/tmp/grub.cfg"]
+
+
+class TestIterReadableGrubCfgLines:
+    """Tests pour _iter_readable_grub_cfg_lines."""
+
+    def test_iter_no_candidates(self):
+        """Test quand aucun candidat n'existe."""
+        with patch("os.path.exists", return_value=False):
+            results = list(_iter_readable_grub_cfg_lines(["/none"]))
+            assert results == []
+
+    def test_iter_mixed_existence(self, tmp_path):
+        """Test avec des candidats existants et non existants."""
+        f = tmp_path / "exists.cfg"
+        f.write_text("content")
+        
+        results = list(_iter_readable_grub_cfg_lines([str(f), "/nonexistent"]))
+        assert len(results) == 1
+        assert results[0][0] == str(f)
+
+    def test_iter_multiple_candidates(self, tmp_path):
+        """Test avec plusieurs candidats dont un illisible."""
+        f1 = tmp_path / "grub1.cfg"
+        f1.write_text("content1")
+        f2 = tmp_path / "grub2.cfg"
+        f2.write_text("content2")
+        
+        # Simuler une erreur sur f1
+        with patch("builtins.open", side_effect=[OSError("Error"), MagicMock()]):
+            # On doit mocker open pour qu'il réussisse au 2ème appel
+            # Mais c'est plus simple de mocker open globalement
+            pass
+
+        # Version plus simple:
+        with patch("os.path.exists", side_effect=[True, True]):
+            with patch("builtins.open") as mock_open:
+                mock_open.side_effect = [OSError("Error"), MagicMock(__enter__=lambda x: MagicMock(read=lambda: "line1"))]
+                results = list(_iter_readable_grub_cfg_lines([str(f1), str(f2)]))
+                assert len(results) == 1
+                assert results[0][0] == str(f2)
+
+    def test_iter_success(self, tmp_path):
+        """Test lecture réussie."""
+        f = tmp_path / "grub.cfg"
+        f.write_text("line1\nline2")
+        
+        results = list(_iter_readable_grub_cfg_lines([str(f)]))
+        assert len(results) == 1
+        assert results[0][0] == str(f)
+        assert results[0][1] == ["line1", "line2"]
+
+
+class TestReadGrubDefaultChoicesWithSource:
+    """Tests pour read_grub_default_choices_with_source."""
+
+    def test_read_success_different_path(self, tmp_path):
+        """Test succès de lecture avec un chemin différent du demandé."""
+        f_requested = tmp_path / "requested.cfg"
+        f_actual = tmp_path / "actual.cfg"
+        f_actual.write_text("menuentry 'OS' { }")
+        
+        with patch("core.io.core_grub_menu_parser._candidate_grub_cfg_paths", return_value=[str(f_requested), str(f_actual)]):
+            choices, used_path = read_grub_default_choices_with_source(str(f_requested))
+            assert len(choices) == 1
+            assert used_path == str(f_actual)
+
+    def test_read_empty_different_path(self, tmp_path):
+        """Test fichier vide avec un chemin différent du demandé."""
+        f_requested = tmp_path / "requested.cfg"
+        f_actual = tmp_path / "actual.cfg"
+        f_actual.write_text("# Empty")
+        
+        with patch("core.io.core_grub_menu_parser._candidate_grub_cfg_paths", return_value=[str(f_requested), str(f_actual)]):
+            choices, used_path = read_grub_default_choices_with_source(str(f_requested))
+            assert choices == []
+            assert used_path == str(f_actual)
+
+    def test_read_multiple_empty_candidates(self, tmp_path):
+        """Test avec plusieurs candidats vides pour couvrir le cas best_empty déjà défini."""
+        f1 = tmp_path / "empty1.cfg"
+        f1.write_text("# Empty 1")
+        f2 = tmp_path / "empty2.cfg"
+        f2.write_text("# Empty 2")
+        
+        with patch("core.io.core_grub_menu_parser._candidate_grub_cfg_paths", return_value=[str(f1), str(f2)]):
+            choices, used_path = read_grub_default_choices_with_source(str(f1))
+            assert choices == []
+            assert used_path == str(f1) # Le premier vide trouvé est conservé
+
+    def test_read_failure_all_candidates(self):
+        """Test échec total."""
+        with patch("core.io.core_grub_menu_parser._iter_readable_grub_cfg_lines", return_value=[]):
+            choices, used_path = read_grub_default_choices_with_source("/none")
+            assert choices == []
+            assert used_path is None
 
 
 def test_read_grub_default_choices_menu_and_submenu(tmp_path: Path) -> None:

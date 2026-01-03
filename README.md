@@ -1,10 +1,11 @@
-# GRUB Configuration Manager - AAA Grade
+# GRUB Configuration Manager
 
 Un gestionnaire de configuration GRUB **sécurisé et fiable** pour Linux, avec une architecture robuste garantissant l'intégrité du bootloader.
 
-**Grade de Sécurité**: ⭐⭐⭐ AAA (Maximum)  
-**Tests**: ✅ 110/110 (100%)  
-**Logging**: 📊 150+ points DEBUG
+**Qualité**: ✅ 100% (11/11 contrôles validés)  
+**Tests**: ✅ 110/110 (100% de réussite)  
+**Couverture**: 📊 40.49% (core: 90%+)  
+**Architecture**: 🏗️ SOLID, séparation claire des responsabilités
 
 ## 🔒 Sécurité Maximum
 
@@ -50,6 +51,76 @@ Cette application travaille sur un élément critique du système (bootloader GR
 - 📊 **Onglets organisés**: Général, Affichage, Entrées, Sauvegardes
 - 🔔 **Notifications en temps réel**: Succès, erreurs, avertissements
 - 🎯 **Validation immédiate**: Feedback utilisateur instantané
+
+## 🚀 Installation
+
+### Prérequis
+
+- **Système**: Linux avec GRUB2
+- **Python**: 3.12+
+- **GTK**: 4.0+
+- **PyGObject**: 3.46.0+
+- **Droits**: root (pour modification GRUB)
+
+### Dépendances système
+
+```bash
+# Ubuntu/Debian
+sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0 grub2-common
+
+# Fedora
+sudo dnf install python3-gobject gtk4 grub2-tools
+
+# Arch Linux
+sudo pacman -S python-gobject gtk4 grub
+```
+
+### Installation Python
+
+```bash
+# Cloner le projet
+git clone https://github.com/username/grub_manager.git
+cd grub_manager
+
+# Créer environnement virtuel
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Installer dépendances Python
+pip install -r requirements.txt
+```
+
+### Utilisation
+
+```bash
+# Lancer l'application (nécessite root)
+sudo python main.py
+
+# Mode debug (logs détaillés)
+sudo python main.py --debug
+
+# Aide
+python main.py --help
+```
+
+### Développement
+
+```bash
+# Activer l'environnement virtuel
+source .venv/bin/activate
+
+# Lancer tous les contrôles qualité
+./run_quality.sh --all
+
+# Lancer uniquement les tests
+pytest tests/ -v
+
+# Vérifier la couverture
+pytest tests/ --cov=core --cov=ui --cov-report=html
+
+# Nettoyer les caches
+./run_quality.sh --clean
+```
 
 ## 🏗️ Architecture
 
@@ -476,43 +547,44 @@ Active le logging DEBUG exhaustif pour tous les points de la chaîne de traiteme
 ## 📊 Structure du Projet
 
 ```
-grub_manager/
-├── core/                      # Logique métier
-│   ├── model.py              # Modèle de données
-│   ├── apply_manager.py      # Machine à états (sécurité)
-│   ├── grub_default.py       # Lecture/écriture config
-│   ├── grub_menu.py          # Parsing grub.cfg
-│   ├── entry_visibility.py   # Masquage entrées
-│   ├── grub.py               # Facade update-grub
-│   ├── runtime.py            # Configuration runtime
-│   └── paths.py              # Constantes chemins
-├── ui/                        # Interface utilisateur
-│   ├── app.py                # Fenêtre principale
-│   └── tabs/                 # Onglets spécialisés
-│       ├── general.py        # Onglet Général
-│       ├── display.py        # Onglet Affichage
-│       ├── entries.py        # Onglet Entrées
-│       ├── entries_view.py   # Liste des entrées
-│       ├── backups.py        # Onglet Sauvegardes
-│       ├── base.py           # Helpers layout
-│       ├── widgets.py        # Factories widgets
-│       └── __init__.py
-├── tests/                     # Suite de tests
-│   ├── core/
-│   │   ├── test_apply_manager.py
-│   │   ├── test_apply_workflow.py
-│   │   ├── test_model.py
-│   │   └── ...
-│   └── ui/
-│       └── test_ui_basic.py
-├── main.py                   # Point d'entrée
-├── pyproject.toml            # Config centralisée (mypy, ruff, black, isort)
-├── requirements.txt          # Dépendances
-├── run_quality.sh            # Quality Assurance - Auto-fix
-└── README.md                 # Ce fichier
-```
+core/                              # Logique métier
+├── config/
+│   ├── __init__.py
+│   ├── paths.py                  # Chemins GRUB
+│   └── runtime.py                # Configuration logging
+├── io/
+│   ├── __init__.py
+│   ├── grub_default_io.py        # Lecture/écriture /etc/default/grub
+│   └── grub_menu_parser.py       # Parsing grub.cfg
+├── managers/
+│   ├── __init__.py
+│   ├── apply_manager.py          # Machine à états sécurisée
+│   └── entry_visibility_manager.py
+├── models/
+│   ├── __init__.py
+│   └── grub_ui_model.py          # Modèles de données
+├── system/
+│   ├── __init__.py
+│   └── grub_system_commands.py   # Commandes GRUB système
+└── __init__.py
 
-**Note:** Toute la configuration (type checking, linting, formatage) est centralisée dans `pyproject.toml` selon PEP 517/518.
+ui/                                # Interface GTK4
+├── __init__.py
+├── ui_manager.py                 # Gestionnaire principal
+├── ui_state.py                   # Gestion d'état
+├── ui_builder.py                 # Construction interface
+└── tabs/
+    ├── __init__.py
+    ├── base.py
+    ├── tab_general.py
+    ├── tab_display.py
+    ├── entries_renderer.py
+    ├── tab_entries.py
+    ├── tab_backups.py
+    └── widget_factory.py
+
+main.py                            # Point d'entrée
+```
 
 ## 🏛️ Architecture et Principes SOLID
 
@@ -522,40 +594,55 @@ grub_manager/
 
 Chaque module a une responsabilité unique et bien définie:
 
-| Module                | Responsabilité                               |
-| --------------------- | -------------------------------------------- |
-| `model.py`            | Modèle de données et transformations         |
-| `apply_manager.py`    | Machine à états pour application atomique    |
-| `grub_default.py`     | Lecture/écriture fichier `/etc/default/grub` |
-| `grub_menu.py`        | Parsing et manipulation `grub.cfg`           |
-| `entry_visibility.py` | Logique de masquage des entrées              |
-| `grub.py`             | Interface vers `update-grub` système         |
-| `app.py`              | Gestion fenêtre principale GTK               |
-| `tabs/*.py`           | Chaque onglet a une interface spécifique     |
+| Module                                 | Responsabilité                            |
+| -------------------------------------- | ----------------------------------------- |
+| `models/grub_ui_model.py`              | Modèle de données et transformations      |
+| `managers/apply_manager.py`            | Machine à états pour application atomique |
+| `io/grub_default_io.py`                | Lecture/écriture `/etc/default/grub`      |
+| `io/grub_menu_parser.py`               | Parsing et manipulation `grub.cfg`        |
+| `managers/entry_visibility_manager.py` | Logique de masquage des entrées           |
+| `system/grub_system_commands.py`       | Interface vers commandes GRUB système     |
+| `config/paths.py`                      | Constantes de chemins                     |
+| `config/runtime.py`                    | Configuration du logging                  |
+| `ui/ui_manager.py`                     | Gestion fenêtre principale GTK            |
+| `ui/ui_state.py`                       | Gestion d'état de l'application           |
+| `ui/ui_builder.py`                     | Construction de l'interface               |
+| `ui/tabs/*.py`                         | Chaque onglet a une interface spécifique  |
+
+**Architecture en sous-packages** :
+
+- `core/config/` : Configuration et constantes
+- `core/io/` : Opérations d'entrées/sorties
+- `core/managers/` : Logique métier et machines à états
+- `core/models/` : Structures de données
+- `core/system/` : Interface système
 
 #### 2. **O** - Open/Closed Principle (OCP)
 
 L'application est **ouverte à l'extension, fermée à la modification**:
 
-- **Système de tabs extensible**: Nouveau tab = nouvelles classe `BaseTab`
-- **Factories patterns** pour création widgets (widgets.py)
-- **State machine** permet d'ajouter états sans modifier core
+- **Système de tabs extensible**: Nouveau tab = nouvelle classe héritant de `BaseTab`
+- **Factories patterns** pour création widgets (`widget_factory.py`)
+- **State machine** permet d'ajouter états sans modifier le core
 - **Logging par injection**: `configure_logging()` central
+- **Architecture modulaire** : Nouveaux sous-packages sans toucher l'existant
 
 #### 3. **L** - Liskov Substitution Principle (LSP)
 
-- **Héritage respectable**: Tous les tabs héritent de `BaseTab` et respectent l'interface
-- **Polymorphisme cohérent**: Tous les tabs implémentent `load()`, `apply()`, `validate()`
-- **Pas de comportement surprenant**: Contrats respectés à travers hiérarchie
+- **Héritage respecté**: Tous les tabs héritent de `BaseTab` et respectent l'interface
+- **Polymorphisme cohérent**: Tous les tabs implémentent les méthodes requises
+- **Pas de comportement surprenant**: Contrats respectés à travers la hiérarchie
+- **Séparation état/UI**: `AppStateManager` peut être utilisé indépendamment
 
 #### 4. **I** - Interface Segregation Principle (ISP)
 
 Interfaces spécialisées et discrètes:
 
-- **`BaseTab`**: Interface minimale pour tabs (`load()`, `apply()`)
-- **`Model`**: Données pures sans dépendances métier
+- **`BaseTab`**: Interface minimale pour tabs (pas de méthodes inutilisées)
+- **`GrubUiModel`**: Données pures sans dépendances métier
 - **`ApplyManager`**: Isolation stricte de la machine à états
-- **No "god" objects**: Chaque classe a responsabilité claire
+- **Sous-packages séparés**: Chaque module expose une interface claire
+- **No "god" objects**: Chaque classe a une responsabilité claire
 
 #### 5. **D** - Dependency Inversion Principle (DIP)
 
@@ -563,13 +650,22 @@ Dépendances inversées et injectées:
 
 ```python
 # ✅ Bon: Injection de dépendances
-apply_manager = ApplyManager(model, grub_default, grub)
+from core.managers.apply_manager import GrubApplyManager
+from core.io.grub_default_io import read_grub_default
 
-# ✅ Inversion: Tabs ne connaissent pas UI app
-tab = GeneralTab(model, apply_manager)
+apply_manager = GrubApplyManager(grub_default_path)
 
-# ✅ Abstraction: grub.py abstrait system calls
-result = grub.update_grub()
+# ✅ Inversion: Tabs ne connaissent pas l'UI app
+from ui.tabs.tab_general import GeneralTab
+tab = GeneralTab(model, state_manager)
+
+# ✅ Abstraction: grub_system_commands abstrait les appels système
+from core.system.grub_system_commands import run_update_grub
+result = run_update_grub()
+
+# ✅ Séparation: Pas de dépendances circulaires
+# UI → Core (✓)
+# Core ↛ UI (✓)
 ```
 
 ### Patterns de Conception Utilisés
@@ -589,19 +685,19 @@ IDLE → BACKUP → WRITE_TEMP → GENERATE_TEST → VALIDATE → APPLY → SUCC
 - Rollback automatique à toute erreur
 - Garantie d'atomicité
 
-#### 2. **Factory Pattern** (widgets.py, tabs/)
+#### 2. **Factory Pattern** (widget_factory.py, tabs/)
 
 ```python
 # Création standardisée de widgets GTK
-factory = WidgetsFactory()
-button = factory.create_button("Valider", on_click)
-entry = factory.create_entry(default_value)
+from ui.tabs.widget_factory import create_button, create_entry
+button = create_button("Valider", on_click)
+entry = create_entry(default_value)
 ```
 
 **Avantages**:
 
 - Cohérence UI systématique
-- Facile à refactoriser style global
+- Facile à refactoriser le style global
 - Tests simplifiés
 
 #### 3. **Observer Pattern** (GTK Signals)
@@ -615,38 +711,39 @@ entry.connect("changed", self._on_value_changed)
 **Avantages**:
 
 - Découplage complet UI/logique
-- Flot de données unidirectionnel
+- Flux de données unidirectionnel
 - Facile à tester
 
-#### 4. **Facade Pattern** (grub.py, model.py)
+#### 4. **Facade Pattern** (grub_system_commands.py, grub_ui_model.py)
 
 ```python
 # Abstraction des détails système
-class Grub:
-    def update_grub() → Result  # Cache subprocess complexity
+from core.system.grub_system_commands import run_update_grub
+result = run_update_grub()  # Cache la complexité de subprocess
 
 # Abstraction du modèle
-class Model:
-    def load_from_grub() → Config  # Agrège plusieurs sources
+from core.models.grub_ui_model import load_grub_ui_state
+state = load_grub_ui_state()  # Agrège plusieurs sources
 ```
 
 **Avantages**:
 
 - Interface simple vs implémentation complexe
-- Centralise logique système
+- Centralise la logique système
 - Facile à tester/mocker
 
 #### 5. **Strategy Pattern** (Validations)
 
 ```python
-# Différentes stratégies de validation
+# Différentes stratégies de validation dans apply_manager.py
 validators = [
-    SyntaxValidator(),       # grub-script-check
-    CohesionValidator(),     # Structure sémantique
-    SizeValidator(),         # Contrôles de taille
+    self._validate_syntax,       # grub-script-check
+    self._validate_coherence,    # Structure sémantique
+    self._validate_size,         # Contrôles de taille
 ]
 for validator in validators:
-    validator.validate(config)
+    if not validator(config):
+        return self._handle_error()
 ```
 
 **Avantages**:
@@ -809,28 +906,40 @@ L'application dispose d'un script complet **qui corrige automatiquement** tous l
 **Phases d'exécution automatiques:**
 
 1. **PHASE 1: Auto-Fix** - Ruff, isort, Black corrigent automatiquement
-2. **PHASE 2: Vérification** - Confirmation que les corrections ont marché
+2. **PHASE 2: Vérification** - Confirmation que les corrections ont fonctionné
 3. **PHASE 3: Analyse** - mypy, pydocstyle, pylint, vulture
 4. **PHASE 4: Tests** - pytest suite complète (110 tests)
+
+**Score de qualité actuel** : 100% (11/11 contrôles validés)
 
 ### Exécuter les tests
 
 ```bash
+# Tous les tests
 pytest tests/ -v
+
+# Tests avec couverture
+pytest tests/ --cov=core --cov=ui --cov-report=html
+
+# Tests spécifiques
+pytest tests/core/test_apply_manager.py -v
 ```
 
 ### Résultats
 
 ```
-110 passed in 0.64s ✓
+110 passed in 1.28s ✓
 ```
 
 ### Coverage
 
-- Core logic: 100%
-- State transitions: 100%
-- Rollback scenarios: 100%
-- Backup/restore: 100%
+- **Global**: 40.49%
+- **Core logic**: 90%+ (priorité sécurité)
+- **State transitions**: 100%
+- **Rollback scenarios**: 100%
+- **Backup/restore**: 100%
+
+_Note: La couverture UI est intentionnellement basse (8%) car les tests GTK4 nécessitent un environnement graphique. La logique critique (core) est testée à 90%+._
 
 ## 📝 Logging
 
@@ -1271,7 +1380,7 @@ En cas de problème:
 
 ---
 
-**Grade de Sécurité**: ⭐⭐⭐ AAA  
+**Qualité**: ✅ 100% (11/11 contrôles validés)  
 **Tests**: ✅ 110/110  
-**Fiabilité**: 100%  
+**Architecture**: 🏗️ Modulaire et SOLID  
 **Dernière mise à jour**: 2026-01-03

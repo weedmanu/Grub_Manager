@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.grub_menu import (
+from core.io.core_grub_menu_parser import (
     _extract_menuentry_id,
     _parse_choices,
 )
