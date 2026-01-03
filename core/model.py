@@ -272,7 +272,8 @@ def merged_config_from_model(base_config: dict[str, str], model: GrubUiModel) ->
         cfg["GRUB_COLOR_HIGHLIGHT"] = highlight
 
     logger.debug(
-        f"[merged_config_from_model] Succès - merged keys={len(cfg)}, modified keys={sum(1 for k in _MANAGED_KEYS if k in cfg)}"
+        f"[merged_config_from_model] Succès - merged keys={len(cfg)}, "
+        f"modified keys={sum(1 for k in _MANAGED_KEYS if k in cfg)}"
     )
     return cfg
 

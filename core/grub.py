@@ -75,7 +75,8 @@ def run_update_grub() -> CommandResult:
     try:
         res = subprocess.run([cmd], capture_output=True, text=True, check=False)
         logger.debug(
-            f"[run_update_grub] Résultat: returncode={res.returncode}, stdout_len={len(res.stdout)}, stderr_len={len(res.stderr)}"
+            f"[run_update_grub] Résultat: returncode={res.returncode}, "
+            f"stdout_len={len(res.stdout)}, stderr_len={len(res.stderr)}"
         )
         if res.returncode == 0:
             logger.success("[run_update_grub] Succès")

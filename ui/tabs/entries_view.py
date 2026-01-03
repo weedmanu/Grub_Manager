@@ -41,7 +41,7 @@ def _entry_display_title(title: str, disable_submenu: bool) -> str:
         return "(Untitled)"
     if disable_submenu and ">>" in title_str:
         # Remove submenu marker when submenus are disabled
-        return title_str.split(">>")[0].strip()
+        return title_str.split(">>", maxsplit=1)[0].strip()
     return title_str[:100]  # Truncate very long titles
 
 
@@ -69,10 +69,13 @@ def render_entries(controller: GrubConfigManager) -> None:
         else False
     )
     disable_submenu = (
-        bool(controller.disable_submenu_check.get_active()) if controller.disable_submenu_check is not None else False
+        bool(controller.disable_submenu_check.get_active())
+        if controller.disable_submenu_check is not None
+        else False
     )
     logger.debug(
-        f"[render_entries] Filters: hide_recovery={hide_recovery}, hide_os_prober={hide_os_prober}, disable_submenu={disable_submenu}"
+        f"[render_entries] Filters: hide_recovery={hide_recovery}, "
+        f"hide_os_prober={hide_os_prober}, disable_submenu={disable_submenu}"
     )
 
     clear_listbox(listbox)

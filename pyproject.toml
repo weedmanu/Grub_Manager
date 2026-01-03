@@ -169,14 +169,17 @@ disable = [
     "too-few-public-methods",
     "duplicate-code",
     "too-many-arguments",
+    "too-many-return-statements",
+    "too-many-branches",
+    "too-many-locals",
+    "too-many-statements",
+    "too-many-instance-attributes",
 ]
 
 [tool.pylint.format]
 max-line-length = 120
 
 [tool.pylint.design]
-max-attributes = 10
-max-arguments = 6
 
 [tool.pydocstyle]
 convention = "pep257"

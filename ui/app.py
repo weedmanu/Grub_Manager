@@ -330,7 +330,9 @@ class GrubConfigManager(Gtk.ApplicationWindow):
             if self.color_highlight_bg_dropdown is not None:
                 self._dropdown_set_value(self.color_highlight_bg_dropdown, model.color_highlight_bg)
             logger.debug(
-                f"[_apply_model_to_ui] Couleurs: normal={model.color_normal_fg}/{model.color_normal_bg}, highlight={model.color_highlight_fg}/{model.color_highlight_bg}"
+                f"[_apply_model_to_ui] Couleurs: normal={model.color_normal_fg}/"
+                f"{model.color_normal_bg}, highlight={model.color_highlight_fg}/"
+                f"{model.color_highlight_bg}"
             )
 
             # === Options booléennes ===
@@ -343,7 +345,9 @@ class GrubConfigManager(Gtk.ApplicationWindow):
             if self.terminal_color_check is not None:
                 self.terminal_color_check.set_active(bool(model.terminal_color))
             logger.debug(
-                f"[_apply_model_to_ui] Options: submenu={model.disable_submenu}, recovery={model.disable_recovery}, os_prober={model.disable_os_prober}, terminal_color={model.terminal_color}"
+                f"[_apply_model_to_ui] Options: submenu={model.disable_submenu}, "
+                f"recovery={model.disable_recovery}, os_prober={model.disable_os_prober}, "
+                f"terminal_color={model.terminal_color}"
             )
 
             # === Entrées GRUB ===
@@ -398,7 +402,9 @@ class GrubConfigManager(Gtk.ApplicationWindow):
             bool(self.terminal_color_check.get_active()) if self.terminal_color_check is not None else False
         )
         logger.debug(
-            f"[_read_model_from_ui] Options: submenu={disable_submenu}, recovery={disable_recovery}, os_prober={disable_os_prober}, terminal_color={terminal_color}"
+            f"[_read_model_from_ui] Options: submenu={disable_submenu}, "
+            f"recovery={disable_recovery}, os_prober={disable_os_prober}, "
+            f"terminal_color={terminal_color}"
         )
 
         # === Couleurs ===
@@ -423,7 +429,8 @@ class GrubConfigManager(Gtk.ApplicationWindow):
             else ""
         )
         logger.debug(
-            f"[_read_model_from_ui] Couleurs: normal={color_normal_fg}/{color_normal_bg}, highlight={color_highlight_fg}/{color_highlight_bg}"
+            f"[_read_model_from_ui] Couleurs: normal={color_normal_fg}/"
+            f"{color_normal_bg}, highlight={color_highlight_fg}/{color_highlight_bg}"
         )
 
         model = GrubUiModel(

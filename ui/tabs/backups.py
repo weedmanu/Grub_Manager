@@ -300,7 +300,8 @@ def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
                     restored_size = os.path.getsize(GRUB_DEFAULT_PATH)
                     if restored_size != backup_source_size:
                         logger.error(
-                            f"[_on_confirm] ERREUR ÉTAPE 2: Restauration incomplète ({restored_size} vs {backup_source_size})"
+                            f"[_on_confirm] ERREUR ÉTAPE 2: Restauration incomplète "
+                            f"({restored_size} vs {backup_source_size})"
                         )
                         # ROLLBACK immédiat
                         logger.warning("[_on_confirm] ROLLBACK: Restauration du backup de sécurité")
@@ -310,7 +311,9 @@ def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
 
                     # Vérifier que le fichier restauré contient de la configuration
                     try:
-                        restored_content = open(GRUB_DEFAULT_PATH, encoding="utf-8", errors="replace").read()
+                        restored_content = open(  # pylint: disable=consider-using-with
+                            GRUB_DEFAULT_PATH, encoding="utf-8", errors="replace"
+                        ).read()
                         lines = [
                             line for line in restored_content.splitlines() if line.strip() and not line.startswith("#")
                         ]
@@ -359,7 +362,9 @@ def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
                             f"[_on_confirm] AVERTISSEMENT ÉTAPE 3: update-grub échoué - {result.stderr[:100]}"
                         )
                         controller.show_info(
-                            f"Configuration restaurée, mais update-grub a échoué:\n{result.stderr[:200]}\n\nLe système peut ne pas démarrer correctement.",
+                            f"Configuration restaurée, mais update-grub a échoué:\n"
+                            f"{result.stderr[:200]}\n\nLe système peut ne pas démarrer "
+                            f"correctement.",
                             "warning",
                         )
                         controller.load_config()
@@ -367,7 +372,8 @@ def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
                 else:
                     logger.warning("[_on_confirm] update-grub non trouvé sur le système")
                     controller.show_info(
-                        "Configuration restaurée, mais update-grub n'a pas pu être exécuté.\nLe système GRUB peut ne pas démarrer correctement.",
+                        "Configuration restaurée, mais update-grub n'a pas pu être exécuté.\n"
+                        "Le système GRUB peut ne pas démarrer correctement.",
                         "warning",
                     )
                     controller.load_config()

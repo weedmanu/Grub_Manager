@@ -298,10 +298,12 @@ class GrubApplyManager:
                 non_empty_lines = [line for line in lines if line.strip() and not line.startswith("#")]
                 if len(non_empty_lines) < 3:
                     logger.error(
-                        f"[_validate_config] ERREUR: Config générée trop minimale ({len(non_empty_lines)} lignes de code)"
+                        f"[_validate_config] ERREUR: Config générée trop minimale "
+                        f"({len(non_empty_lines)} lignes de code)"
                     )
                     raise RuntimeError(
-                        f"La configuration générée semble incomplète ({len(non_empty_lines)} lignes de code)"
+                        f"La configuration générée semble incomplète "
+                        f"({len(non_empty_lines)} lignes de code)"
                     )
 
                 logger.success(f"[_validate_config] Cohérence vérifiée: {len(non_empty_lines)} lignes de code")
