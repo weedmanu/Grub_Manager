@@ -148,15 +148,24 @@ class UIBuilder:
             tab_label = nb.get_tab_label_text(page)
             logger.info(f"[_on_switch_page] User switched to tab #{page_num}: '{tab_label}'")
 
-            # Désactiver les boutons Appliquer/Recharger sur les onglets qui n'en ont pas besoin
+            # Politique de boutons:
+            # - Général/Menu/Affichage: Recharger + Appliquer toujours disponibles.
+            # - Sauvegardes/Maintenance: pas d'édition => boutons désactivés.
+            # - Autres onglets: Recharger disponible, Appliquer dépend de l'état "dirty".
             if tab_label in ("Sauvegardes", "Maintenance"):
                 window.save_btn.set_sensitive(False)
                 window.reload_btn.set_sensitive(False)
                 logger.debug(f"[_on_switch_page] Boutons Appliquer/Recharger désactivés pour l'onglet '{tab_label}'")
-            elif not window.state_manager.is_dirty():
-                # Sur les autres onglets, restaurer l'état normal (désactivés si pas de modifications)
-                window.save_btn.set_sensitive(False)
-                window.reload_btn.set_sensitive(False)
+                return
+
+            if tab_label in ("Général", "General", "Menu", "Affichage"):
+                window.save_btn.set_sensitive(True)
+                window.reload_btn.set_sensitive(True)
+                return
+
+            # Par défaut: Recharger reste disponible; Appliquer dépend des changements.
+            window.reload_btn.set_sensitive(True)
+            window.save_btn.set_sensitive(bool(window.state_manager.is_dirty()))
 
         notebook.connect("switch-page", _on_switch_page)
         logger.debug("[UIBuilder._create_notebook] Tab switch signal connected")

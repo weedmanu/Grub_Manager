@@ -2,10 +2,14 @@
 
 Un gestionnaire de configuration GRUB **sécurisé et fiable** pour Linux, avec une architecture robuste garantissant l'intégrité du bootloader.
 
-**Qualité**: ✅ 100% (11/11 contrôles validés)  
-**Tests**: ✅ 110/110 (100% de réussite)  
-**Couverture**: 📊 40.49% (core: 90%+)  
-**Architecture**: 🏗️ SOLID, séparation claire des responsabilités
+**CI / Qualité**: `make lint` (Ruff/Black/MyPy/Vulture)  
+**Tests**: `pytest` (931 tests passants lors du dernier run local)  
+**Architecture**: SOLID, séparation claire `core/` vs `ui/`
+
+Notes qualité (pragmatiques):
+
+- Ruff + Black sont la “source of truth” (évite doublons Flake8/Isort).
+- Vulture utilise un **seuil de confiance** (ex: `--min-confidence 65`), pas un “% de code mort”.
 
 ## 🔒 Sécurité Maximum
 
@@ -33,10 +37,9 @@ Cette application travaille sur un élément critique du système (bootloader GR
   - Couleurs du menu
 
 - 🔧 **Options avancées**:
-  - Masquage entrées recovery
+  - Masquer les entrées “Advanced options” (global)
+  - Masquer Memtest (global)
   - Désactivation os-prober
-  - Désactivation sous-menus
-  - Configuration terminal
 
 ### Gestion des Sauvegardes
 

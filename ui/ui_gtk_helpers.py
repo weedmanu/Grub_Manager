@@ -10,6 +10,36 @@ class GtkHelper:
     """Utilitaires statiques pour manipuler les modèles et widgets GTK."""
 
     @staticmethod
+    def resolve_parent_window(*widgets: Gtk.Widget | None, fallback: Gtk.Window | None = None) -> Gtk.Window | None:
+        """Résout une fenêtre parente à partir d'un ou plusieurs widgets.
+
+        En GTK4, `get_root()` renvoie généralement une `Gtk.Window` (ou un root compatible).
+
+        Args:
+            widgets: Widgets candidats (ex: bouton cliqué).
+            fallback: Fenêtre de repli si aucune n'est trouvée.
+
+        Returns:
+            Une fenêtre GTK si trouvée, sinon `fallback`.
+        """
+
+        for widget in widgets:
+            if widget is None:
+                continue
+            try:
+                root = widget.get_root()
+            except (AttributeError, TypeError):
+                continue
+
+            if root is None:
+                continue
+            # Gtk.Window est un Gtk.Root en pratique; certains mocks exposent seulement present().
+            if isinstance(root, Gtk.Window) or hasattr(root, "present"):
+                return root
+
+        return fallback
+
+    @staticmethod
     def stringlist_find(model, wanted: str) -> int | None:
         """Trouve l'index d'une chaîne dans un Gtk.StringList."""
         if model is None:

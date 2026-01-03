@@ -74,14 +74,23 @@ def test_create_notebook():
         window.save_btn.set_sensitive.assert_called_with(False)
         window.reload_btn.set_sensitive.assert_called_with(False)
 
-        # Trigger switch-page signal - Case 2: Other tab, not dirty (buttons disabled)
+        # Trigger switch-page signal - Case 2: Other tab, not dirty
         window.state_manager.is_dirty.return_value = False
         page_other = Gtk.Box()
-        notebook.append_page(page_other, Gtk.Label(label="General"))
+        notebook.append_page(page_other, Gtk.Label(label="Autre"))
         # Manually emit signal to be 100% sure
         notebook.emit("switch-page", page_other, 2)
         window.save_btn.set_sensitive.assert_called_with(False)
-        window.reload_btn.set_sensitive.assert_called_with(False)
+        window.reload_btn.set_sensitive.assert_called_with(True)
+
+        # Trigger switch-page signal - Case 2b: Menu (always enabled)
+        window.save_btn.set_sensitive.reset_mock()
+        window.reload_btn.set_sensitive.reset_mock()
+        page_menu = Gtk.Box()
+        notebook.append_page(page_menu, Gtk.Label(label="Menu"))
+        notebook.emit("switch-page", page_menu, 3)
+        window.save_btn.set_sensitive.assert_called_with(True)
+        window.reload_btn.set_sensitive.assert_called_with(True)
 
         # Trigger switch-page signal - Case 3: Other tab, dirty (buttons NOT disabled by this logic)
         window.state_manager.is_dirty.return_value = True

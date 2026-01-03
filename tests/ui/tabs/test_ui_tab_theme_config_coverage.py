@@ -412,10 +412,11 @@ def test_on_activate_script_errors(tab):
 def test_on_open_editor_no_parent(tab):
     """Teste _on_open_editor sans fenêtre parente."""
     tab.parent_window = None
-    tab.get_root = MagicMock(return_value=None)
+    button = MagicMock(spec=Gtk.Button)
+    button.get_root.return_value = None
     from ui.tabs.ui_tab_theme_config import _on_open_editor
     with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_error:
-        _on_open_editor(tab)
+        _on_open_editor(tab, button)
         mock_error.assert_called_once_with("Impossible d'ouvrir l'éditeur")
 
 def test_on_preview_theme_no_selection(tab):
@@ -477,11 +478,12 @@ def test_on_open_editor_with_root(tab):
     """Teste _on_open_editor en trouvant le root."""
     tab.parent_window = None
     mock_root = MagicMock(spec=Gtk.Window)
-    tab.get_root = MagicMock(return_value=mock_root)
+    button = MagicMock(spec=Gtk.Button)
+    button.get_root.return_value = mock_root
 
     from ui.tabs.ui_tab_theme_config import _on_open_editor
     with patch("ui.tabs.ui_tab_theme_config.ThemeEditorDialog") as mock_dialog:
-        _on_open_editor(tab)
+        _on_open_editor(tab, button)
         mock_dialog.assert_called_once()
 
 def test_on_preview_theme_exception(tab):
@@ -610,11 +612,12 @@ def test_on_open_editor_root_no_present(tab):
     tab.parent_window = None
     mock_root = MagicMock() # Pas de spec Gtk.Window, donc pas de present() par défaut
     del mock_root.present
-    tab.get_root = MagicMock(return_value=mock_root)
+    button = MagicMock(spec=Gtk.Button)
+    button.get_root.return_value = mock_root
 
     from ui.tabs.ui_tab_theme_config import _on_open_editor
     with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_error:
-        _on_open_editor(tab)
+        _on_open_editor(tab, button)
         mock_error.assert_called_once()
 
 def test_on_activate_theme_no_mark_dirty(tab):

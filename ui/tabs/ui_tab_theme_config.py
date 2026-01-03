@@ -15,8 +15,10 @@ from core.services.core_theme_service import ThemeService
 from core.theme.core_active_theme_manager import ActiveThemeManager
 from core.theme.core_theme_generator import GrubTheme
 from core.theme.core_theme_generator import create_custom_theme as _create_custom_theme
+from ui.components.ui_theme_config_actions import build_theme_config_right_column
 from ui.tabs.ui_grub_preview_dialog import GrubPreviewDialog
 from ui.tabs.ui_theme_editor_dialog import ThemeEditorDialog
+from ui.ui_gtk_helpers import GtkHelper
 from ui.ui_widgets import create_error_dialog, create_main_box, create_success_dialog, create_two_column_layout
 
 HORIZONTAL = Gtk.Orientation.HORIZONTAL
@@ -146,72 +148,22 @@ class TabThemeConfig:
 
     def _build_right_column(self, container: Gtk.Box) -> None:
         """Construit la colonne de droite (actions)."""
-        actions_title = Gtk.Label(xalign=0)
-        actions_title.set_markup("<b>Actions sur la sélection</b>")
-        actions_title.add_css_class("section-title")
-        container.append(actions_title)
-
-        # Actions container
-        actions_box = Gtk.Box(orientation=VERTICAL, spacing=8)
-
-        # Bouton Activer
-        self.activate_btn = Gtk.Button(label="✅ Activer ce thème")
-        self.activate_btn.set_halign(Gtk.Align.FILL)
-        self.activate_btn.set_sensitive(False)
-        self.activate_btn.add_css_class("suggested-action")
-        self.activate_btn.connect("clicked", lambda _b: _on_activate_theme(self))
-        actions_box.append(self.activate_btn)
-
-        # Bouton Aperçu
-        self.preview_btn = Gtk.Button(label="👁️ Aperçu")
-        self.preview_btn.set_halign(Gtk.Align.FILL)
-        self.preview_btn.set_sensitive(False)
-        self.preview_btn.connect("clicked", lambda _b: _on_preview_theme(self))
-        actions_box.append(self.preview_btn)
-
-        # Séparateur
-        sep_actions = Gtk.Separator(orientation=HORIZONTAL)
-        sep_actions.set_margin_top(8)
-        sep_actions.set_margin_bottom(8)
-        actions_box.append(sep_actions)
-
-        # Boutons d'édition (pour thèmes custom)
-        self.edit_btn = Gtk.Button(label="✏️ Modifier")
-        self.edit_btn.set_halign(Gtk.Align.FILL)
-        self.edit_btn.set_sensitive(False)
-        self.edit_btn.connect(
-            "clicked", lambda _b: _on_edit_theme(None, self.current_theme.name, self) if self.current_theme else None
+        parts = build_theme_config_right_column(
+            on_activate=lambda: _on_activate_theme(self),
+            on_preview=lambda: _on_preview_theme(self),
+            on_edit=lambda b: _on_edit_theme(b, self.current_theme.name, self) if self.current_theme else None,
+            on_delete=lambda b: _on_delete_theme(b, self.current_theme.name, self) if self.current_theme else None,
+            on_open_editor=lambda b: _on_open_editor(self, b),
         )
-        actions_box.append(self.edit_btn)
 
-        self.delete_btn = Gtk.Button(label="🗑️ Supprimer")
-        self.delete_btn.set_halign(Gtk.Align.FILL)
-        self.delete_btn.set_sensitive(False)
-        self.delete_btn.add_css_class("destructive-action")
-        self.delete_btn.connect(
-            "clicked", lambda _b: _on_delete_theme(None, self.current_theme.name, self) if self.current_theme else None
-        )
-        actions_box.append(self.delete_btn)
+        self.activate_btn = parts.activate_btn
+        self.preview_btn = parts.preview_btn
+        self.edit_btn = parts.edit_btn
+        self.delete_btn = parts.delete_btn
 
-        container.append(actions_box)
-
-        # Global actions (bottom right)
-        global_actions_box = Gtk.Box(orientation=VERTICAL, spacing=8)
-        global_actions_box.set_valign(Gtk.Align.END)
-        global_actions_box.set_vexpand(True)
-
-        global_title = Gtk.Label(xalign=0)
-        global_title.set_markup("<b>Outils</b>")
-        global_title.add_css_class("section-title")
-        global_actions_box.append(global_title)
-
-        # Bouton Éditeur de thème (Nouveau)
-        editor_btn = Gtk.Button(label="➕ Créer un nouveau thème")  # noqa: RUF001
-        editor_btn.set_halign(Gtk.Align.FILL)
-        editor_btn.connect("clicked", lambda _b: _on_open_editor(self))
-        global_actions_box.append(editor_btn)
-
-        container.append(global_actions_box)
+        container.append(parts.actions_title)
+        container.append(parts.actions_box)
+        container.append(parts.global_actions_box)
 
     def _build_switch_section(self) -> Gtk.Widget:
         """Construit la section de switch pour afficher/masquer les thèmes.
@@ -539,18 +491,17 @@ def _on_activate_script(_button: Gtk.Button, script_path: str, tab: TabThemeConf
         create_error_dialog(f"Erreur inattendue:\n{e}")
 
 
-def _on_open_editor(tab: TabThemeConfig) -> None:
+def _on_open_editor(tab: TabThemeConfig, button: Gtk.Button | None = None) -> None:
     """Ouvre l'éditeur de thème dans une fenêtre séparée.
 
     Args:
         tab: L'instance de l'onglet.
+        button: Le bouton cliqué (optionnel).
     """
     try:
         # On cherche la fenêtre parente si elle n'est pas définie
         if not tab.parent_window:
-            root = tab.get_root()
-            if root and hasattr(root, "present"):
-                tab.parent_window = root
+            tab.parent_window = GtkHelper.resolve_parent_window(button, fallback=tab.parent_window)
 
         if tab.parent_window:
             editor_dialog = ThemeEditorDialog(tab.parent_window, tab.state_manager)
@@ -624,6 +575,8 @@ def _on_edit_theme(_button: Gtk.Button | None, theme_name: str, tab: TabThemeCon
         tab: L'instance de l'onglet.
     """
     try:
+        tab.parent_window = GtkHelper.resolve_parent_window(_button, fallback=tab.parent_window)
+
         if theme_name not in tab.available_themes:
             create_error_dialog(f"Thème '{theme_name}' introuvable")
             return
@@ -657,6 +610,8 @@ def _on_delete_theme(_button: Gtk.Button | None, theme_name: str, tab: TabThemeC
         tab: L'instance de l'onglet.
     """
     try:
+        tab.parent_window = GtkHelper.resolve_parent_window(_button, fallback=tab.parent_window)
+
         if theme_name not in tab.available_themes:
             create_error_dialog(f"Thème '{theme_name}' introuvable")
             return

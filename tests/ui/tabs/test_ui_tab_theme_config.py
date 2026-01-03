@@ -248,10 +248,11 @@ def test_on_open_editor_no_parent(tab_theme_config):
     """Test l'ouverture de l'éditeur sans fenêtre parente."""
     tab_theme_config.build()
     tab_theme_config.parent_window = None
-    tab_theme_config.get_root = MagicMock(return_value=None)
+    button = MagicMock(spec=Gtk.Button)
+    button.get_root.return_value = None
 
     with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_dialog:
-        _on_open_editor(tab_theme_config)
+        _on_open_editor(tab_theme_config, button)
         assert mock_dialog.called
 
 
@@ -544,8 +545,9 @@ def test_on_open_editor_find_parent_window():
     tab = TabThemeConfig(mock_state_manager)
     mock_window = MagicMock()
     mock_window.present = MagicMock()
-    tab.get_root = MagicMock(return_value=mock_window)
+    button = MagicMock(spec=Gtk.Button)
+    button.get_root.return_value = mock_window
 
     with patch("ui.tabs.ui_tab_theme_config.ThemeEditorDialog"):
-        _on_open_editor(tab)
+        _on_open_editor(tab, button)
         assert tab.parent_window == mock_window
