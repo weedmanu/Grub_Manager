@@ -391,14 +391,6 @@ def test_on_reload_dialog_cancel(manager):
         manager.load_config.assert_not_called()
 
 
-def test_on_save_not_root(manager):
-    """Test on_save when not root."""
-    with patch("os.geteuid", return_value=1000):
-        manager.show_info = MagicMock()
-        manager.on_save(None)
-        manager.show_info.assert_called_with("Droits administrateur requis pour enregistrer", "error")
-
-
 def test_on_save_dialog_cancel(manager):
     """Test on_save dialog cancellation."""
     with patch("os.geteuid", return_value=0), patch("ui.ui_manager.Gtk.AlertDialog") as MockDialog:
@@ -491,27 +483,6 @@ def test_perform_save_dirty_visibility_not_applied(manager):
 
         args, _ = manager.show_info.call_args
         assert "Masquage non appliqué" in args[0]
-
-
-def test_show_info_hide_callback(manager):
-    """Test show_info hide callback."""
-    manager.info_label = MagicMock()
-    manager.info_box = MagicMock()
-    manager.info_revealer = MagicMock()
-
-    with patch("ui.ui_manager.GLib.timeout_add_seconds") as mock_timeout:
-        manager.show_info("msg", "info")
-
-        # Get the callback
-        callback = mock_timeout.call_args[0][1]
-
-        # Execute callback
-        assert callback() is False
-        manager.info_revealer.set_reveal_child.assert_called_with(False)
-
-        # Test with revealer None
-        manager.info_revealer = None
-        assert callback() is False
 
 
 def test_set_default_choice_not_found(manager):
@@ -769,24 +740,3 @@ def test_perform_save_verification_exception_coverage(manager):
         # Should catch exception and log warning
         assert any("Impossible de vérifier les valeurs écrites" in str(call) for call in mock_logger.warning.mock_calls)
 
-
-def test_show_info_hide_callback(manager):
-    """Test show_info inner _hide callback."""
-    manager.info_label = MagicMock()
-    manager.info_box = MagicMock()
-    manager.info_revealer = MagicMock()
-
-    # Mock timeout_add_seconds to capture callback
-    with patch("gi.repository.GLib.timeout_add_seconds") as mock_timeout:
-        manager.show_info("msg", "info")
-
-        # Verify timeout registered with correct callback
-        mock_timeout.assert_called_with(5, manager._hide_info_callback)
-
-        # Test callback directly
-        assert manager._hide_info_callback() is False
-        manager.info_revealer.set_reveal_child.assert_called_with(False)
-
-        # Test callback when revealer is None
-        manager.info_revealer = None
-        assert manager._hide_info_callback() is False

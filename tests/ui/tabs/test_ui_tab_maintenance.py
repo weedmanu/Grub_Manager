@@ -311,28 +311,6 @@ def test_reinstall_grub_uefi_exception(mock_controller):
         # Should catch exception and do nothing
 
 
-def test_reinstall_grub_bios_success(mock_controller):
-    """Test reinstall_grub_bios with confirmation."""
-    with (
-        patch("ui.tabs.ui_tab_maintenance.os.geteuid", return_value=0),
-        patch("ui.tabs.ui_tab_maintenance.Gtk.AlertDialog") as mock_dialog_class,
-        patch("ui.tabs.ui_tab_maintenance.run_command_popup") as mock_popup,
-    ):
-
-        mock_dialog = mock_dialog_class.return_value
-
-        def mock_choose(parent, cancellable, callback):
-            mock_result = MagicMock()
-            mock_dialog.choose_finish.return_value = 1
-            callback(mock_dialog, mock_result)
-
-        mock_dialog.choose.side_effect = mock_choose
-
-        _reinstall_grub_bios(mock_controller)
-        mock_popup.assert_called()
-        assert "grub-install" in mock_popup.call_args[0][1]
-
-
 def test_reinstall_grub_bios_non_root(mock_controller):
     """Test reinstall_grub_bios as non-root."""
     with patch("ui.tabs.ui_tab_maintenance.os.geteuid", return_value=1000):

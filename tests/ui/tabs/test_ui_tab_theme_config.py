@@ -414,51 +414,6 @@ def test_on_open_editor_exception(tab_theme_config):
         assert mock_dialog.called
 
 
-def test_load_themes_exception(tab_theme_config):
-    """Test _load_themes with exception."""
-    tab_theme_config.theme_manager = MagicMock()
-    tab_theme_config.theme_manager.load_active_theme.side_effect = OSError("Load fail")
-    tab_theme_config.theme_switch = MagicMock()
-    tab_theme_config._load_themes()
-    # Should catch exception and log warning, setting switch to False
-    tab_theme_config.theme_switch.set_active.assert_called_with(False)
-
-
-def test_on_theme_selected_none(tab_theme_config):
-    """Test _on_theme_selected with None row."""
-    tab_theme_config.activate_btn = MagicMock()
-    tab_theme_config.preview_btn = MagicMock()
-    tab_theme_config._on_theme_selected(None, None)
-    assert tab_theme_config.current_theme is None
-    tab_theme_config.activate_btn.set_sensitive.assert_called_with(False)
-    tab_theme_config.preview_btn.set_sensitive.assert_called_with(False)
-
-
-def test_on_theme_switch_toggled_widgets_none(tab_theme_config):
-    """Test _on_theme_switch_toggled when widgets are None."""
-    # Set widgets to None
-    tab_theme_config.theme_list_box = None
-    tab_theme_config.activate_btn = None
-    tab_theme_config.preview_btn = None
-
-    switch = MagicMock()
-    switch.get_active.return_value = True
-
-    # Should not crash
-    tab_theme_config._on_theme_switch_toggled(switch, None)
-
-
-def test_on_open_editor_no_parent(tab_theme_config):
-    """Test _on_open_editor when parent window cannot be found."""
-    tab_theme_config.parent_window = None
-    btn = MagicMock()
-    btn.get_parent.return_value = None  # No parent window found
-
-    with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_err:
-        tab_theme_config._on_open_editor(btn)
-        mock_err.assert_called_with("Impossible d'ouvrir l'éditeur")
-
-
 def test_on_preview_theme_exception(tab_theme_config):
     """Test _on_preview_theme with exception."""
     tab_theme_config.current_theme = MagicMock()

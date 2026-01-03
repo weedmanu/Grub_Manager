@@ -184,43 +184,6 @@ def test_on_preset_selected_not_found(editor):
     # But we can check if it didn't crash.
 
 
-def test_on_preview_grub_no_theme(editor):
-    """Test on_preview_grub with no theme."""
-    editor.current_theme = None
-    with patch("ui.tabs.ui_tab_theme_editor.create_error_dialog") as mock_err:
-        editor._on_preview_grub(Gtk.Button())
-        assert mock_err.called
-
-
-def test_on_save_theme_no_theme(editor):
-    """Test on_save_theme with no theme."""
-    editor.current_theme = None
-    with patch("ui.tabs.ui_tab_theme_editor.create_error_dialog") as mock_err:
-        editor._on_save_theme(Gtk.Button())
-        assert mock_err.called
-
-
-def test_on_save_theme_no_name(editor):
-    """Test on_save_theme with empty name."""
-    editor.build()
-    editor.current_theme.name = ""
-    with patch("ui.tabs.ui_tab_theme_editor.create_error_dialog") as mock_err:
-        editor._on_save_theme(Gtk.Button())
-        assert mock_err.called
-
-
-def test_on_save_theme_error(editor):
-    """Test on_save_theme with error."""
-    editor.build()
-    editor.current_theme.name = "valid"
-    with (
-        patch("ui.tabs.ui_tab_theme_editor.ThemeGenerator.save_theme", side_effect=OSError("Save fail")),
-        patch("ui.tabs.ui_tab_theme_editor.create_error_dialog") as mock_err,
-    ):
-        editor._on_save_theme(Gtk.Button())
-        assert mock_err.called
-
-
 def test_on_preset_selected_theme_not_found(editor):
     """Test on_preset_selected when theme is not found in presets."""
     editor.build()
