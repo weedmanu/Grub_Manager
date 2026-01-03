@@ -69,9 +69,7 @@ def render_entries(controller: GrubConfigManager) -> None:
         else False
     )
     disable_submenu = (
-        bool(controller.disable_submenu_check.get_active())
-        if controller.disable_submenu_check is not None
-        else False
+        bool(controller.disable_submenu_check.get_active()) if controller.disable_submenu_check is not None else False
     )
     logger.debug(
         f"[render_entries] Filters: hide_recovery={hide_recovery}, "

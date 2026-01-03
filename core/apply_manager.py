@@ -302,8 +302,7 @@ class GrubApplyManager:
                         f"({len(non_empty_lines)} lignes de code)"
                     )
                     raise RuntimeError(
-                        f"La configuration générée semble incomplète "
-                        f"({len(non_empty_lines)} lignes de code)"
+                        f"La configuration générée semble incomplète " f"({len(non_empty_lines)} lignes de code)"
                     )
 
                 logger.success(f"[_validate_config] Cohérence vérifiée: {len(non_empty_lines)} lignes de code")
