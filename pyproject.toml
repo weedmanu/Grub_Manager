@@ -1,0 +1,183 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "grub-manager"
+version = "1.0.0"
+description = "Gestionnaire de configuration GRUB sécurisé et fiable pour Linux"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [
+    {name = "Manu", email = "contact@example.com"}
+]
+keywords = ["grub", "bootloader", "linux", "configuration", "gtk4"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: X11 :: GTK",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: French",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Boot",
+    "Topic :: System :: Shells",
+]
+
+dependencies = [
+    "PyGObject>=3.46.0",
+    "loguru>=0.7.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/grub_manager"
+Repository = "https://github.com/yourusername/grub_manager.git"
+Documentation = "https://github.com/yourusername/grub_manager#readme"
+Issues = "https://github.com/yourusername/grub_manager/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "isort>=5.12.0",
+    "pydocstyle>=6.3.0",
+    "pylint>=2.17.0",
+    "vulture>=2.7.0",
+    "flake8>=6.0.0",
+]
+
+[tool.setuptools]
+packages = ["core", "ui"]
+
+[tool.black]
+line-length = 120
+target-version = ["py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  \.venv
+  | \.git
+  | \.mypy_cache
+  | \.pytest_cache
+  | \.ruff_cache
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 120
+py_version = 312
+skip_glob = [".venv/*", ".git/*"]
+known_first_party = ["core", "ui"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+exclude = [
+    ".venv",
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "RUF",    # ruff-specific
+]
+ignore = [
+    "E501",   # line too long (handled by black)
+]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+strict_optional = true
+
+[[tool.mypy.overrides]]
+module = ["gi", "gi.repository"]
+ignore_missing_imports = true
+disable_error_code = ["import-untyped", "import-not-found"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+    "--cov=core",
+    "--cov=ui",
+    "--cov-report=term-missing",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["core", "ui"]
+omit = [
+    "*/__init__.py",
+    "*/test_*.py",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+]
+
+[tool.pylint.messages_control]
+disable = [
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "too-few-public-methods",
+    "duplicate-code",
+    "too-many-arguments",
+]
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint.design]
+max-attributes = 10
+max-arguments = 6
+
+[tool.pydocstyle]
+convention = "pep257"
+match = '(?!test_).*\.py'
