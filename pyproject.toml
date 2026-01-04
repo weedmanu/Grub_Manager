@@ -53,6 +53,10 @@ dev = [
 [tool.setuptools]
 packages = ["core", "ui"]
 
+[tool.isort]
+profile = "black"
+line_length = 120
+
 [tool.black]
 line-length = 120
 target-version = ["py312"]
@@ -93,6 +97,9 @@ select = [
 ignore = [
     "E501",   # line too long (handled by black)
 ]
+
+[tool.ruff.lint.isort]
+known-first-party = ["core", "ui"]
 
 [tool.ruff.lint.per-file-ignores]
 "ui/ui_infobar_controller.py" = ["E402"]

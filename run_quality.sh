@@ -96,7 +96,6 @@ clean() {
 
 fix() {
   run_check "Ruff (fix)" "$PYTHON_BIN" -m ruff check $PATHS --fix
-  run_check "Isort" "$PYTHON_BIN" -m isort $PATHS
   run_check "Black" "$PYTHON_BIN" -m black $PATHS
 }
 
