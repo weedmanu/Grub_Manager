@@ -9,7 +9,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 show_help() {
-  echo -e "${BLUE}Usage:${NC} ./run_quality.sh [OPTIONS]"
+  echo -e "${BLUE}Usage:${NC} ./run_quality.sh [OPTIONS] [PATHS...]"
   echo ""
   echo -e "${YELLOW}Description:${NC}"
   echo "  Script de maintenance et de qualité pour Grub_manager."
@@ -25,11 +25,12 @@ show_help() {
   echo -e "  ${GREEN}--help, -h${NC}    Affiche cette aide"
   echo ""
   echo -e "${YELLOW}Exemples:${NC}"
-  echo "  ./run_quality.sh --lint          # Vérification rapide sans modification"
-  echo "  ./run_quality.sh --fix --lint    # Corriger puis vérifier"
+  echo "  ./run_quality.sh --lint          # Vérifie tout le projet (core, ui, tests, main.py)"
+  echo "  ./run_quality.sh --lint tests    # Vérifie uniquement le dossier tests"
+  echo "  ./run_quality.sh --fix core      # Formate uniquement le dossier core"
   echo "  ./run_quality.sh --cov           # Voir la couverture de tests"
   echo ""
-  echo -e "${BLUE}Note:${NC} Sans option, le script exécute ${GREEN}--all${NC}."
+  echo -e "${BLUE}Note:${NC} Sans option, le script exécute ${GREEN}--all${NC} sur tous les dossiers."
 }
 
 # Détection de l'environnement Python
@@ -53,12 +54,14 @@ DO_ALL=false
 EXIT_CODE=0
 
 # Chemins par défaut
-PATHS="core ui tests main.py"
+DEFAULT_PATHS="core ui tests main.py"
+PATHS=""
 
 if [[ $# -eq 0 ]]; then
   DO_ALL=true
 fi
 
+# Extraction des options et des chemins
 for arg in "$@"; do
   case "$arg" in
     --clean) CLEAN=true ;;
@@ -68,9 +71,15 @@ for arg in "$@"; do
     --fix) DO_FIX=true ;;
     --all) DO_ALL=true ;;
     --help|-h) show_help; exit 0 ;;
-    *) echo -e "${RED}Option inconnue : $arg${NC}"; show_help; exit 2 ;;
+    -*) echo -e "${RED}Option inconnue : $arg${NC}"; show_help; exit 2 ;;
+    *) PATHS="$PATHS $arg" ;;
   esac
 done
+
+# Si aucun chemin n'est spécifié, on utilise les chemins par défaut
+if [[ -z "$PATHS" ]]; then
+  PATHS=$DEFAULT_PATHS
+fi
 
 # Helper pour exécuter une commande et suivre son statut
 run_check() {
