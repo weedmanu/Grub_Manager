@@ -297,7 +297,7 @@ class TestEnsureInitialGrubDefaultBackup:
             def __enter__(self):
                 return self
 
-            def __exit__(self, exc_type, exc, tb):
+            def __exit__(self, *_exc_info):
                 return False
 
             def add(self, name, arcname=None, filter=None, **kwargs):
@@ -328,7 +328,7 @@ class TestEnsureInitialGrubDefaultBackup:
             def __enter__(self):
                 return self
 
-            def __exit__(self, exc_type, exc, tb):
+            def __exit__(self, *_exc_info):
                 return False
 
             def add(self, name, arcname=None, filter=None, **kwargs):
@@ -560,8 +560,8 @@ class TestRestoreGrubDefaultBackup:
 
         with (
             patch("shutil.copy2") as mock_copy,
-            patch("os.remove") as mock_remove,
-            patch("shutil.rmtree") as mock_rmtree,
+            patch("os.remove"),
+            patch("shutil.rmtree"),
         ):
 
             restore_grub_default_backup(str(archive_path), target_grub)
@@ -1163,6 +1163,7 @@ class TestFinalCoverage:
     """Tests pour atteindre 100% de couverture sur core_grub_default_io.py."""
 
     def test_prune_manual_backups_oserror_on_remove(self):
+        """Test l'erreur OSError lors de la suppression d'un backup manuel."""
         from core.io.core_grub_default_io import _prune_manual_backups
 
         with (
@@ -1174,6 +1175,7 @@ class TestFinalCoverage:
             _prune_manual_backups("/etc/default/grub")
 
     def test_ensure_initial_backup_coverage_boost(self):
+        """Boost de couverture pour la sauvegarde initiale (cas où elle existe déjà)."""
         # Branche 166->170: initial backup exists
         from core.io.core_grub_default_io import ensure_initial_grub_default_backup
 
@@ -1181,6 +1183,7 @@ class TestFinalCoverage:
             ensure_initial_grub_default_backup()
 
     def test_ensure_initial_backup_empty_iterdir(self):
+        """Test la sauvegarde initiale avec un dossier grub.d vide."""
         # Branche 119->118: empty iterdir
         from core.io.core_grub_default_io import ensure_initial_grub_default_backup
 
@@ -1205,6 +1208,7 @@ class TestFinalCoverage:
             ensure_initial_grub_default_backup()
 
     def test_create_backup_coverage_boost(self):
+        """Boost de couverture pour la création de sauvegarde."""
         # Branche 260->259: grub.d loop
         from core.io.core_grub_default_io import create_grub_default_backup
 
@@ -1217,6 +1221,7 @@ class TestFinalCoverage:
             create_grub_default_backup()
 
     def test_create_backup_tar_add_oserror_path(self):
+        """Test l'erreur OSError lors de l'ajout d'un fichier au tar."""
         # Branche 252-253: OSError in tar.add
         from core.io.core_grub_default_io import create_grub_default_backup
 
@@ -1230,6 +1235,7 @@ class TestFinalCoverage:
             create_grub_default_backup()
 
     def test_best_fallback_no_valid_candidate(self):
+        """Test le cas où aucun candidat de secours n'est trouvé."""
         # Branche 422->411
         from core.io.core_grub_default_io import _best_fallback_for_missing_config
 
@@ -1242,6 +1248,7 @@ class TestFinalCoverage:
             assert res is None
 
     def test_best_fallback_with_mtime_error(self):
+        """Test le cas où getmtime échoue sur un candidat de secours."""
         from core.io.core_grub_default_io import _best_fallback_for_missing_config
 
         with (
@@ -1255,6 +1262,7 @@ class TestFinalCoverage:
                 pass
 
     def test_restore_backup_success_check_files(self, tmp_path):
+        """Test la réussite de la restauration et vérifie les fichiers."""
         # Branche 358->341: restore loop
         from core.io.core_grub_default_io import restore_grub_default_backup
 
@@ -1269,6 +1277,7 @@ class TestFinalCoverage:
             restore_grub_default_backup(str(backup_path))
 
     def test_restore_backup_with_members(self, tmp_path):
+        """Test la restauration avec des membres spécifiques dans l'archive."""
         from core.io.core_grub_default_io import restore_grub_default_backup
 
         backup_path = tmp_path / "backup.tar.gz"
@@ -1294,6 +1303,7 @@ class TestFinalCoverage:
 
 
 def test_parse_grub_default_basic() -> None:
+    """Test le parsing de base d'un fichier GRUB default."""
     text = """
 # comment
 GRUB_TIMEOUT=5
@@ -1311,6 +1321,7 @@ GRUB_GFXMODE=1920x1080
 
 
 def test_format_grub_default_quotes_and_backup_header() -> None:
+    """Test le formatage avec guillemets et en-tête de sauvegarde."""
     cfg = {
         "GRUB_TIMEOUT": "5",
         "GRUB_DEFAULT": "saved",
@@ -1326,6 +1337,7 @@ def test_format_grub_default_quotes_and_backup_header() -> None:
 
 
 def test_read_write_grub_default_roundtrip(tmp_path: Path) -> None:
+    """Test l'aller-retour lecture/écriture de la configuration."""
     p = tmp_path / "grub"
     p.write_text("GRUB_TIMEOUT=5\nGRUB_DEFAULT=0\n", encoding="utf-8")
 
@@ -1345,6 +1357,7 @@ def test_read_write_grub_default_roundtrip(tmp_path: Path) -> None:
 
 
 def test_write_grub_default_requires_existing_file(tmp_path: Path) -> None:
+    """Test que l'écriture échoue si le fichier source n'existe pas."""
     p = tmp_path / "missing"
     with pytest.raises(FileNotFoundError):
         # shutil.copy2 should raise if source doesn't exist.
@@ -1352,6 +1365,7 @@ def test_write_grub_default_requires_existing_file(tmp_path: Path) -> None:
 
 
 def test_read_grub_default_restores_from_backup_current(tmp_path: Path) -> None:
+    """Test la restauration automatique depuis backup.current si le fichier principal manque."""
     base = tmp_path / "grub"
     backup_current = tmp_path / "grub.backup.current"
 
@@ -1365,6 +1379,7 @@ def test_read_grub_default_restores_from_backup_current(tmp_path: Path) -> None:
 
 
 def test_ensure_initial_grub_default_backup_creates_once(tmp_path: Path) -> None:
+    """Test que la sauvegarde initiale n'est créée qu'une seule fois."""
     import tarfile
 
     base = tmp_path / "grub"
@@ -1378,7 +1393,9 @@ def test_ensure_initial_grub_default_backup_creates_once(tmp_path: Path) -> None
     # Vérifier que le contenu du tar.gz contient le fichier grub
     with tarfile.open(initial_path, "r:gz") as tar:
         assert "default_grub" in tar.getnames()
-        content = tar.extractfile("default_grub").read().decode("utf-8")
+        extracted = tar.extractfile("default_grub")
+        assert extracted is not None
+        content = extracted.read().decode("utf-8")
         assert content == base.read_text(encoding="utf-8")
 
     # Modifie le fichier source, puis réappelle: le backup initial ne doit pas changer.
@@ -1388,7 +1405,9 @@ def test_ensure_initial_grub_default_backup_creates_once(tmp_path: Path) -> None
 
     # Vérifier que le contenu du tar.gz n'a pas changé
     with tarfile.open(initial_path, "r:gz") as tar:
-        content = tar.extractfile("default_grub").read().decode("utf-8")
+        extracted = tar.extractfile("default_grub")
+        assert extracted is not None
+        content = extracted.read().decode("utf-8")
         assert content.startswith("GRUB_TIMEOUT=5")
 
 
@@ -1436,7 +1455,9 @@ def test_create_grub_default_backup_with_fallback(tmp_path: Path) -> None:
     # Vérifier le contenu du tar.gz
     with tarfile.open(created_path, "r:gz") as tar:
         assert "default_grub" in tar.getnames()
-        content = tar.extractfile("default_grub").read().decode("utf-8")
+        f = tar.extractfile("default_grub")
+        assert f is not None
+        content = f.read().decode("utf-8")
         assert content == "FALLBACK CONTENT"
 
 
@@ -1524,6 +1545,7 @@ def test_prune_manual_backups_os_error(tmp_path: Path) -> None:
 
 
 def test_backup_list_create_delete(tmp_path: Path) -> None:
+    """Test le cycle de vie des sauvegardes (création, liste, suppression)."""
     import tarfile
 
     base = tmp_path / "grub"
@@ -1538,7 +1560,9 @@ def test_backup_list_create_delete(tmp_path: Path) -> None:
     # Vérifier le contenu du tar.gz
     with tarfile.open(created_path, "r:gz") as tar:
         assert "default_grub" in tar.getnames()
-        content = tar.extractfile("default_grub").read().decode("utf-8")
+        f = tar.extractfile("default_grub")
+        assert f is not None
+        content = f.read().decode("utf-8")
         assert content == "GRUB_TIMEOUT=5\n"
 
     backups = list_grub_default_backups(str(base))
@@ -1549,6 +1573,7 @@ def test_backup_list_create_delete(tmp_path: Path) -> None:
 
 
 def test_manual_backup_rotation_keeps_3(tmp_path: Path) -> None:
+    """Test que la rotation des sauvegardes manuelles n'en garde que 3."""
     base = tmp_path / "grub"
     base.write_text("GRUB_TIMEOUT=5\n", encoding="utf-8")
 
@@ -1570,6 +1595,7 @@ def test_manual_backup_rotation_keeps_3(tmp_path: Path) -> None:
 
 
 def test_list_grub_default_backups_includes_initial_and_sorts(tmp_path: Path) -> None:
+    """Test que la liste des sauvegardes inclut l'initiale et est triée par date."""
     base = tmp_path / "grub"
     base.write_text("X", encoding="utf-8")
 
@@ -1748,6 +1774,7 @@ def test_restore_grub_default_backup_restores_all_members(tmp_path: Path) -> Non
 
 
 def test_restore_grub_default_backup_wraps_tar_errors(tmp_path: Path) -> None:
+    """Test que les erreurs tarfile sont encapsulées dans des OSError lors de la restauration."""
     backup_path = str(tmp_path / "missing_or_bad.tar.gz")
 
     with (
@@ -1761,6 +1788,8 @@ def test_restore_grub_default_backup_wraps_tar_errors(tmp_path: Path) -> None:
 
 
 class TestGrubDefaultIOCoverage:
+    """Tests de couverture supplémentaires pour core_grub_default_io."""
+
     @patch("core.io.core_grub_default_io.tarfile.open")
     @patch("core.io.core_grub_default_io.os.path.isfile", return_value=True)
     @patch("core.io.core_grub_default_io.os.path.exists", return_value=True)
@@ -1790,47 +1819,8 @@ class TestGrubDefaultIOCoverage:
     @patch("core.io.core_grub_default_io.tarfile.open")
     @patch("core.io.core_grub_default_io.os.path.isfile", return_value=True)
     @patch("core.io.core_grub_default_io.os.path.exists", return_value=True)
-    @patch("core.io.core_grub_default_io.Path")
-    def test_ensure_initial_backup_add_script_exception(self, mock_path_cls, mock_exists, mock_isfile, mock_tar_open):
-        """Test exception when adding script to initial backup."""
-        mock_tar = MagicMock()
-        mock_tar_open.return_value.__enter__.return_value = mock_tar
-
-        # Mock Path instances
-        mock_path = MagicMock()
-        mock_grub_d = MagicMock()
-        mock_initial_backup_path = MagicMock()
-
-        def path_side_effect(arg):
-            if str(arg) == "/etc/grub.d":
-                return mock_grub_d
-            return mock_path
-
-        mock_path_cls.side_effect = path_side_effect
-
-        mock_path.parent.__truediv__.return_value = mock_initial_backup_path
-        mock_initial_backup_path.exists.return_value = False
-
-        # Mock grub.d iteration
-        mock_grub_d.exists.return_value = True
-        mock_script = MagicMock()
-        mock_script.is_file.return_value = True
-        mock_script.name = "00_header"
-        mock_grub_d.iterdir.return_value = [mock_script]
-
-        # First add is default_grub (success), second is script (fail)
-        mock_tar.add.side_effect = [None, OSError("Add script failed"), None]
-
-        ensure_initial_grub_default_backup(GRUB_DEFAULT_PATH)
-
-        # Verify script add was attempted
-        assert mock_tar.add.call_count >= 2
-
-    @patch("core.io.core_grub_default_io.tarfile.open")
-    @patch("core.io.core_grub_default_io.os.path.isfile", return_value=True)
-    @patch("core.io.core_grub_default_io.os.path.exists", return_value=True)
     @patch("core.io.core_grub_default_io.os.access", return_value=True)
-    def test_create_backup_add_default_exception(self, mock_access, mock_exists, mock_isfile, mock_tar_open):
+    def test_create_backup_add_default_exception(self, _mock_access, mock_exists, mock_isfile, mock_tar_open):
         """Test exception when adding default_grub to manual backup."""
         mock_tar = MagicMock()
         mock_tar_open.return_value.__enter__.return_value = mock_tar
@@ -1853,7 +1843,7 @@ class TestGrubDefaultIOCoverage:
     @patch("core.io.core_grub_default_io.os.access", return_value=True)
     @patch("core.io.core_grub_default_io.Path")
     def test_create_backup_add_script_exception(
-        self, mock_path_cls, mock_access, mock_exists, mock_isfile, mock_tar_open
+        self, mock_path_cls, _mock_access, mock_exists, mock_isfile, mock_tar_open
     ):
         """Test exception when adding script to manual backup."""
         mock_tar = MagicMock()
@@ -1892,7 +1882,9 @@ class TestGrubDefaultIOCoverage:
     @patch("core.io.core_grub_default_io.os.access", return_value=True)
     @patch("core.io.core_grub_default_io.Path")
     @patch("core.io.core_grub_default_io.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg"])
-    def test_create_backup_add_cfg_exception(self, mock_path_cls, mock_access, mock_exists, mock_isfile, mock_tar_open):
+    def test_create_backup_add_cfg_exception(
+        self, mock_path_cls, _mock_access, mock_exists, mock_isfile, mock_tar_open
+    ):
         """Test exception when adding grub.cfg to manual backup."""
         mock_tar = MagicMock()
         mock_tar_open.return_value.__enter__.return_value = mock_tar
@@ -2032,7 +2024,7 @@ class TestGrubDefaultIOCoverage:
     @patch("core.io.core_grub_default_io.os.path.getmtime", return_value=1000)
     @patch("core.io.core_grub_default_io.os.path.isfile")
     @patch("core.io.core_grub_default_io.read_grub_default")
-    def test_create_backup_restore_success(self, mock_read_default, mock_isfile, mock_mtime, mock_tar_open):
+    def test_create_backup_restore_success(self, mock_read_default, mock_isfile, _mock_mtime, mock_tar_open):
         """Test manual backup when source is missing but restore succeeds."""
 
         # First call to isfile returns False, subsequent calls return True

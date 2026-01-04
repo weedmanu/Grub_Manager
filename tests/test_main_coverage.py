@@ -45,7 +45,7 @@ class TestMainCoverage:
         # Should call execv
         main._reexec_as_root_once()
         assert mock_execv.called
-        args = mock_execv.call_args[1] if mock_execv.call_args[1] else mock_execv.call_args[0]
+        mock_execv.call_args[1] if mock_execv.call_args[1] else mock_execv.call_args[0]
         # args[0] is path, args[1] is list of args
         assert "/usr/bin/pkexec" in str(mock_execv.call_args[0][0])
 
@@ -72,7 +72,7 @@ class TestMainCoverage:
     @patch("main.ensure_initial_grub_default_backup")
     @patch("gi.repository.Gtk.Application")
     @patch("main.sys.exit")
-    def test_main_execution(self, mock_exit, mock_gtk_app, mock_backup, mock_debug, mock_logging, mock_reexec):
+    def test_main_execution(self, _mock_exit, mock_gtk_app, mock_backup, mock_debug, mock_logging, mock_reexec):
         """Test the main() function execution."""
         from main import main as main_func
 
@@ -169,7 +169,7 @@ class TestMainCoverage:
     @patch("gi.repository.Gtk.Application")
     @patch("gi.repository.Gtk.CssProvider")
     @patch("main.Path.exists", return_value=False)
-    def test_main_execution_edge_cases(self, mock_path_exists, mock_css, mock_app, mock_backup):
+    def test_main_execution_edge_cases(self, mock_path_exists, _mock_css, mock_app, mock_backup):
         """Test main execution with missing backup and missing CSS."""
         with (
             patch("main._reexec_as_root_once"),

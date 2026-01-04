@@ -266,7 +266,7 @@ menuentry "Windows" --id windows {
         # Tenter de masquer les 2 entrées
         hidden_ids = {"ubuntu", "windows"}
 
-        with pytest.raises(ValueError, match="PROTECTION.*Au moins 1 entrée"):
+        with pytest.raises(ValueError, match=r"PROTECTION.*Au moins 1 entrée"):
             apply_hidden_entries_to_grub_cfg(hidden_ids, grub_cfg_path=str(config_file))
 
     def test_apply_hidden_entries_success(self, tmp_path):

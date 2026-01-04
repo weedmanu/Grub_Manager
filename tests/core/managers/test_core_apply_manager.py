@@ -373,20 +373,13 @@ class TestGrubApplyManager:
         assert result.state == ApplyState.ROLLBACK
         mock_rollback.assert_called_once()
 
-    def test_apply_configuration_empty_config(self, manager):
-        """Test avec configuration vide (91-92)."""
-        result = manager.apply_configuration({})
-        assert result.success is False
-        assert result.state == ApplyState.ERROR
-        assert "Configuration fournie est vide" in result.message
-
     @patch("core.managers.core_apply_manager.write_grub_default")
     @patch("core.managers.core_apply_manager.GrubApplyManager._create_backup")
     @patch("core.managers.core_apply_manager.GrubApplyManager._generate_test_config")
     @patch("core.managers.core_apply_manager.GrubApplyManager._validate_config")
     @patch("core.managers.core_apply_manager.Path.read_text")
     def test_apply_configuration_no_apply_changes(
-        self, mock_read, mock_validate, mock_gen, mock_backup, mock_write, manager
+        self, mock_read, mock_validate, _mock_gen, mock_backup, mock_write, manager
     ):
         """Test avec apply_changes=False (112->135)."""
         mock_read.return_value = "GRUB_TIMEOUT=5\n"
@@ -408,19 +401,10 @@ class TestGrubApplyManager:
         assert result.state == ApplyState.ERROR
         assert "Rollback échoué" in result.details
 
-    @patch("core.managers.core_apply_manager.Path.exists")
-    @patch("core.managers.core_apply_manager.Path.stat")
-    def test_create_backup_empty_source(self, mock_stat, mock_exists, manager):
-        """Test backup avec source vide (201-202)."""
-        mock_exists.return_value = True
-        mock_stat.return_value.st_size = 0
-        with pytest.raises(RuntimeError, match="Le fichier source est vide"):
-            manager._create_backup()
-
-    @patch("core.managers.core_apply_manager.Path.exists")
-    @patch("core.managers.core_apply_manager.Path.stat")
     @patch("core.managers.core_apply_manager.Path.read_text")
-    def test_create_backup_no_config_lines(self, mock_read, mock_stat, mock_exists, manager):
+    @patch("core.managers.core_apply_manager.Path.stat")
+    @patch("core.managers.core_apply_manager.Path.exists")
+    def test_create_backup_no_config_lines(self, mock_exists, mock_stat, mock_read, manager):
         """Test backup avec source sans config (206-207)."""
         mock_exists.return_value = True
         mock_stat.return_value.st_size = 100

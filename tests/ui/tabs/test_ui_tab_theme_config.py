@@ -264,18 +264,6 @@ def test_on_open_editor(tab_theme_config):
         assert mock_dialog.present.called
 
 
-def test_on_open_editor_no_parent(tab_theme_config):
-    """Test l'ouverture de l'éditeur sans fenêtre parente."""
-    tab_theme_config.build()
-    tab_theme_config.parent_window = None
-    button = MagicMock(spec=Gtk.Button)
-    button.get_root.return_value = None
-
-    with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_dialog:
-        _on_open_editor(tab_theme_config, button)
-        assert mock_dialog.called
-
-
 def test_on_preview_theme(tab_theme_config):
     """Test l'aperçu du thème."""
     tab_theme_config.current_theme = GrubTheme(name="MyTheme")
@@ -286,15 +274,6 @@ def test_on_preview_theme(tab_theme_config):
         _on_preview_theme(tab_theme_config)
 
         assert mock_dialog.show.called
-
-
-def test_on_preview_theme_no_selection(tab_theme_config):
-    """Test l'aperçu sans sélection."""
-    tab_theme_config.current_theme = None
-
-    with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_dialog:
-        _on_preview_theme(tab_theme_config)
-        assert mock_dialog.called
 
 
 def test_on_activate_theme(tab_theme_config):
@@ -654,20 +633,6 @@ def test_load_themes_outer_exception():
         mock_logger.error.assert_called_with("[TabThemeConfig._load_themes] Erreur: Outer fail")
 
 
-def test_on_open_editor_exception():
-    """Test exception handling in _on_open_editor."""
-    mock_state_manager = MagicMock(spec=AppStateManager)
-
-    tab = TabThemeConfig(mock_state_manager)
-    tab.parent_window = MagicMock()  # Set parent window to avoid the search loop for this test
-
-    # Mock ThemeEditorDialog to raise RuntimeError
-    with patch("ui.tabs.ui_tab_theme_config.ThemeEditorDialog", side_effect=RuntimeError("Dialog fail")):
-        # Also mock create_error_dialog to avoid UI calls
-        with patch("ui.tabs.ui_tab_theme_config.create_error_dialog"):
-            _on_open_editor(tab)
-
-
 def test_on_open_editor_find_parent_window():
     """Test finding the parent window in _on_open_editor."""
     mock_state_manager = MagicMock(spec=AppStateManager)
@@ -684,19 +649,12 @@ def test_on_open_editor_find_parent_window():
         assert tab.parent_window == mock_window
 
 
-
 import gi
 import pytest
 
 from ui.tabs.ui_tab_theme_config import _on_delete_confirmed, _on_delete_theme, _on_edit_theme
 
 gi.require_version("Gtk", "4.0")
-
-
-@pytest.fixture
-def mock_state_manager():
-    manager = MagicMock(spec=AppStateManager)
-    return manager
 
 
 @pytest.fixture
@@ -1008,69 +966,6 @@ def test_on_theme_switch_toggled_off(tab):
     tab.theme_sections_container.set_visible.assert_called_with(False)
 
 
-def test_on_activate_theme(tab):
-    """Teste l'activation d'un thème."""
-    tab.current_theme = GrubTheme(name="Test")
-    from ui.tabs.ui_tab_theme_config import _on_activate_theme
-
-    with patch("ui.tabs.ui_tab_theme_config.create_success_dialog"):
-        _on_activate_theme(tab)
-        assert tab.theme_manager.active_theme == tab.current_theme
-        tab.theme_manager.save_active_theme.assert_called_once()
-        tab.state_manager.mark_dirty.assert_called_once()
-
-
-def test_on_preview_theme(tab):
-    """Teste la prévisualisation d'un thème."""
-    tab.current_theme = GrubTheme(name="Test")
-    from ui.tabs.ui_tab_theme_config import _on_preview_theme
-
-    with patch("ui.tabs.ui_tab_theme_config.GrubPreviewDialog") as mock_dialog:
-        _on_preview_theme(tab)
-        mock_dialog.assert_called_once_with(tab.current_theme)
-
-
-def test_on_open_editor(tab):
-    """Teste l'ouverture de l'éditeur."""
-    from ui.tabs.ui_tab_theme_config import _on_open_editor
-
-    with patch("ui.tabs.ui_tab_theme_config.ThemeEditorDialog") as mock_dialog:
-        _on_open_editor(tab)
-        mock_dialog.assert_called_once()
-
-
-def test_scan_grub_scripts(tab):
-    """Teste le scan des scripts GRUB."""
-    tab.scripts_info_box = MagicMock(spec=Gtk.Box)
-    tab.scripts_info_box.get_first_child.side_effect = [MagicMock(), None]
-
-    script = MagicMock()
-    script.name = "00_header"
-    script.path = Path("/etc/grub.d/00_header")
-    script.is_executable = False
-
-    tab.script_service.scan_theme_scripts.return_value = [script]
-
-    from ui.tabs.ui_tab_theme_config import _scan_grub_scripts
-
-    _scan_grub_scripts(tab)
-
-    assert tab.scripts_info_box.append.called
-
-
-def test_on_activate_script_success(tab):
-    """Teste l'activation d'un script avec succès."""
-    tab.script_service.make_executable.return_value = True
-    tab.refresh = MagicMock()
-
-    from ui.tabs.ui_tab_theme_config import _on_activate_script
-
-    with patch("ui.tabs.ui_tab_theme_config.create_success_dialog"):
-        _on_activate_script(None, "/path/to/script", tab)
-        tab.script_service.make_executable.assert_called_once()
-        tab.refresh.assert_called_once()
-
-
 def test_load_themes_no_active_theme_exception(tab):
     """Teste _load_themes quand le chargement du thème actif lève une exception."""
     tab.theme_service.is_theme_enabled_in_grub.return_value = True
@@ -1140,26 +1035,6 @@ def test_on_open_editor_no_parent(tab):
         mock_error.assert_called_once_with("Impossible d'ouvrir l'éditeur")
 
 
-def test_on_preview_theme_no_selection(tab):
-    """Teste _on_preview_theme sans sélection."""
-    tab.current_theme = None
-    from ui.tabs.ui_tab_theme_config import _on_preview_theme
-
-    with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_error:
-        _on_preview_theme(tab)
-        mock_error.assert_called_once_with("Veuillez sélectionner un thème")
-
-
-def test_on_activate_theme_no_selection(tab):
-    """Teste _on_activate_theme sans sélection."""
-    tab.current_theme = None
-    from ui.tabs.ui_tab_theme_config import _on_activate_theme
-
-    with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_error:
-        _on_activate_theme(tab)
-        mock_error.assert_called_once_with("Veuillez sélectionner un thème")
-
-
 def test_on_theme_selected_no_preview(tab):
     """Teste _on_theme_selected avec un thème sans aperçu."""
     row = MagicMock(spec=Gtk.ListBoxRow)
@@ -1194,17 +1069,6 @@ def test_scan_grub_scripts_executable(tab):
     assert tab.scripts_info_box.append.called
 
 
-def test_on_activate_script_failure(tab):
-    """Teste l'échec de l'activation d'un script."""
-    tab.script_service.make_executable.return_value = False
-
-    from ui.tabs.ui_tab_theme_config import _on_activate_script
-
-    with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_error:
-        _on_activate_script(None, "/path/to/script", tab)
-        mock_error.assert_called_once()
-
-
 def test_on_open_editor_with_root(tab):
     """Teste _on_open_editor en trouvant le root."""
     tab.parent_window = None
@@ -1217,17 +1081,6 @@ def test_on_open_editor_with_root(tab):
     with patch("ui.tabs.ui_tab_theme_config.ThemeEditorDialog") as mock_dialog:
         _on_open_editor(tab, button)
         mock_dialog.assert_called_once()
-
-
-def test_on_preview_theme_exception(tab):
-    """Teste _on_preview_theme avec une exception."""
-    tab.current_theme = GrubTheme(name="Test")
-    from ui.tabs.ui_tab_theme_config import _on_preview_theme
-
-    with patch("ui.tabs.ui_tab_theme_config.GrubPreviewDialog", side_effect=RuntimeError("Preview error")):
-        with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_error:
-            _on_preview_theme(tab)
-            assert mock_error.called
 
 
 def test_on_activate_theme_exception(tab):
@@ -1269,7 +1122,7 @@ def test_scan_system_themes_no_list_box(tab):
     """Teste _scan_system_themes sans list_box."""
     tab.theme_list_box = None
     tab._scan_system_themes()
-    assert tab.theme_service.scan_system_themes.called == False
+    assert not tab.theme_service.scan_system_themes.called
 
 
 def test_on_theme_selected_row_none(tab):
@@ -1317,11 +1170,11 @@ def test_on_delete_theme_no_parent_with_button(tab):
         _on_delete_theme(button, "custom", tab)
         mock_dialog.choose.assert_called()
         # Vérifier que le parent passé à choose est mock_root
-        args, kwargs = mock_dialog.choose.call_args
+        _, kwargs = mock_dialog.choose.call_args
         assert kwargs["parent"] == mock_root
 
 
-def test_on_open_editor_exception(tab):
+def test_on_open_editor_with_error(tab):
     """Teste _on_open_editor avec une exception."""
     tab.parent_window = MagicMock()
     with patch("ui.tabs.ui_tab_theme_config.ThemeEditorDialog", side_effect=RuntimeError("Editor Error")):
@@ -1455,3 +1308,31 @@ def test_scan_system_themes_system_badge(tab):
     tab.theme_service.is_theme_custom.return_value = False
     tab._scan_system_themes()
     assert tab.theme_list_box.append.called
+
+
+def test_scan_grub_scripts_with_children(tab):
+    """Teste _scan_grub_scripts avec des enfants à supprimer."""
+    # Créer un mock pour scripts_info_box avec des enfants
+    tab.scripts_info_box = MagicMock()
+    child1 = MagicMock()
+    child2 = MagicMock()
+
+    # Simuler get_first_child() qui retourne enfants puis None
+    tab.scripts_info_box.get_first_child.side_effect = [child1, child2, None]
+
+    # Mock du service
+    tab.script_service.scan_theme_scripts.return_value = []
+
+    _scan_grub_scripts(tab)
+
+    # Vérifier que remove a été appelé pour chaque enfant
+    assert tab.scripts_info_box.remove.call_count == 2
+
+
+def test_on_preview_theme_no_theme_selected(tab):
+    """Teste _on_preview_theme quand aucun thème n'est sélectionné."""
+    tab.current_theme = None
+
+    with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_error:
+        _on_preview_theme(tab)
+        mock_error.assert_called_once_with("Veuillez sélectionner un thème")

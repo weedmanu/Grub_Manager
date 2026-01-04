@@ -70,42 +70,6 @@ def test_render_entries_filters_memtest_and_advanced_are_executed():
     assert child.get_next_sibling() is None
 
 
-def test_render_entries_no_listbox():
-    controller = MagicMock()
-    controller.entries_listbox = None
-    render_entries(controller)
-    # Should just return without error
-
-
-def test_render_entries_basic():
-    controller = MagicMock()
-    controller.entries_listbox = Gtk.ListBox()
-
-    state_data = controller.state_manager.state_data
-    state_data.entries = [
-        GrubDefaultChoice(id="0", title="Ubuntu", menu_id="ubuntu-id", source="10_linux"),
-        GrubDefaultChoice(id="1", title="Windows", menu_id="osprober-id", source="30_os-prober"),
-        GrubDefaultChoice(id="2", title="Ubuntu (recovery)", menu_id="recovery-id", source="10_linux"),
-    ]
-    state_data.model.default = "0"
-
-    controller.disable_recovery_check.get_active.return_value = False
-    controller.disable_os_prober_check.get_active.return_value = False
-    controller.disable_submenu_check.get_active.return_value = False
-
-    controller.state_manager.hidden_entry_ids = ["osprober-id"]
-
-    render_entries(controller)
-
-    # Check that 3 entries were added
-    count = 0
-    child = controller.entries_listbox.get_first_child()
-    while child:
-        count += 1
-        child = child.get_next_sibling()
-    assert count == 3
-
-
 def test_render_entries_filters():
     controller = MagicMock()
     controller.entries_listbox = Gtk.ListBox()
@@ -223,7 +187,6 @@ import pytest
 os.environ["GDK_BACKEND"] = "headless"
 
 
-
 def test_entry_is_recovery():
     assert _entry_is_recovery("Linux recovery mode") is True
     assert _entry_is_recovery("Linux recup") is True
@@ -308,28 +271,6 @@ def test_render_entries_basic(controller):
         render_entries(controller)
 
     assert controller.entries_listbox.append.called
-
-
-def test_render_entries_filters(controller):
-    e_rec = MagicMock(spec=GrubDefaultChoice)
-    e_rec.title = "Recovery"
-    e_rec.menu_id = "rec"
-    e_rec.source = "10_linux"
-
-    e_os = MagicMock(spec=GrubDefaultChoice)
-    e_os.title = "Windows"
-    e_os.menu_id = "osprober-win"
-    e_os.source = "30_os-prober"
-
-    controller.state_manager.state_data.entries = [e_rec, e_os]
-    controller.disable_recovery_check.get_active.return_value = True
-    controller.disable_os_prober_check.get_active.return_value = True
-
-    with patch("ui.tabs.ui_entries_renderer.clear_listbox"):
-        render_entries(controller)
-
-    # Both should be filtered out
-    assert controller.entries_listbox.append.call_count == 0
 
 
 def test_render_entries_simulated_os_prober(controller):

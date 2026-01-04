@@ -1,3 +1,13 @@
+"""Configuration pytest: harnais de tests GTK/Adw headless avec sécurité.
+
+Active:
+- Backend GTK headless (pas d'affichage)
+- Mocks GLib timers/idle
+- Blocage subprocess (sécurité)
+- Limites CPU/RAM Linux (protection machine)
+- Faulthandler pour diagnostiquer les hangs
+"""
+
 import os
 import subprocess
 import sys
@@ -35,7 +45,6 @@ def _apply_resource_limits() -> None:
       - PYTEST_MEM_LIMIT_MB (défaut 2048)
       - PYTEST_DISABLE_RESOURCE_LIMITS=1 pour désactiver
     """
-
     if os.environ.get("PYTEST_DISABLE_RESOURCE_LIMITS") in {"1", "true", "yes"}:
         return
 
@@ -68,7 +77,6 @@ def _apply_resource_limits() -> None:
 
 def _enable_faulthandler() -> None:
     """Active les dumps de stack en cas de hang/timeout pour garder du contrôle."""
-
     try:
         import faulthandler
 
@@ -91,7 +99,7 @@ def pytest_configure(config):
     # Mocker Adw.init
     try:
         Adw.init = MagicMock(return_value=True)
-    except:
+    except Exception:
         pass
 
     # Mocker GLib.timeout_add et timeout_add_seconds pour éviter les timers réels

@@ -94,6 +94,14 @@ ignore = [
     "E501",   # line too long (handled by black)
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"ui/ui_infobar_controller.py" = ["E402"]
+"ui/ui_manager.py" = ["E402"]
+"ui/ui_workflow_controller.py" = ["E402"]
+"tests/ui/*.py" = ["E402"]
+"tests/**/*.py" = ["N806", "N815", "N816"]  # Test naming conventions
+"tests/conftest.py" = ["E402"]
+
 [tool.mypy]
 python_version = "3.12"
 warn_return_any = true
@@ -169,6 +177,7 @@ disable = [
     "too-many-statements",
     "too-many-instance-attributes",
     "protected-access",
+    "wrong-import-position",
 ]
 
 [tool.pylint.format]

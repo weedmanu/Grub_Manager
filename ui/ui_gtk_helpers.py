@@ -22,7 +22,6 @@ class GtkHelper:
         Returns:
             Une fenêtre GTK si trouvée, sinon `fallback`.
         """
-
         for widget in widgets:
             if widget is None:
                 continue

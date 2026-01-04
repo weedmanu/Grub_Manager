@@ -7,7 +7,7 @@ import pytest
 
 gi.require_version("Gtk", "4.0")
 
-from gi.repository import Gtk  # noqa: E402
+from gi.repository import Gtk
 
 # Skip tous les tests UI si GTK n'est pas disponible
 pytest.importorskip("gi")

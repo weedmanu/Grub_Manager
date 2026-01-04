@@ -18,31 +18,31 @@ from loguru import logger
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gio", "2.0")
-from gi.repository import Gtk  # noqa: E402
+from gi.repository import Gtk
 
-from core.managers.core_entry_visibility_manager import (  # noqa: E402
-    save_hidden_entry_ids,
-)
-from core.system.core_grub_system_commands import (  # noqa: E402
-    GrubDefaultChoice,
-    GrubUiModel,
-    load_grub_ui_state,
-)
-from core.system.core_sync_checker import check_grub_sync  # noqa: E402
-from ui.tabs.ui_entries_renderer import render_entries as render_entries_view  # noqa: E402
-from ui.ui_builder import UIBuilder  # noqa: E402
-from ui.ui_gtk_helpers import GtkHelper  # noqa: E402
-from ui.ui_infobar_controller import InfoBarController, INFO, WARNING, ERROR  # noqa: E402
-from ui.ui_model_mapper import ModelWidgetMapper  # noqa: E402
-from ui.ui_workflow_controller import WorkflowController  # noqa: E402
-from ui.ui_state import AppState, AppStateManager  # noqa: E402
+from core.config.core_paths import get_grub_themes_dir
+from core.managers.core_apply_manager import GrubApplyManager
+from core.managers.core_entry_visibility_manager import apply_hidden_entries_to_grub_cfg, save_hidden_entry_ids
+from core.models.core_grub_ui_model import merged_config_from_model
+from core.system.core_grub_system_commands import GrubDefaultChoice, GrubUiModel, load_grub_ui_state
+from core.system.core_sync_checker import check_grub_sync
+from core.theme.core_active_theme_manager import ActiveThemeManager
+from ui.tabs.ui_entries_renderer import render_entries as render_entries_view
+from ui.ui_builder import UIBuilder
+from ui.ui_gtk_helpers import GtkHelper
+from ui.ui_infobar_controller import InfoBarController, INFO, WARNING, ERROR
+from ui.ui_model_mapper import ModelWidgetMapper
+from ui.ui_workflow_controller import WorkflowController
+from ui.ui_state import AppState, AppStateManager
 
-# Re-exports pour compatibilité avec les tests existants
-from core.managers.core_apply_manager import GrubApplyManager  # noqa: F401
-from core.models.core_grub_ui_model import merged_config_from_model  # noqa: F401
-from core.theme.core_active_theme_manager import ActiveThemeManager  # noqa: F401
-from core.managers.core_entry_visibility_manager import apply_hidden_entries_to_grub_cfg  # noqa: F401
-from core.config.core_paths import get_grub_themes_dir  # noqa: F401
+__all__ = [
+    "ActiveThemeManager",
+    "GrubApplyManager",
+    "GrubConfigManager",
+    "apply_hidden_entries_to_grub_cfg",
+    "get_grub_themes_dir",
+    "merged_config_from_model",
+]
 
 
 class GrubConfigManager(Gtk.ApplicationWindow):

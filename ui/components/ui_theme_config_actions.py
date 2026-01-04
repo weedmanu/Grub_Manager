@@ -17,6 +17,8 @@ VERTICAL = Gtk.Orientation.VERTICAL
 
 @dataclass(frozen=True)
 class ThemeConfigRightColumnParts:
+    """Widgets de la colonne de droite (actions + outils) de l'onglet thèmes."""
+
     actions_title: Gtk.Label
     actions_box: Gtk.Box
     global_actions_box: Gtk.Box
@@ -40,6 +42,12 @@ def build_theme_config_right_column(
     Ne modifie pas l'UX: mêmes labels, mêmes styles, même disposition.
     """
 
+    def _on_activate_clicked(_button: Gtk.Button) -> None:
+        on_activate()
+
+    def _on_preview_clicked(_button: Gtk.Button) -> None:
+        on_preview()
+
     actions_title = Gtk.Label(xalign=0)
     actions_title.set_markup("<b>Actions sur la sélection</b>")
     actions_title.add_css_class("section-title")
@@ -50,13 +58,13 @@ def build_theme_config_right_column(
     activate_btn.set_halign(Gtk.Align.FILL)
     activate_btn.set_sensitive(False)
     activate_btn.add_css_class("suggested-action")
-    activate_btn.connect("clicked", lambda _b: on_activate())
+    activate_btn.connect("clicked", _on_activate_clicked)
     actions_box.append(activate_btn)
 
     preview_btn = Gtk.Button(label="👁️ Aperçu")
     preview_btn.set_halign(Gtk.Align.FILL)
     preview_btn.set_sensitive(False)
-    preview_btn.connect("clicked", lambda _b: on_preview())
+    preview_btn.connect("clicked", _on_preview_clicked)
     actions_box.append(preview_btn)
 
     sep_actions = Gtk.Separator(orientation=HORIZONTAL)
@@ -67,14 +75,14 @@ def build_theme_config_right_column(
     edit_btn = Gtk.Button(label="✏️ Modifier")
     edit_btn.set_halign(Gtk.Align.FILL)
     edit_btn.set_sensitive(False)
-    edit_btn.connect("clicked", lambda b: on_edit(b))
+    edit_btn.connect("clicked", on_edit)
     actions_box.append(edit_btn)
 
     delete_btn = Gtk.Button(label="🗑️ Supprimer")
     delete_btn.set_halign(Gtk.Align.FILL)
     delete_btn.set_sensitive(False)
     delete_btn.add_css_class("destructive-action")
-    delete_btn.connect("clicked", lambda b: on_delete(b))
+    delete_btn.connect("clicked", on_delete)
     actions_box.append(delete_btn)
 
     global_actions_box = Gtk.Box(orientation=VERTICAL, spacing=8)
@@ -88,7 +96,7 @@ def build_theme_config_right_column(
 
     editor_btn = Gtk.Button(label="➕ Créer un nouveau thème")  # noqa: RUF001
     editor_btn.set_halign(Gtk.Align.FILL)
-    editor_btn.connect("clicked", lambda b: on_open_editor(b))
+    editor_btn.connect("clicked", on_open_editor)
     global_actions_box.append(editor_btn)
 
     return ThemeConfigRightColumnParts(

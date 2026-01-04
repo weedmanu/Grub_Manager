@@ -32,6 +32,7 @@ class WorkflowController:
         self,
         window: Gtk.Window,
         state_manager: AppStateManager,
+        *,
         save_btn: Gtk.Button | None,
         reload_btn: Gtk.Button | None,
         load_config_cb: Callable[[], None],
@@ -158,7 +159,7 @@ class WorkflowController:
 
                     if not matches:
                         logger.warning("[WorkflowController._perform_save] ATTENTION: Valeurs écrites incohérentes")
-                except Exception as e:
+                except (OSError, RuntimeError, ValueError, TypeError) as e:
                     logger.warning(f"[WorkflowController._perform_save] Impossible de vérifier: {e}")
 
                 self.state_manager.update_state_data(
@@ -178,7 +179,7 @@ class WorkflowController:
                             used_path, masked = apply_hidden_entries_to_grub_cfg(self.state_manager.hidden_entry_ids)
                             self.state_manager.entries_visibility_dirty = False
                             msg += f"\nEntrées masquées: {masked} ({used_path})"
-                        except Exception as e:
+                        except (OSError, RuntimeError, ValueError, TypeError) as e:
                             logger.error(f"[WorkflowController._perform_save] ERREUR masquage: {e}")
                             msg += f"\nAttention: Masquage échoué: {e}"
                             msg_type = WARNING
@@ -190,7 +191,7 @@ class WorkflowController:
                 self.state_manager.apply_state(AppState.DIRTY, self.save_btn, self.reload_btn)
                 self.show_info_cb(f"Erreur: {result.message}", ERROR)
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, TypeError) as e:
             logger.exception("[WorkflowController._perform_save] ERREUR inattendue")
             self.state_manager.apply_state(AppState.DIRTY, self.save_btn, self.reload_btn)
             self.show_info_cb(f"Erreur inattendue: {e}", ERROR)

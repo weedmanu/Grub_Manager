@@ -1,3 +1,5 @@
+"""Tests pour le constructeur d'interface utilisateur UIBuilder."""
+
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -9,6 +11,7 @@ from ui.ui_builder import UIBuilder
 
 
 def test_create_main_ui():
+    """Test la création de l'interface principale."""
     # Mock window (GrubConfigManager)
     window = MagicMock()
 

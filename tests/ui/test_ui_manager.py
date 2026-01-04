@@ -1,3 +1,5 @@
+"""Tests pour le gestionnaire d'interface utilisateur GrubConfigManager."""
+
 import dataclasses
 from unittest.mock import MagicMock, patch
 
@@ -17,33 +19,45 @@ ERROR = "error"
 
 
 class MockStringList:
+    """Mock pour Gtk.StringList."""
+
     def __init__(self, items=None):
+        """Initialise le mock avec une liste d'éléments."""
         self.items = list(items or [])
 
     def get_n_items(self):
+        """Retourne le nombre d'éléments."""
         return len(self.items)
 
     def get_string(self, index):
+        """Retourne la chaîne à l'index donné."""
         if 0 <= index < len(self.items):
             return self.items[index]
         return None
 
     def splice(self, position, n_removals, additions):
+        """Simule l'opération splice."""
         self.items[position : position + n_removals] = list(additions)
 
     def append(self, item):
+        """Ajoute un élément à la fin."""
         self.items.append(item)
 
     def remove(self, index):
+        """Supprime l'élément à l'index donné."""
         if 0 <= index < len(self.items):
             self.items.pop(index)
 
     def __iter__(self):
+        """Retourne un itérateur sur les éléments."""
         return iter(self.items)
 
 
 class GrubConfigManagerFull(GrubConfigManager):
+    """Version étendue de GrubConfigManager pour les tests avec mocks injectés."""
+
     def __init__(self, application):
+        """Initialise le manager avec des mocks pour l'état et l'UI."""
         self.application = application
         self.set_default_size = MagicMock()
 
@@ -60,7 +74,8 @@ class GrubConfigManagerFull(GrubConfigManager):
         self.state_manager.is_loading = MagicMock(return_value=False)
 
         def _set_loading(value: bool):
-            self.state_manager.is_loading.return_value = bool(value)
+            # pylint: disable=no-member
+            self.state_manager.is_loading.return_value = bool(value)  # type: ignore[attr-defined]
 
         def _mark_dirty(*_args, **_kwargs):
             self.state_manager.modified = True
@@ -811,9 +826,10 @@ def test_on_hide_category_toggled_loading_returns(manager):
     widget._category_name = "advanced_options"
     manager.state_manager.is_loading.return_value = True
 
-    with patch("ui.ui_manager.render_entries_view") as mock_render, patch(
-        "ui.ui_manager.save_hidden_entry_ids"
-    ) as mock_save:
+    with (
+        patch("ui.ui_manager.render_entries_view") as mock_render,
+        patch("ui.ui_manager.save_hidden_entry_ids") as mock_save,
+    ):
         manager.on_hide_category_toggled(widget)
         assert not mock_render.called
         assert not mock_save.called
@@ -826,9 +842,10 @@ def test_on_hide_category_toggled_unknown_category_returns(manager):
 
     manager.state_manager.is_loading.return_value = False
 
-    with patch("ui.ui_manager.render_entries_view") as mock_render, patch(
-        "ui.ui_manager.save_hidden_entry_ids"
-    ) as mock_save:
+    with (
+        patch("ui.ui_manager.render_entries_view") as mock_render,
+        patch("ui.ui_manager.save_hidden_entry_ids") as mock_save,
+    ):
         manager.on_hide_category_toggled(widget)
         assert not mock_render.called
         assert not mock_save.called
@@ -842,9 +859,10 @@ def test_on_hide_category_toggled_no_matching_ids_returns(manager):
     manager.state_manager.is_loading.return_value = False
     manager.state_manager.state_data = GrubUiState(model=GrubUiModel(), entries=[], raw_config={})
 
-    with patch("ui.ui_manager.render_entries_view") as mock_render, patch(
-        "ui.ui_manager.save_hidden_entry_ids"
-    ) as mock_save:
+    with (
+        patch("ui.ui_manager.render_entries_view") as mock_render,
+        patch("ui.ui_manager.save_hidden_entry_ids") as mock_save,
+    ):
         manager.on_hide_category_toggled(widget)
         assert not mock_render.called
         assert not mock_save.called
@@ -891,8 +909,10 @@ def test_on_hide_category_toggled_advanced_skips_invalid_and_non_matching_entrie
     manager.state_manager.state_data = GrubUiState(model=GrubUiModel(), entries=[e0, e1, e2], raw_config={})
     manager.state_manager.hidden_entry_ids = set()
 
-    with patch("ui.ui_manager.render_entries_view"), patch("ui.ui_manager.save_hidden_entry_ids"), patch.object(
-        manager, "_apply_state"
+    with (
+        patch("ui.ui_manager.render_entries_view"),
+        patch("ui.ui_manager.save_hidden_entry_ids"),
+        patch.object(manager, "_apply_state"),
     ):
         manager.on_hide_category_toggled(widget)
 
@@ -911,8 +931,10 @@ def test_on_hide_category_toggled_memtest_removes_ids(manager):
     manager.state_manager.state_data = GrubUiState(model=GrubUiModel(), entries=[e1], raw_config={})
     manager.state_manager.hidden_entry_ids = {"id-mem"}
 
-    with patch("ui.ui_manager.render_entries_view"), patch("ui.ui_manager.save_hidden_entry_ids"), patch.object(
-        manager, "_apply_state"
+    with (
+        patch("ui.ui_manager.render_entries_view"),
+        patch("ui.ui_manager.save_hidden_entry_ids"),
+        patch.object(manager, "_apply_state"),
     ):
         manager.on_hide_category_toggled(widget)
 
@@ -933,8 +955,10 @@ def test_on_hide_category_toggled_memtest_adds_ids(manager):
     manager.state_manager.state_data = GrubUiState(model=GrubUiModel(), entries=[e0, e1, e2], raw_config={})
     manager.state_manager.hidden_entry_ids = set()
 
-    with patch("ui.ui_manager.render_entries_view"), patch("ui.ui_manager.save_hidden_entry_ids"), patch.object(
-        manager, "_apply_state"
+    with (
+        patch("ui.ui_manager.render_entries_view"),
+        patch("ui.ui_manager.save_hidden_entry_ids"),
+        patch.object(manager, "_apply_state"),
     ):
         manager.on_hide_category_toggled(widget)
 

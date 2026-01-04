@@ -119,7 +119,7 @@ def test_on_restore_clicked_exception(mock_controller):
     with (
         patch("ui.tabs.ui_tab_backups.os.geteuid", return_value=0),
         patch("ui.tabs.ui_tab_backups.restore_grub_default_backup", side_effect=Exception("Err")),
-        patch("ui.tabs.ui_tab_backups.confirm_action", side_effect=lambda cb, m, c: cb()),
+        patch("ui.tabs.ui_tab_backups.confirm_action", side_effect=lambda cb, *_: cb()),
     ):
         mock_controller.backup_paths = ["/p"]
         ui_backups._on_restore_clicked(None, mock_controller, dropdown)
@@ -132,7 +132,7 @@ def test_on_restore_clicked_typed_exception_branch(mock_controller):
     with (
         patch("ui.tabs.ui_tab_backups.os.geteuid", return_value=0),
         patch("ui.tabs.ui_tab_backups.restore_grub_default_backup", side_effect=ValueError("Bad")),
-        patch("ui.tabs.ui_tab_backups.confirm_action", side_effect=lambda cb, m, c: cb()),
+        patch("ui.tabs.ui_tab_backups.confirm_action", side_effect=lambda cb, *_: cb()),
     ):
         mock_controller.backup_paths = ["/p"]
         ui_backups._on_restore_clicked(None, mock_controller, dropdown)
@@ -156,7 +156,7 @@ def test_on_delete_clicked_typed_exception_branch(mock_controller):
     with (
         patch("ui.tabs.ui_tab_backups.os.geteuid", return_value=0),
         patch("ui.tabs.ui_tab_backups.delete_grub_default_backup", side_effect=ValueError("Bad")),
-        patch("ui.tabs.ui_tab_backups.confirm_action", side_effect=lambda cb, m, c: cb()),
+        patch("ui.tabs.ui_tab_backups.confirm_action", side_effect=lambda cb, *_: cb()),
     ):
         mock_controller.backup_paths = ["/p"]
         ui_backups._on_delete_clicked(None, mock_controller, dropdown, lambda: None)
@@ -178,7 +178,7 @@ def test_on_delete_clicked_exception(mock_controller):
     with (
         patch("ui.tabs.ui_tab_backups.os.geteuid", return_value=0),
         patch("ui.tabs.ui_tab_backups.delete_grub_default_backup", side_effect=Exception("Err")),
-        patch("ui.tabs.ui_tab_backups.confirm_action", side_effect=lambda cb, m, c: cb()),
+        patch("ui.tabs.ui_tab_backups.confirm_action", side_effect=lambda cb, *_: cb()),
     ):
         mock_controller.backup_paths = ["/p"]
         ui_backups._on_delete_clicked(None, mock_controller, dropdown, None)
@@ -206,7 +206,7 @@ def test_on_restore_clicked_success(mock_controller):
     with (
         patch("ui.tabs.ui_tab_backups.os.geteuid", return_value=0),
         patch("ui.tabs.ui_tab_backups.restore_grub_default_backup"),
-        patch("ui.tabs.ui_tab_backups.confirm_action", side_effect=lambda cb, m, c: cb()),
+        patch("ui.tabs.ui_tab_backups.confirm_action", side_effect=lambda cb, *_: cb()),
     ):
         mock_controller.backup_paths = ["/p"]
         ui_backups._on_restore_clicked(None, mock_controller, dropdown)
@@ -220,7 +220,7 @@ def test_on_delete_clicked_success(mock_controller):
     with (
         patch("ui.tabs.ui_tab_backups.os.geteuid", return_value=0),
         patch("ui.tabs.ui_tab_backups.delete_grub_default_backup"),
-        patch("ui.tabs.ui_tab_backups.confirm_action", side_effect=lambda cb, m, c: cb()),
+        patch("ui.tabs.ui_tab_backups.confirm_action", side_effect=lambda cb, *_: cb()),
     ):
         mock_controller.backup_paths = ["/p"]
         ui_backups._on_delete_clicked(None, mock_controller, dropdown, refresh_callback)
