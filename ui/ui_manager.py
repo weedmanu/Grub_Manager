@@ -35,6 +35,7 @@ from ui.ui_infobar_controller import InfoBarController, INFO, WARNING, ERROR
 from ui.ui_model_mapper import ModelWidgetMapper
 from ui.ui_workflow_controller import WorkflowController
 from ui.ui_state import AppState, AppStateManager
+from ui.controllers import TimeoutController, DefaultChoiceController, PermissionController
 
 __all__ = [
     "ActiveThemeManager",
@@ -96,6 +97,11 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         self.infobar: InfoBarController | None = None
         self.workflow: WorkflowController | None = None
         self.state_manager = AppStateManager()
+        
+        # Contrôleurs SRP (Single Responsibility)
+        self.timeout_ctrl = TimeoutController(self)
+        self.default_ctrl = DefaultChoiceController(self)
+        self.perm_ctrl = PermissionController()
 
         self.create_ui()
         self.load_config()
@@ -296,16 +302,7 @@ class GrubConfigManager(Gtk.ApplicationWindow):
 
     def check_permissions(self):
         """Affiche un avertissement si l'application n'a pas les droits root."""
-        uid = os.geteuid()
-        if uid != 0:
-            logger.warning(f"[check_permissions] ATTENTION: Non exécuté en tant que root (uid={uid})")
-            self.show_info(
-                "Cette application nécessite les droits administrateur pour modifier la configuration GRUB. "
-                "Relancez avec: sudo python3 " + os.path.basename(__file__),
-                WARNING,
-            )
-        else:
-            logger.success("[check_permissions] Exécuté en tant que root - OK")
+        self.perm_ctrl.check_and_warn(self.show_info)
 
     def load_config(self):
         """Charge la configuration depuis le système et met à jour l'UI."""

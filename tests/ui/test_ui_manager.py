@@ -131,6 +131,12 @@ class GrubConfigManagerFull(GrubConfigManager):
         self.workflow = MagicMock()
         self.infobar = None
 
+        # Contrôleurs SRP (Single Responsibility)
+        from ui.controllers import TimeoutController, DefaultChoiceController, PermissionController
+        self.timeout_ctrl = TimeoutController(self)
+        self.default_ctrl = DefaultChoiceController(self)
+        self.perm_ctrl = PermissionController()
+
         # show_info est souvent asserté dans les tests, mais on veut aussi exécuter la logique
         # réelle (fallback info_label/info_revealer si infobar absent).
         real_show_info = GrubConfigManager.show_info.__get__(self, GrubConfigManagerFull)
@@ -196,7 +202,8 @@ def test_check_permissions_non_root(manager):
         manager.check_permissions()
         manager.show_info.assert_called_once()
         args = manager.show_info.call_args[0]
-        assert "nécessite les droits administrateur" in args[0]
+        # Vérifier que le message mentionne l'absence de droits root
+        assert "droits root" in args[0] or "administrateur" in args[0]
 
 
 def test_real_init_calls_create_ui_load_config_and_check_permissions():
