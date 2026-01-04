@@ -402,12 +402,25 @@ def test_load_config_file_not_found(manager):
 
 
 def test_load_config_exceptions(manager):
-    """Test load_config exception handling."""
+    """Test load_config exception handling for OSError."""
     manager.info_label = MagicMock()
-    with patch("ui.ui_manager.check_grub_sync", side_effect=OSError("Unexpected")):
+    sync_status = SyncStatus(
+        in_sync=True,
+        grub_default_exists=True,
+        grub_cfg_exists=True,
+        message="OK",
+        grub_default_mtime=0,
+        grub_cfg_mtime=0,
+    )
+    with (
+        patch("ui.ui_manager.check_grub_sync", return_value=sync_status),
+        patch("ui.ui_manager.load_grub_ui_state", side_effect=OSError("Permission denied")),
+    ):
         manager.load_config()
         # Should show error info
         assert manager.show_info.called
+        args = manager.show_info.call_args[0]
+        assert "Impossible de lire la configuration" in args[0]
 
 
 # --- Model UI Sync ---
@@ -1022,6 +1035,29 @@ def test_hide_info_callback_none_revealer(manager):
     manager.info_revealer = None
     result = manager.hide_info_callback()
     assert result is False
+
+
+def test_load_config_parsing_error(manager):
+    """Test load_config exception handling for GrubParsingError."""
+    manager.info_label = MagicMock()
+    sync_status = SyncStatus(
+        in_sync=True,
+        grub_default_exists=True,
+        grub_cfg_exists=True,
+        message="OK",
+        grub_default_mtime=0,
+        grub_cfg_mtime=0,
+    )
+    from core.core_exceptions import GrubParsingError
+    with (
+        patch("ui.ui_manager.check_grub_sync", return_value=sync_status),
+        patch("ui.ui_manager.load_grub_ui_state", side_effect=GrubParsingError("Invalid config")),
+    ):
+        manager.load_config()
+        # Should show error info
+        assert manager.show_info.called
+        args = manager.show_info.call_args[0]
+        assert "Configuration GRUB invalide" in args[0]
 
 
 def test_hide_info_callback_delegates_when_infobar_present(manager):
