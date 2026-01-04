@@ -12,7 +12,7 @@ from core.io.core_grub_menu_parser import get_simulated_os_prober_entries
 
 
 @dataclass
-class GrubConfig:
+class GrubConfig:  # pylint: disable=too-many-instance-attributes
     """Configuration GRUB lue depuis /etc/default/grub."""
 
     timeout: int = 10

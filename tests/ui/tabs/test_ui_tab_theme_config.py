@@ -81,7 +81,7 @@ def test_load_themes_active(tab_theme_config):
     with (
         patch.object(tab_theme_config.theme_manager, "load_active_theme", return_value=mock_theme),
         patch.object(tab_theme_config.theme_service, "is_theme_enabled_in_grub", return_value=True),
-        patch.object(tab_theme_config, "_scan_system_themes") as mock_scan,
+        patch.object(tab_theme_config, "scan_system_themes") as mock_scan,
         patch("ui.tabs.ui_tab_theme_config._scan_grub_scripts") as mock_scan_scripts,
     ):
 
@@ -99,7 +99,7 @@ def test_load_themes_no_active(tab_theme_config):
     """Test le chargement des thèmes sans thème actif."""
     with (
         patch.object(tab_theme_config.theme_manager, "load_active_theme", return_value=None),
-        patch.object(tab_theme_config, "_scan_system_themes"),
+        patch.object(tab_theme_config, "scan_system_themes"),
     ):
 
         tab_theme_config.build()
@@ -118,7 +118,7 @@ def test_scan_system_themes(tab_theme_config):
     mock_path.iterdir.return_value = []
 
     with patch("ui.tabs.ui_tab_theme_config.get_all_grub_themes_dirs", return_value=[mock_path]):
-        tab_theme_config._scan_system_themes()
+        tab_theme_config.scan_system_themes()
         # Si aucun thème trouvé, on ajoute un placeholder
         assert tab_theme_config.theme_list_box.get_first_child() is not None
 
@@ -133,7 +133,7 @@ def test_scan_system_themes_found(tab_theme_config):
     with patch.object(
         tab_theme_config.theme_service, "scan_system_themes", return_value={"MyTheme": (mock_theme, mock_path)}
     ):
-        tab_theme_config._scan_system_themes()
+        tab_theme_config.scan_system_themes()
 
         assert "MyTheme" in tab_theme_config.available_themes
         # Vérifier qu'une ligne a été ajoutée (pas le placeholder)
@@ -176,7 +176,7 @@ def test_on_theme_switch_toggled(tab_theme_config):
 
     with (
         patch("ui.tabs.ui_tab_theme_config._scan_grub_scripts") as mock_scan_scripts,
-        patch.object(tab_theme_config, "_scan_system_themes") as mock_scan_themes,
+        patch.object(tab_theme_config, "scan_system_themes") as mock_scan_themes,
     ):
 
         tab_theme_config.theme_switch.set_active(True)
@@ -345,7 +345,7 @@ def test_scan_system_themes_dir_not_exists(tab_theme_config):
     mock_path.exists.return_value = False
 
     with patch("ui.tabs.ui_tab_theme_config.get_all_grub_themes_dirs", return_value=[mock_path]):
-        tab_theme_config._scan_system_themes()
+        tab_theme_config.scan_system_themes()
         # Should continue without error
 
 
@@ -367,7 +367,7 @@ def test_scan_system_themes_create_error(tab_theme_config):
         patch("ui.tabs.ui_tab_theme_config.create_custom_theme", side_effect=ValueError("Invalid theme")),
     ):
 
-        tab_theme_config._scan_system_themes()
+        tab_theme_config.scan_system_themes()
         # Should catch exception and continue
 
 
@@ -380,7 +380,7 @@ def test_on_theme_switch_toggled_widgets_none(tab_theme_config):
     switch = MagicMock()
     switch.get_active.return_value = True
 
-    with patch("ui.tabs.ui_tab_theme_config._scan_grub_scripts"), patch.object(tab_theme_config, "_scan_system_themes"):
+    with patch("ui.tabs.ui_tab_theme_config._scan_grub_scripts"), patch.object(tab_theme_config, "scan_system_themes"):
         _on_theme_switch_toggled(switch, None, tab_theme_config)
         # Should run without error
 
@@ -529,7 +529,7 @@ def test_on_theme_switch_toggled_selects_first_row_when_available(tab_theme_conf
     with (
         patch.object(tab_theme_config, "refresh") as mock_refresh,
         patch("ui.tabs.ui_tab_theme_config._scan_grub_scripts"),
-        patch.object(tab_theme_config, "_scan_system_themes"),
+        patch.object(tab_theme_config, "scan_system_themes"),
     ):
         _on_theme_switch_toggled(switch, None, tab_theme_config)
 
@@ -543,7 +543,7 @@ def test_on_theme_switch_toggled_inactive(tab_theme_config):
 
     with (
         patch("ui.tabs.ui_tab_theme_config._scan_grub_scripts") as mock_scan_scripts,
-        patch.object(tab_theme_config, "_scan_system_themes") as mock_scan_themes,
+        patch.object(tab_theme_config, "scan_system_themes") as mock_scan_themes,
     ):
 
         switch = MagicMock()
@@ -563,7 +563,7 @@ def test_load_themes_scan_exception(tab_theme_config):
 
     with (
         patch.object(tab_theme_config.theme_manager, "load_active_theme", return_value=mock_theme),
-        patch.object(tab_theme_config, "_scan_system_themes", side_effect=OSError("Scan fail")),
+        patch.object(tab_theme_config, "scan_system_themes", side_effect=OSError("Scan fail")),
     ):
 
         # Should catch exception and log error
@@ -786,13 +786,13 @@ def test_on_delete_confirmed_yes(tab):
     user_data = (theme_name, theme_path, tab)
 
     tab.theme_service.delete_theme.return_value = True
-    tab._scan_system_themes = MagicMock()
+    tab.scan_system_themes = MagicMock()
 
     with patch("ui.tabs.ui_tab_theme_config.create_success_dialog") as mock_success:
         _on_delete_confirmed(mock_dialog, None, user_data)
         tab.theme_service.delete_theme.assert_called_once_with(theme_path)
         mock_success.assert_called_once()
-        tab._scan_system_themes.assert_called_once()
+        tab.scan_system_themes.assert_called_once()
 
 
 def test_on_delete_confirmed_no(tab):
@@ -813,19 +813,19 @@ def test_on_delete_confirmed_failure(tab):
 
     user_data = ("Custom", Path("/path"), tab)
     tab.theme_service.delete_theme.return_value = False
-    tab._scan_system_themes = MagicMock()
+    tab.scan_system_themes = MagicMock()
 
     with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_error:
         _on_delete_confirmed(mock_dialog, None, user_data)
         mock_error.assert_called_once()
-        tab._scan_system_themes.assert_called_once()
+        tab.scan_system_themes.assert_called_once()
 
 
 def test_on_delete_confirmed_exception(tab):
     """Teste _on_delete_confirmed avec une exception."""
     mock_dialog = MagicMock(spec=Gtk.AlertDialog)
     mock_dialog.choose_finish.side_effect = RuntimeError("Test Error")
-    tab._scan_system_themes = MagicMock()
+    tab.scan_system_themes = MagicMock()
 
     with patch("ui.tabs.ui_tab_theme_config.create_error_dialog") as mock_error:
         _on_delete_confirmed(mock_dialog, None, None)
@@ -880,11 +880,11 @@ def test_tab_build(tab):
 
 def test_tab_refresh(tab):
     """Teste le rafraîchissement de l'onglet."""
-    tab._scan_system_themes = MagicMock()
+    tab.scan_system_themes = MagicMock()
     with patch("ui.tabs.ui_tab_theme_config._scan_grub_scripts") as mock_scan:
         tab.refresh()
         mock_scan.assert_called_once_with(tab)
-        tab._scan_system_themes.assert_called_once()
+        tab.scan_system_themes.assert_called_once()
 
 
 def test_load_themes_enabled(tab):
@@ -918,7 +918,7 @@ def test_scan_system_themes_empty(tab):
     tab.theme_service.scan_system_themes.return_value = {}
     tab.theme_list_box.get_first_child.side_effect = [MagicMock(), None]
 
-    tab._scan_system_themes()
+    tab.scan_system_themes()
 
     tab.theme_list_box.append.assert_called_once()  # Placeholder
 
@@ -930,7 +930,7 @@ def test_scan_system_themes_with_data(tab):
     tab.theme_service.scan_system_themes.return_value = {"Test": (theme, path)}
     tab.theme_list_box.get_first_child.return_value = None
 
-    tab._scan_system_themes()
+    tab.scan_system_themes()
 
     assert "Test" in tab.available_themes
     assert tab.theme_list_box.append.called
@@ -1121,7 +1121,7 @@ def test_load_themes_no_available_themes(tab):
 def test_scan_system_themes_no_list_box(tab):
     """Teste _scan_system_themes sans list_box."""
     tab.theme_list_box = None
-    tab._scan_system_themes()
+    tab.scan_system_themes()
     assert not tab.theme_service.scan_system_themes.called
 
 
@@ -1188,7 +1188,7 @@ def test_scan_system_themes_custom_badge(tab):
     mock_theme = GrubTheme(name="custom_theme")
     tab.theme_service.scan_system_themes.return_value = {"custom_theme": (mock_theme, Path("/path/to/custom"))}
     tab.theme_service.is_theme_custom.return_value = True
-    tab._scan_system_themes()
+    tab.scan_system_themes()
     assert tab.theme_list_box.append.called
 
 
@@ -1306,7 +1306,7 @@ def test_scan_system_themes_system_badge(tab):
         "system_theme": (mock_theme, Path("/usr/share/grub/themes/system_theme"))
     }
     tab.theme_service.is_theme_custom.return_value = False
-    tab._scan_system_themes()
+    tab.scan_system_themes()
     assert tab.theme_list_box.append.called
 
 

@@ -20,6 +20,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Gio", "2.0")
 from gi.repository import Gtk
 
+from core.core_exceptions import GrubConfigError, GrubParsingError
 from core.config.core_paths import get_grub_themes_dir
 from core.managers.core_apply_manager import GrubApplyManager
 from core.managers.core_entry_visibility_manager import apply_hidden_entries_to_grub_cfg, save_hidden_entry_ids
@@ -112,7 +113,7 @@ class GrubConfigManager(Gtk.ApplicationWindow):
     # HELPERS: Manipulation de widgets GTK (timeout, dropdown, etc.)
     # ========================================================================
 
-    def _get_cmdline_value(self) -> str:
+    def get_cmdline_value(self) -> str:
         """Obtient la valeur de GRUB_CMDLINE_LINUX_DEFAULT depuis le dropdown."""
         cmdline_dropdown = getattr(self, "cmdline_dropdown", None)
         if cmdline_dropdown is None:
@@ -127,7 +128,8 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         # verbose (aucun paramètre)
         return ""
 
-    def _get_timeout_value(self) -> int:
+    def get_timeout_value(self) -> int:
+        """Récupère la valeur du timeout depuis le widget."""
         if self.timeout_dropdown is None:
             return 5
         val_str = GtkHelper.dropdown_get_value(self.timeout_dropdown, auto_prefix="NO_AUTO_PREFIX")
@@ -136,13 +138,14 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         except (ValueError, TypeError):
             return 5
 
-    def _sync_timeout_choices(self, current: int) -> None:
+    def sync_timeout_choices(self, current: int) -> None:
+        """Met à jour la liste des choix du timeout pour inclure la valeur actuelle."""
         if self.timeout_dropdown is None:
-            logger.debug("[_sync_timeout_choices] timeout_dropdown is None")
+            logger.debug("[sync_timeout_choices] timeout_dropdown is None")
             return
         model = self.timeout_dropdown.get_model()
         if model is None:
-            logger.debug("[_sync_timeout_choices] model is None")
+            logger.debug("[sync_timeout_choices] model is None")
             return
 
         base_values = ["0", "1", "2", "5", "10", "30"]
@@ -153,17 +156,17 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         for v in sorted(values, key=int):
             ordered.append(v)
 
-        logger.debug(f"[_sync_timeout_choices] current={current}, ordered={ordered}")
+        logger.debug(f"[sync_timeout_choices] current={current}, ordered={ordered}")
 
         GtkHelper.stringlist_replace_all(model, ordered)
 
         idx = GtkHelper.stringlist_find(model, str(int(current)))
-        logger.debug(f"[_sync_timeout_choices] found idx={idx} for value={int(current)!s}")
+        logger.debug(f"[sync_timeout_choices] found idx={idx} for value={int(current)!s}")
         if idx is not None:
             self.timeout_dropdown.set_selected(idx)
-            logger.debug(f"[_sync_timeout_choices] selected index {idx}")
+            logger.debug(f"[sync_timeout_choices] selected index {idx}")
         else:
-            logger.warning(f"[_sync_timeout_choices] could not find index for value {current}")
+            logger.warning(f"[sync_timeout_choices] could not find index for value {current}")
 
     def _ensure_timeout_choice(self, wanted: str) -> int | None:
         if self.timeout_dropdown is None:
@@ -194,7 +197,8 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         GtkHelper.stringlist_insert(model, insert_at, wanted)
         return GtkHelper.stringlist_find(model, wanted)
 
-    def _set_timeout_value(self, value: int) -> None:
+    def set_timeout_value(self, value: int) -> None:
+        """Définit la valeur sélectionnée dans le dropdown timeout."""
         if self.timeout_dropdown is None:
             return
         wanted = str(int(value))
@@ -204,7 +208,8 @@ class GrubConfigManager(Gtk.ApplicationWindow):
             return
         self.timeout_dropdown.set_selected(0)
 
-    def _refresh_default_choices(self, entries: list[GrubDefaultChoice]) -> None:
+    def refresh_default_choices(self, entries: list[GrubDefaultChoice]) -> None:
+        """Met à jour la liste des choix pour l'entrée par défaut."""
         if self.default_dropdown is None:
             return
         model = self.default_dropdown.get_model()
@@ -218,7 +223,8 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         self.state_manager.update_default_choice_ids(ids)
         GtkHelper.stringlist_replace_all(model, items)
 
-    def _get_default_choice(self) -> str:
+    def get_default_choice(self) -> str:
+        """Récupère l'ID de l'entrée par défaut sélectionnée."""
         if self.default_dropdown is None:
             return "0"
         idx = self.default_dropdown.get_selected()
@@ -229,7 +235,8 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         except Exception:
             return "0"
 
-    def _set_default_choice(self, value: str) -> None:
+    def set_default_choice(self, value: str) -> None:
+        """Définit l'entrée par défaut sélectionnée dans le dropdown."""
         if self.default_dropdown is None:
             return
         wanted = (value or "").strip() or "0"
@@ -260,11 +267,11 @@ class GrubConfigManager(Gtk.ApplicationWindow):
     # SYNCHRONISATION: Modèle ↔ UI
     # ========================================================================
 
-    def _apply_model_to_ui(self, model: GrubUiModel, entries: list[GrubDefaultChoice]) -> None:
+    def apply_model_to_ui(self, model: GrubUiModel, entries: list[GrubDefaultChoice]) -> None:
         """Synchronize data model to GTK4 widgets."""
         ModelWidgetMapper.apply_model_to_ui(self, model, entries)
 
-    def _read_model_from_ui(self) -> GrubUiModel:
+    def read_model_from_ui(self) -> GrubUiModel:
         """Extract current widget values into GrubUiModel for persistence."""
         return ModelWidgetMapper.read_model_from_ui(self)
 
@@ -282,7 +289,7 @@ class GrubConfigManager(Gtk.ApplicationWindow):
             save_btn=self.save_btn,
             reload_btn=self.reload_btn,
             load_config_cb=self.load_config,
-            read_model_cb=self._read_model_from_ui,
+            read_model_cb=self.read_model_from_ui,
             show_info_cb=self.show_info,
         )
         self.state_manager.apply_state(AppState.CLEAN, self.save_btn, self.reload_btn)
@@ -304,62 +311,72 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         """Charge la configuration depuis le système et met à jour l'UI."""
         logger.info("[load_config] Début du chargement de configuration GRUB")
         try:
-            # Vérifier la synchronisation des fichiers GRUB
-            sync_status = check_grub_sync()
-
-            if not sync_status.in_sync and sync_status.grub_default_exists and sync_status.grub_cfg_exists:
-                logger.warning(f"[load_config] Fichiers désynchronisés: {sync_status.message}")
-                self.show_info(
-                    f"⚠ {sync_status.message}",
-                    WARNING,
-                )
+            self._check_sync_status()
 
             state = load_grub_ui_state()
             self.state_manager.update_state_data(state)
-            self._apply_model_to_ui(state.model, state.entries)
+            self.apply_model_to_ui(state.model, state.entries)
             render_entries_view(self)
             self.state_manager.apply_state(AppState.CLEAN, self.save_btn, self.reload_btn)
 
-            # Vérifier si le menu est caché et alerter l'utilisateur
-            if state.model.hidden_timeout:
-                logger.warning("[load_config] Menu GRUB caché (hidden_timeout=True)")
-                self.show_info(
-                    "Info: Le menu GRUB est configuré en mode caché. "
-                    "Décochez 'Cacher le menu' dans l'onglet Général pour l'afficher au démarrage.",
-                    INFO,
-                )
-
-            if self.state_manager.hidden_entry_ids:
-                logger.warning(
-                    f"[load_config] {len(self.state_manager.hidden_entry_ids)} entrée(s) masquée(s): "
-                    f"{self.state_manager.hidden_entry_ids}"
-                )
-                self.show_info(
-                    f"ATTENTION: {len(self.state_manager.hidden_entry_ids)} entrée(s) GRUB sont masquées. "
-                    f"Allez dans l'onglet Entrées pour les gérer.",
-                    WARNING,
-                )
-
-            if not state.entries and os.geteuid() != 0:
-                self.show_info(
-                    "Entrées GRUB indisponibles: lecture de /boot/grub/grub.cfg refusée (droits). "
-                    "Relancez l'application avec pkexec/sudo.",
-                    WARNING,
-                )
-            elif not state.entries and os.geteuid() == 0:
-                self.show_info(
-                    "Aucune entrée GRUB détectée dans grub.cfg. Vérifiez que grub.cfg est présent et valide.",
-                    WARNING,
-                )
+            self._validate_and_warn(state)
 
             logger.success("[load_config] Configuration chargée et UI synchronisée")
 
         except FileNotFoundError as e:
             logger.error(f"[load_config] ERREUR: Fichier /etc/default/grub introuvable - {e}")
             self.show_info("Fichier /etc/default/grub introuvable", ERROR)
-        except Exception as e:
-            logger.exception("[load_config] ERREUR inattendue lors du chargement")
-            self.show_info(f"Erreur lors du chargement: {e!s}", ERROR)
+        except (GrubParsingError, GrubConfigError) as e:
+            logger.error(f"[load_config] Configuration invalide: {e}")
+            self.show_info(f"Configuration GRUB invalide: {e}", ERROR)
+        except OSError as e:
+            logger.error(f"[load_config] Erreur d'accès fichier: {e}")
+            self.show_info(f"Impossible de lire la configuration: {e}", ERROR)
+
+    def _check_sync_status(self):
+        """Vérifie la synchronisation entre /etc/default/grub et grub.cfg."""
+        sync_status = check_grub_sync()
+
+        if not sync_status.in_sync and sync_status.grub_default_exists and sync_status.grub_cfg_exists:
+            logger.warning(f"[load_config] Fichiers désynchronisés: {sync_status.message}")
+            self.show_info(
+                f"⚠ {sync_status.message}",
+                WARNING,
+            )
+
+    def _validate_and_warn(self, state):
+        """Valide l'état chargé et affiche des avertissements si nécessaire."""
+        # Vérifier si le menu est caché et alerter l'utilisateur
+        if state.model.hidden_timeout:
+            logger.warning("[load_config] Menu GRUB caché (hidden_timeout=True)")
+            self.show_info(
+                "Info: Le menu GRUB est configuré en mode caché. "
+                "Décochez 'Cacher le menu' dans l'onglet Général pour l'afficher au démarrage.",
+                INFO,
+            )
+
+        if self.state_manager.hidden_entry_ids:
+            logger.warning(
+                f"[load_config] {len(self.state_manager.hidden_entry_ids)} entrée(s) masquée(s): "
+                f"{self.state_manager.hidden_entry_ids}"
+            )
+            self.show_info(
+                f"ATTENTION: {len(self.state_manager.hidden_entry_ids)} entrée(s) GRUB sont masquées. "
+                f"Allez dans l'onglet Entrées pour les gérer.",
+                WARNING,
+            )
+
+        if not state.entries and os.geteuid() != 0:
+            self.show_info(
+                "Entrées GRUB indisponibles: lecture de /boot/grub/grub.cfg refusée (droits). "
+                "Relancez l'application avec pkexec/sudo.",
+                WARNING,
+            )
+        elif not state.entries and os.geteuid() == 0:
+            self.show_info(
+                "Aucune entrée GRUB détectée dans grub.cfg. Vérifiez que grub.cfg est présent et valide.",
+                WARNING,
+            )
 
     # ========================================================================
     # CALLBACKS: Événements UI
@@ -382,8 +399,8 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         logger.debug(f"[on_hidden_timeout_toggled] hidden_timeout toggled to {active}")
         if active:
             logger.debug("[on_hidden_timeout_toggled] Setting timeout choices to 0")
-            self._sync_timeout_choices(0)
-            self._set_timeout_value(0)
+            self.sync_timeout_choices(0)
+            self.set_timeout_value(0)
         self.on_modified(widget)
 
     def on_menu_options_toggled(self, widget, _pspec=None):
@@ -407,7 +424,7 @@ class GrubConfigManager(Gtk.ApplicationWindow):
             logger.debug("[on_hide_category_toggled] Ignored - loading in progress")
             return
 
-        category = getattr(widget, "_category_name", "")
+        category = getattr(widget, "category_name", "")
         active = bool(widget.get_active())
         entries = list(self.state_manager.state_data.entries or [])
 
@@ -466,15 +483,15 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         if self.workflow:
             self.workflow.on_save(button)
 
-    def _perform_save(self, apply_now: bool):
+    def perform_save(self, apply_now: bool):
         """Wrapper pour compatibilité avec les tests."""
         if self.workflow:
-            self.workflow._perform_save(apply_now)
+            self.workflow.perform_save(apply_now)
 
-    def _hide_info_callback(self):
+    def hide_info_callback(self):
         """Wrapper pour compatibilité avec les tests."""
         if self.infobar:
-            return self.infobar._hide_info_callback()
+            return self.infobar.hide_info_callback()
         return False
 
     def show_info(self, message, msg_type):

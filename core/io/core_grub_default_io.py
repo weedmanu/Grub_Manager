@@ -16,6 +16,7 @@ from pathlib import Path
 from loguru import logger
 
 from ..config.core_paths import GRUB_CFG_PATHS, GRUB_DEFAULT_PATH
+from ..core_exceptions import GrubBackupError, GrubConfigError
 
 
 def _touch_now(path: str) -> None:
@@ -24,6 +25,18 @@ def _touch_now(path: str) -> None:
         os.utime(path, None)
     except OSError:
         pass
+
+
+def _add_to_tar(tar: tarfile.TarFile, source: str | Path, arcname: str, filter_func) -> bool:
+    """Ajoute un fichier au tar avec gestion d'erreurs. Retourne True si ajouté."""
+    try:
+        if os.path.exists(source):
+            tar.add(source, arcname=arcname, filter=filter_func)
+            logger.debug(f"Ajouté au tar: {source} as {arcname}")
+            return True
+    except (OSError, PermissionError) as e:
+        logger.debug(f"Impossible d'ajouter {source} au tar: {e}")
+    return False
 
 
 def _prune_manual_backups(path: str, *, keep: int = 3) -> list[str]:
@@ -83,7 +96,7 @@ def ensure_initial_grub_default_backup(path: str = GRUB_DEFAULT_PATH) -> str | N
         try:
             logger.debug(f"[ensure_initial_grub_default_backup] {path} absent, tentative de restauration")
             _ = read_grub_default(path)
-        except OSError:
+        except (OSError, GrubConfigError):
             logger.warning(f"[ensure_initial_grub_default_backup] Impossible de créer un backup initial: {path} absent")
             return None
 
@@ -104,12 +117,7 @@ def ensure_initial_grub_default_backup(path: str = GRUB_DEFAULT_PATH) -> str | N
 
         with tarfile.open(initial_backup_path, "w:gz", compresslevel=1) as tar:
             # 1. Sauvegarder /etc/default/grub
-            if _safe_is_file(path):
-                try:
-                    tar.add(path, arcname="default_grub", filter=_tar_filter)
-                    logger.debug(f"[ensure_initial_grub_default_backup] Ajouté: {path}")
-                except (OSError, PermissionError) as e:
-                    logger.debug(f"[ensure_initial_grub_default_backup] Impossible d'ajouter {path}: {e}")
+            _add_to_tar(tar, path, "default_grub", _tar_filter)
 
             if full_system_backup:
                 # 2. Sauvegarder /etc/grub.d/
@@ -117,31 +125,17 @@ def ensure_initial_grub_default_backup(path: str = GRUB_DEFAULT_PATH) -> str | N
                 if grub_d_dir.exists():
                     for script in grub_d_dir.iterdir():
                         if script.is_file():
-                            try:
-                                tar.add(script, arcname=f"grub.d/{script.name}", filter=_tar_filter)
-                                logger.debug(f"[ensure_initial_grub_default_backup] Ajouté: {script}")
-                            except (OSError, PermissionError) as e:
-                                logger.debug(f"[ensure_initial_grub_default_backup] Impossible d'ajouter {script}: {e}")
+                            _add_to_tar(tar, script, f"grub.d/{script.name}", _tar_filter)
 
                 # 3. Sauvegarder grub.cfg
                 for grub_cfg_path in GRUB_CFG_PATHS:
-                    try:
-                        exists = os.path.exists(grub_cfg_path)
-                    except OSError:
-                        exists = False
-                    if exists:
-                        try:
-                            tar.add(
-                                grub_cfg_path,
-                                arcname=f"grub.cfg_{Path(grub_cfg_path).parts[2]}",
-                                filter=_tar_filter,
-                            )
-                            logger.debug(f"[ensure_initial_grub_default_backup] Ajouté: {grub_cfg_path}")
-                            break
-                        except (OSError, PermissionError) as e:
-                            logger.debug(
-                                f"[ensure_initial_grub_default_backup] Impossible d'ajouter {grub_cfg_path}: {e}"
-                            )
+                    if _add_to_tar(
+                        tar,
+                        grub_cfg_path,
+                        f"grub.cfg_{Path(grub_cfg_path).parts[2]}",
+                        _tar_filter,
+                    ):
+                        break
 
         logger.success(f"[ensure_initial_grub_default_backup] Backup complet créé: {initial_backup_path}")
         return str(initial_backup_path)
@@ -219,7 +213,7 @@ def create_grub_default_backup(path: str = GRUB_DEFAULT_PATH) -> str:
         fallback = _best_fallback_for_missing_config(path)
         if fallback is None:
             logger.error("[create_grub_default_backup] ERREUR: Aucune source trouvée")
-            raise FileNotFoundError(path)
+            raise GrubConfigError(f"Aucune source trouvée pour le backup: {path}")
         source_path = fallback
         logger.debug(f"[create_grub_default_backup] Fallback trouvé: {source_path}")
 
@@ -244,11 +238,7 @@ def create_grub_default_backup(path: str = GRUB_DEFAULT_PATH) -> str:
     try:
         with tarfile.open(backup_path, "w:gz", compresslevel=1) as tar:
             # 1. Sauvegarder /etc/default/grub
-            try:
-                tar.add(source_path, arcname="default_grub", filter=_tar_filter_manual)
-                logger.debug(f"[create_grub_default_backup] Ajouté: {source_path}")
-            except (OSError, PermissionError) as e:
-                logger.debug(f"[create_grub_default_backup] Impossible d'ajouter {source_path}: {e}")
+            _add_to_tar(tar, source_path, "default_grub", _tar_filter_manual)
 
             if full_system_backup:
                 # 2. Sauvegarder /etc/grub.d/
@@ -256,26 +246,17 @@ def create_grub_default_backup(path: str = GRUB_DEFAULT_PATH) -> str:
                 if grub_d_dir.exists():
                     for script in grub_d_dir.iterdir():
                         if script.is_file():
-                            try:
-                                tar.add(script, arcname=f"grub.d/{script.name}", filter=_tar_filter_manual)
-                                logger.debug(f"[create_grub_default_backup] Ajouté: {script}")
-                            except (OSError, PermissionError) as e:
-                                logger.debug(f"[create_grub_default_backup] Impossible d'ajouter {script}: {e}")
+                            _add_to_tar(tar, script, f"grub.d/{script.name}", _tar_filter_manual)
 
                 # 3. Sauvegarder grub.cfg
                 for grub_cfg_path in GRUB_CFG_PATHS:
-                    try:
-                        exists = os.path.exists(grub_cfg_path)
-                    except OSError:
-                        exists = False
-                    if exists:
-                        try:
-                            arcname = f"grub.cfg_{Path(grub_cfg_path).parts[2]}"
-                            tar.add(grub_cfg_path, arcname=arcname, filter=_tar_filter_manual)
-                            logger.debug(f"[create_grub_default_backup] Ajouté: {grub_cfg_path}")
-                            break
-                        except (OSError, PermissionError) as e:
-                            logger.debug(f"[create_grub_default_backup] Impossible d'ajouter {grub_cfg_path}: {e}")
+                    if _add_to_tar(
+                        tar,
+                        grub_cfg_path,
+                        f"grub.cfg_{Path(grub_cfg_path).parts[2]}",
+                        _tar_filter_manual,
+                    ):
+                        break
 
         _touch_now(backup_path)
         logger.success(f"[create_grub_default_backup] Succès - {backup_path}")
@@ -456,7 +437,7 @@ def read_grub_default(path: str = GRUB_DEFAULT_PATH) -> dict[str, str]:
         fallback = _best_fallback_for_missing_config(path)
         if fallback is None:
             logger.error("[read_grub_default] ERREUR: Fichier et fallback introuvables")
-            raise FileNotFoundError(path)
+            raise GrubConfigError(f"Fichier de configuration introuvable: {path}")
 
         logger.warning(f"[read_grub_default] Configuration absente: {path} (fallback: {fallback})")
 
@@ -488,7 +469,7 @@ def write_grub_default(config: dict[str, str], path: str = GRUB_DEFAULT_PATH) ->
         logger.debug("[write_grub_default] Backup créé")
     except OSError as e:
         logger.error(f"[write_grub_default] ERREUR: Impossible de créer le backup - {e}")
-        raise
+        raise GrubBackupError(f"Impossible de créer le backup: {e}") from e
     try:
         logger.info(f"Écriture configuration GRUB: {path}")
         with open(path, "w", encoding="utf-8") as f:
@@ -496,5 +477,5 @@ def write_grub_default(config: dict[str, str], path: str = GRUB_DEFAULT_PATH) ->
         logger.success(f"[write_grub_default] Succès - {len(config)} clés écrites")
     except OSError as e:
         logger.error(f"[write_grub_default] ERREUR: Écriture échouée - {e}")
-        raise
+        raise GrubConfigError(f"Écriture échouée: {e}") from e
     return backup_path

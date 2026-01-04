@@ -72,7 +72,7 @@ def build_entries_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
 
     controller.disable_os_prober_check = Gtk.Switch()
     controller.disable_os_prober_check.connect("notify::active", controller.on_menu_options_toggled)
-    controller.disable_os_prober_check._option_name = "Disable OS Prober"
+    controller.disable_os_prober_check.option_name = "Disable OS Prober"
     _add_styled_switch(
         switches_box,
         "Désactiver OS Prober",
@@ -82,7 +82,7 @@ def build_entries_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
 
     controller.hide_advanced_options_check = Gtk.Switch()
     controller.hide_advanced_options_check.connect("notify::active", controller.on_hide_category_toggled)
-    controller.hide_advanced_options_check._category_name = "advanced_options"
+    controller.hide_advanced_options_check.category_name = "advanced_options"
     _add_styled_switch(
         switches_box,
         "Masquer 'Advanced options'",
@@ -92,7 +92,7 @@ def build_entries_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
 
     controller.hide_memtest_check = Gtk.Switch()
     controller.hide_memtest_check.connect("notify::active", controller.on_hide_category_toggled)
-    controller.hide_memtest_check._category_name = "memtest"
+    controller.hide_memtest_check.category_name = "memtest"
     _add_styled_switch(
         switches_box,
         "Masquer 'memtest'",

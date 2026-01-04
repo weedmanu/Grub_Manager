@@ -70,8 +70,8 @@ class TestGrubConfigManagerStructure:
             "on_save",
             "on_reload",
             "show_info",
-            "_apply_model_to_ui",
-            "_read_model_from_ui",
+            "apply_model_to_ui",
+            "read_model_from_ui",
         ]
 
         for method_name in required_methods:

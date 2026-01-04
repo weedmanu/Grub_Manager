@@ -19,7 +19,9 @@ from glob import glob
 
 from loguru import logger
 
-from ..config.core_paths import GRUB_CFG_PATHS
+from ..config.core_paths import GRUB_CFG_PATHS, discover_grub_cfg_paths
+from ..core_exceptions import GrubConfigError, GrubValidationError
+from ..io.grub_parsing_utils import extract_menuentry_id, extract_menuentry_title
 
 HIDDEN_ENTRIES_PATH = "/etc/grub_manager/hidden_entries.json"
 
@@ -60,42 +62,11 @@ def save_hidden_entry_ids(ids: set[str], path: str = HIDDEN_ENTRIES_PATH) -> Non
         logger.warning(f"[save_hidden_entry_ids] ERREUR: Impossible d'enregistrer les entrées masquées: {e}")
 
 
-def _extract_menuentry_title(line: str) -> str:
-    # Premier argument entre quotes après menuentry
-    # (suffisant pour affichage/debug dans nos commentaires)
-    m = re.match(r"^\s*menuentry\b.*?['\"]([^'\"]+)['\"]", line)
-    return m.group(1) if m else ""
-
-
-def _extract_menuentry_id(line: str) -> str:
-    # Cas 1: --id foo / --id=foo / --id 'foo'
-    m = re.search(r"\s--id(?:=|\s+)(['\"]?)([^'\"\s]+)\1", line)
-    if m:
-        return m.group(2)
-
-    # Cas 2: $menuentry_id_option 'foo' (très courant dans grub.cfg généré)
-    m = re.search(r"\$\{?menuentry_id_option\}?\s+['\"]([^'\"]+)['\"]", line)
-    if m:
-        return m.group(1)
-
-    return ""
-
-
-def _candidate_grub_cfg_paths() -> list[str]:
-    # Chemins standards + éventuels grub.cfg EFI.
-    candidates: list[str] = []
-    for p in GRUB_CFG_PATHS:
-        if p not in candidates:
-            candidates.append(p)
-    for p in sorted(glob("/boot/efi/EFI/*/grub.cfg")):
-        if p not in candidates:
-            candidates.append(p)
-    return candidates
 
 
 def find_grub_cfg_path() -> str | None:
     """Return the first existing grub.cfg path among known candidates."""
-    for p in _candidate_grub_cfg_paths():
+    for p in discover_grub_cfg_paths():
         if os.path.exists(p):
             return p
     return None
@@ -125,7 +96,7 @@ def apply_hidden_entries_to_grub_cfg(
     used_path = grub_cfg_path or find_grub_cfg_path()
     if not used_path:
         logger.error("[apply_hidden_entries_to_grub_cfg] ERREUR: grub.cfg introuvable")
-        raise FileNotFoundError("grub.cfg introuvable")
+        raise GrubConfigError("grub.cfg introuvable")
 
     logger.debug(f"[apply_hidden_entries_to_grub_cfg] Utilisation: {used_path}")
     with open(used_path, encoding="utf-8", errors="replace") as f:
@@ -134,7 +105,7 @@ def apply_hidden_entries_to_grub_cfg(
     # SÉCURITÉ: Compter le total d'entrées avant masquage
     total_entries = sum(1 for line in lines if line.lstrip().startswith("menuentry"))
     would_mask = sum(
-        1 for line in lines if line.lstrip().startswith("menuentry") and _extract_menuentry_id(line) in hidden_ids
+        1 for line in lines if line.lstrip().startswith("menuentry") and extract_menuentry_id(line) in hidden_ids
     )
 
     remaining = total_entries - would_mask
@@ -146,7 +117,7 @@ def apply_hidden_entries_to_grub_cfg(
         logger.error(
             f"[apply_hidden_entries_to_grub_cfg] ERREUR: PROTECTION - Masquage interdit ({would_mask}/{total_entries})"
         )
-        raise ValueError(
+        raise GrubValidationError(
             f"PROTECTION: Impossible de masquer {would_mask} entrées sur {total_entries}. "
             f"Au moins 1 entrée doit rester visible pour éviter un système non-bootable."
         )
@@ -168,9 +139,9 @@ def apply_hidden_entries_to_grub_cfg(
 
         if not skipping:
             if line.lstrip().startswith("menuentry"):
-                mid = _extract_menuentry_id(line)
+                mid = extract_menuentry_id(line)
                 if mid and mid in hidden_ids:
-                    title = _extract_menuentry_title(line)
+                    title = extract_menuentry_title(line)
                     logger.debug(f"[apply_hidden_entries_to_grub_cfg] Masquage: id={mid}, title={title}")
                     out.append(f"### GRUB_MANAGER_HIDDEN id={mid} title={title}")
                     skipping = True
@@ -194,7 +165,7 @@ def apply_hidden_entries_to_grub_cfg(
         logger.debug("[apply_hidden_entries_to_grub_cfg] Aucune modification nécessaire")
         return used_path, 0
 
-    # Best-effort backup (même fichier): un seul niveau.
+    # Best-effort backp (même fichier): un seul niveau.
     try:
         shutil.copy2(used_path, used_path + ".grub_manager.bak")
         logger.debug("[apply_hidden_entries_to_grub_cfg] Backup créé")

@@ -37,7 +37,7 @@ class ModelWidgetMapper:
         window.state_manager.set_loading(True)
         try:
             # Timeout
-            window._sync_timeout_choices(int(model.timeout))
+            window.sync_timeout_choices(int(model.timeout))
 
             # Hidden Timeout
             if window.hidden_timeout_check is not None:
@@ -69,8 +69,8 @@ class ModelWidgetMapper:
             ModelWidgetMapper._sync_global_hiding_switches(window, entries)
 
             # Default choice
-            window._refresh_default_choices(entries)
-            window._set_default_choice(model.default)
+            window.refresh_default_choices(entries)
+            window.set_default_choice(model.default)
 
             logger.success(f"[ModelWidgetMapper.apply_model_to_ui] Terminé ({len(entries)} entrées)")
         finally:
@@ -110,8 +110,8 @@ class ModelWidgetMapper:
         """
         logger.debug("[ModelWidgetMapper.read_model_from_ui] Début lecture")
 
-        default_value = window._get_default_choice()
-        timeout_val = window._get_timeout_value()
+        default_value = window.get_default_choice()
+        timeout_val = window.get_timeout_value()
         hidden_timeout = (
             bool(window.hidden_timeout_check.get_active()) if window.hidden_timeout_check is not None else False
         )
@@ -132,7 +132,7 @@ class ModelWidgetMapper:
         )
 
         # Paramètres kernel
-        cmdline_value = window._get_cmdline_value()
+        cmdline_value = window.get_cmdline_value()
         quiet = "quiet" in cmdline_value
         splash = "splash" in cmdline_value
 

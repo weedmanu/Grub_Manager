@@ -71,7 +71,7 @@ def test_infobar_hide_callback(mock_widgets):
     controller = InfoBarController(revealer, box, label)
     controller._timeout_id = 123
 
-    result = controller._hide_info_callback()
+    result = controller.hide_info_callback()
 
     revealer.set_reveal_child.assert_called_once_with(False)
     assert controller._timeout_id == 0
@@ -123,7 +123,7 @@ def test_infobar_hide_callback_without_revealer(mock_widgets):
     controller = InfoBarController(None, box, label)
     controller._timeout_id = 123
 
-    result = controller._hide_info_callback()
+    result = controller.hide_info_callback()
 
     assert controller._timeout_id == 0
     assert result is False

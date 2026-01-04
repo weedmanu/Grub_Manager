@@ -94,4 +94,4 @@ class ThemeEditorDialog(Gtk.Window):
     def _load_default_theme(self) -> None:
         """Délègue au TabThemeEditor."""
         if hasattr(self, "_editor"):
-            self._editor._load_default_theme()
+            self._editor.load_default_theme()

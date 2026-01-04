@@ -177,12 +177,12 @@ def test_apply_state_wrapper(manager):
 )
 def test_get_cmdline_value_variants(manager, selected, expected):
     manager.cmdline_dropdown.get_selected.return_value = selected
-    assert manager._get_cmdline_value() == expected
+    assert manager.get_cmdline_value() == expected
 
 
 def test_get_cmdline_value_without_dropdown_returns_default(manager):
     manager.cmdline_dropdown = None
-    assert manager._get_cmdline_value() == "quiet splash"
+    assert manager.get_cmdline_value() == "quiet splash"
 
 
 def test_check_permissions_root(manager):
@@ -397,10 +397,10 @@ def test_load_config_file_not_found(manager):
 def test_load_config_exceptions(manager):
     """Test load_config exception handling."""
     manager.info_label = MagicMock()
-    with patch("ui.ui_manager.check_grub_sync", side_effect=Exception("Unexpected")):
+    with patch("ui.ui_manager.check_grub_sync", side_effect=OSError("Unexpected")):
         manager.load_config()
         # Should show error info
-        assert manager.info_label.set_text.called
+        assert manager.show_info.called
 
 
 # --- Model UI Sync ---
@@ -411,15 +411,15 @@ def test_read_model_from_ui(manager):
 
     with (
         patch("ui.ui_gtk_helpers.GtkHelper.dropdown_get_value", return_value="10"),
-        patch.object(manager, "_get_timeout_value", return_value=10),
-        patch.object(manager, "_get_default_choice", return_value="saved"),
+        patch.object(manager, "get_timeout_value", return_value=10),
+        patch.object(manager, "get_default_choice", return_value="saved"),
     ):
 
         manager.hidden_timeout_check.get_active.return_value = True
         manager.disable_os_prober_check.get_active.return_value = False
         manager.terminal_color_check.get_active.return_value = True
 
-        model = manager._read_model_from_ui()
+        model = manager.read_model_from_ui()
 
         assert model.timeout == 10
         assert model.default == "saved"
@@ -442,12 +442,12 @@ def test_apply_model_to_ui(manager):
 
     with (
         patch("ui.ui_gtk_helpers.GtkHelper.dropdown_set_value") as mock_set_val,
-        patch.object(manager, "_sync_timeout_choices") as mock_sync_timeout,
-        patch.object(manager, "_refresh_default_choices") as mock_refresh_defaults,
-        patch.object(manager, "_set_default_choice") as mock_set_default,
+        patch.object(manager, "sync_timeout_choices") as mock_sync_timeout,
+        patch.object(manager, "refresh_default_choices") as mock_refresh_defaults,
+        patch.object(manager, "set_default_choice") as mock_set_default,
     ):
 
-        manager._apply_model_to_ui(model, entries)
+        manager.apply_model_to_ui(model, entries)
 
         mock_sync_timeout.assert_called_with(5)
         manager.hidden_timeout_check.set_active.assert_called_with(True)
@@ -473,35 +473,35 @@ def test_apply_model_to_ui_none_widgets(manager):
     model.timeout = 5
 
     # Should run without error
-    manager._apply_model_to_ui(model, [])
+    manager.apply_model_to_ui(model, [])
 
 
 def test_get_timeout_value(manager):
     with patch("ui.ui_gtk_helpers.GtkHelper.dropdown_get_value", return_value="5"):
-        assert manager._get_timeout_value() == 5
+        assert manager.get_timeout_value() == 5
 
     # Valeur invalide -> fallback 5
     with patch("ui.ui_gtk_helpers.GtkHelper.dropdown_get_value", return_value="Hidden"):
-        assert manager._get_timeout_value() == 5
+        assert manager.get_timeout_value() == 5
 
 
 def test_get_timeout_value_none(manager):
     """Test _get_timeout_value when dropdown is None."""
     manager.timeout_dropdown = None
-    assert manager._get_timeout_value() == 5
+    assert manager.get_timeout_value() == 5
 
 
 def test_get_timeout_value_exception(manager):
     """Test _get_timeout_value handles exceptions."""
     with patch("ui.ui_gtk_helpers.GtkHelper.dropdown_get_value", return_value="invalid"):
-        assert manager._get_timeout_value() == 5
+        assert manager.get_timeout_value() == 5
 
 
 def test_sync_timeout_choices(manager):
     model = MockStringList(["5", "10"])
     manager.timeout_dropdown.get_model.return_value = model
 
-    manager._sync_timeout_choices(5)
+    manager.sync_timeout_choices(5)
 
     assert "5" in model.items
     assert "10" in model.items
@@ -511,11 +511,11 @@ def test_sync_timeout_choices(manager):
 def test_sync_timeout_choices_none_widgets(manager):
     """Test _sync_timeout_choices with None widgets."""
     manager.timeout_dropdown = None
-    manager._sync_timeout_choices(5)  # Should not raise
+    manager.sync_timeout_choices(5)  # Should not raise
 
     manager.timeout_dropdown = MagicMock()
     manager.timeout_dropdown.get_model.return_value = None
-    manager._sync_timeout_choices(5)  # Should not raise
+    manager.sync_timeout_choices(5)  # Should not raise
 
 
 def test_ensure_timeout_choice(manager):
@@ -606,11 +606,11 @@ def test_set_timeout_value(manager):
     manager.timeout_dropdown.get_model.return_value = model
 
     # Set normal value
-    manager._set_timeout_value(10)
+    manager.set_timeout_value(10)
     manager.timeout_dropdown.set_selected.assert_called_with(1)
 
     # Set value not in list -> adds it
-    manager._set_timeout_value(15)
+    manager.set_timeout_value(15)
     assert "15" in model.items
     manager.timeout_dropdown.set_selected.assert_called_with(2)
 
@@ -618,11 +618,11 @@ def test_set_timeout_value(manager):
 def test_set_timeout_value_edge_cases(manager):
     """Test _set_timeout_value edge cases."""
     manager.timeout_dropdown = None
-    manager._set_timeout_value(5)  # Should return early
+    manager.set_timeout_value(5)  # Should return early
 
     manager.timeout_dropdown = MagicMock()
     with patch.object(manager, "_ensure_timeout_choice", return_value=None):
-        manager._set_timeout_value(5)
+        manager.set_timeout_value(5)
         manager.timeout_dropdown.set_selected.assert_called_with(0)
 
 
@@ -634,7 +634,7 @@ def test_refresh_default_choices(manager):
     model = MockStringList(["Old Choice"])
     manager.default_dropdown.get_model.return_value = model
 
-    manager._refresh_default_choices(choices)
+    manager.refresh_default_choices(choices)
 
     assert "Choice 1" in model.items
     assert "Choice 2" in model.items
@@ -649,11 +649,11 @@ def test_refresh_default_choices(manager):
 def test_refresh_default_choices_none_widgets(manager):
     """Test _refresh_default_choices with None widgets."""
     manager.default_dropdown = None
-    manager._refresh_default_choices([])
+    manager.refresh_default_choices([])
 
     manager.default_dropdown = MagicMock()
     manager.default_dropdown.get_model.return_value = None
-    manager._refresh_default_choices([])
+    manager.refresh_default_choices([])
 
 
 def test_get_default_choice(manager):
@@ -663,21 +663,21 @@ def test_get_default_choice(manager):
     manager.default_dropdown.get_selected.return_value = 1
     manager.state_manager._default_choice_ids = ["saved", "id1"]
 
-    assert manager._get_default_choice() == "id1"
+    assert manager.get_default_choice() == "id1"
 
 
 def test_get_default_choice_edge_cases(manager):
     """Test _get_default_choice edge cases."""
     manager.default_dropdown = None
-    assert manager._get_default_choice() == "0"
+    assert manager.get_default_choice() == "0"
 
     manager.default_dropdown = MagicMock()
     manager.default_dropdown.get_selected.return_value = None
-    assert manager._get_default_choice() == "0"
+    assert manager.get_default_choice() == "0"
 
     manager.default_dropdown.get_selected.return_value = 0
     manager.state_manager.get_default_choice_ids = MagicMock(side_effect=Exception("Mock"))
-    assert manager._get_default_choice() == "0"
+    assert manager.get_default_choice() == "0"
 
 
 def test_set_default_choice(manager):
@@ -686,7 +686,7 @@ def test_set_default_choice(manager):
 
     manager.state_manager.get_default_choice_ids.return_value = ["saved", "id1"]
 
-    manager._set_default_choice("id1")
+    manager.set_default_choice("id1")
 
     manager.default_dropdown.set_selected.assert_called_with(1)
 
@@ -698,41 +698,41 @@ def test_set_default_choice_branches(manager):
     manager.default_dropdown.get_model.return_value = model
 
     # Case 1: "saved"
-    manager._set_default_choice("saved")
+    manager.set_default_choice("saved")
     manager.default_dropdown.set_selected.assert_called_with(0)
 
     # Case 2: Existing ID
     manager.state_manager._default_choice_ids = ["saved", "id1", "id2"]
-    manager._set_default_choice("id2")
+    manager.set_default_choice("id2")
     manager.default_dropdown.set_selected.assert_called_with(2)
 
     # Case 3: New ID (append)
-    manager._set_default_choice("new_id")
+    manager.set_default_choice("new_id")
     model.append.assert_called_with("new_id")
     # Should update ids and select last
     assert manager.state_manager.update_default_choice_ids.called
 
     # Case 4: Exception during append
     model.append.side_effect = Exception("Error")
-    manager._set_default_choice("error_id")
+    manager.set_default_choice("error_id")
     manager.default_dropdown.set_selected.assert_called_with(0)
 
 
 def test_set_default_choice_model_none(manager):
     """Test _set_default_choice when dropdown model is None."""
     manager.default_dropdown.get_model.return_value = None
-    manager._set_default_choice("some_value")
+    manager.set_default_choice("some_value")
     manager.default_dropdown.set_selected.assert_called_with(0)
 
 
 def test_set_default_choice_dropdown_none_returns(manager):
     manager.default_dropdown = None
-    manager._set_default_choice("id1")
+    manager.set_default_choice("id1")
 
 
 def test_set_default_choice_empty_value_defaults_to_zero(manager):
     manager.default_dropdown.get_model.return_value = None
-    manager._set_default_choice("   ")
+    manager.set_default_choice("   ")
     manager.default_dropdown.set_selected.assert_called_with(0)
 
 
@@ -754,7 +754,7 @@ def test_on_modified_loading(manager):
 def test_on_hidden_timeout_toggled(manager):
     widget = MagicMock()
     widget.get_active.return_value = True
-    with patch.object(manager, "_sync_timeout_choices") as mock_sync:
+    with patch.object(manager, "sync_timeout_choices") as mock_sync:
         manager.on_hidden_timeout_toggled(widget)
         mock_sync.assert_called()
 
@@ -810,20 +810,20 @@ def test_on_reload_delegates_to_workflow(manager):
 
 
 def test_perform_save_delegates_to_workflow(manager):
-    manager._perform_save(apply_now=True)
-    manager.workflow._perform_save.assert_called_once_with(True)
+    manager.perform_save(apply_now=True)
+    manager.workflow.perform_save.assert_called_once_with(True)
 
 
 def test_wrappers_when_workflow_missing_do_nothing(manager):
     manager.workflow = None
     manager.on_reload(MagicMock())
     manager.on_save(MagicMock())
-    manager._perform_save(True)
+    manager.perform_save(True)
 
 
 def test_on_hide_category_toggled_loading_returns(manager):
     widget = MagicMock()
-    widget._category_name = "advanced_options"
+    widget.category_name = "advanced_options"
     manager.state_manager.is_loading.return_value = True
 
     with (
@@ -837,7 +837,7 @@ def test_on_hide_category_toggled_loading_returns(manager):
 
 def test_on_hide_category_toggled_unknown_category_returns(manager):
     widget = MagicMock()
-    widget._category_name = "unknown"
+    widget.category_name = "unknown"
     widget.get_active.return_value = True
 
     manager.state_manager.is_loading.return_value = False
@@ -853,7 +853,7 @@ def test_on_hide_category_toggled_unknown_category_returns(manager):
 
 def test_on_hide_category_toggled_no_matching_ids_returns(manager):
     widget = MagicMock()
-    widget._category_name = "advanced_options"
+    widget.category_name = "advanced_options"
     widget.get_active.return_value = True
 
     manager.state_manager.is_loading.return_value = False
@@ -870,13 +870,13 @@ def test_on_hide_category_toggled_no_matching_ids_returns(manager):
 
 def test_on_hide_category_toggled_advanced_adds_ids_and_marks_dirty(manager):
     widget = MagicMock()
-    widget._category_name = "advanced_options"
+    widget.category_name = "advanced_options"
     widget.get_active.return_value = True
 
     manager.state_manager.is_loading.return_value = False
 
-    Entry = dataclasses.make_dataclass("Entry", [("menu_id", str), ("title", str), ("source", str)])
-    e1 = Entry("id-adv", "Advanced options for Ubuntu", "")
+    entry_class = dataclasses.make_dataclass("Entry", [("menu_id", str), ("title", str), ("source", str)])
+    e1 = entry_class("id-adv", "Advanced options for Ubuntu", "")
     manager.state_manager.state_data = GrubUiState(model=GrubUiModel(), entries=[e1], raw_config={})
     manager.state_manager.hidden_entry_ids = set()
 
@@ -896,15 +896,15 @@ def test_on_hide_category_toggled_advanced_adds_ids_and_marks_dirty(manager):
 
 def test_on_hide_category_toggled_advanced_skips_invalid_and_non_matching_entries(manager):
     widget = MagicMock()
-    widget._category_name = "advanced_options"
+    widget.category_name = "advanced_options"
     widget.get_active.return_value = True
 
     manager.state_manager.is_loading.return_value = False
 
-    Entry = dataclasses.make_dataclass("Entry2", [("menu_id", str), ("title", str), ("source", str)])
-    e0 = Entry("", "Advanced options", "")
-    e1 = Entry("id-other", "Ubuntu", "")
-    e2 = Entry("id-adv", "Options avancées", "")
+    entry_class = dataclasses.make_dataclass("Entry2", [("menu_id", str), ("title", str), ("source", str)])
+    e0 = entry_class("", "Advanced options", "")
+    e1 = entry_class("id-other", "Ubuntu", "")
+    e2 = entry_class("id-adv", "Options avancées", "")
 
     manager.state_manager.state_data = GrubUiState(model=GrubUiModel(), entries=[e0, e1, e2], raw_config={})
     manager.state_manager.hidden_entry_ids = set()
@@ -921,13 +921,13 @@ def test_on_hide_category_toggled_advanced_skips_invalid_and_non_matching_entrie
 
 def test_on_hide_category_toggled_memtest_removes_ids(manager):
     widget = MagicMock()
-    widget._category_name = "memtest"
+    widget.category_name = "memtest"
     widget.get_active.return_value = False
 
     manager.state_manager.is_loading.return_value = False
 
-    Entry = dataclasses.make_dataclass("Entry", [("menu_id", str), ("title", str), ("source", str)])
-    e1 = Entry("id-mem", "Memtest86+", "memtest")
+    entry_class = dataclasses.make_dataclass("Entry", [("menu_id", str), ("title", str), ("source", str)])
+    e1 = entry_class("id-mem", "Memtest86+", "memtest")
     manager.state_manager.state_data = GrubUiState(model=GrubUiModel(), entries=[e1], raw_config={})
     manager.state_manager.hidden_entry_ids = {"id-mem"}
 
@@ -943,15 +943,15 @@ def test_on_hide_category_toggled_memtest_removes_ids(manager):
 
 def test_on_hide_category_toggled_memtest_adds_ids(manager):
     widget = MagicMock()
-    widget._category_name = "memtest"
+    widget.category_name = "memtest"
     widget.get_active.return_value = True
 
     manager.state_manager.is_loading.return_value = False
 
-    Entry = dataclasses.make_dataclass("Entry3", [("menu_id", str), ("title", str), ("source", str)])
-    e0 = Entry("", "memtest", "memtest")
-    e1 = Entry("id-other", "Ubuntu", "")
-    e2 = Entry("id-mem", "Memtest86+", "")
+    entry_class = dataclasses.make_dataclass("Entry3", [("menu_id", str), ("title", str), ("source", str)])
+    e0 = entry_class("", "memtest", "memtest")
+    e1 = entry_class("id-other", "Ubuntu", "")
+    e2 = entry_class("id-mem", "Memtest86+", "")
     manager.state_manager.state_data = GrubUiState(model=GrubUiModel(), entries=[e0, e1, e2], raw_config={})
     manager.state_manager.hidden_entry_ids = set()
 
@@ -1013,13 +1013,13 @@ def test_show_info_delegates_to_infobar_when_present(manager):
 def test_hide_info_callback_none_revealer(manager):
     """Test _hide_info_callback when revealer is None."""
     manager.info_revealer = None
-    result = manager._hide_info_callback()
+    result = manager.hide_info_callback()
     assert result is False
 
 
 def test_hide_info_callback_delegates_when_infobar_present(manager):
     infobar = MagicMock()
-    infobar._hide_info_callback.return_value = True
+    infobar.hide_info_callback.return_value = True
     manager.infobar = infobar
 
-    assert manager._hide_info_callback() is True
+    assert manager.hide_info_callback() is True

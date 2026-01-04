@@ -158,3 +158,17 @@ class GrubValidationError(GrubManagerError):
         if timeout < 0:
             raise GrubValidationError("Le timeout doit être >= 0")
     """
+
+
+class GrubLoadError(GrubManagerError):
+    """Erreur lors du chargement de la configuration.
+
+    Levée lorsque le chargement de l'état initial de l'application échoue.
+    """
+
+
+class GrubRollbackError(GrubManagerError):
+    """Erreur lors d'un rollback.
+
+    Levée lorsque la restauration d'une sauvegarde échoue après une erreur.
+    """

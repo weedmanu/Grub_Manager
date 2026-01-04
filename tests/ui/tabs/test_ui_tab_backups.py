@@ -87,7 +87,7 @@ def test_on_create_clicked_generic_exception(mock_controller):
 def test_on_create_clicked_broad_exception_branch(mock_controller):
     with (
         patch("ui.tabs.ui_tab_backups.os.geteuid", return_value=0),
-        patch("ui.tabs.ui_tab_backups.create_grub_default_backup", side_effect=Exception("Boom")),
+        patch("ui.tabs.ui_tab_backups.create_grub_default_backup", side_effect=RuntimeError("Boom")),
     ):
         ui_backups._on_create_clicked(None, mock_controller, None)
         assert "Boom" in mock_controller.show_info.call_args[0][0]

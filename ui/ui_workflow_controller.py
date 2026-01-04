@@ -10,6 +10,8 @@ import gi
 from loguru import logger
 
 gi.require_version("Gtk", "4.0")
+
+# pylint: disable=wrong-import-position
 from gi.repository import GLib, Gtk
 
 from core.io.core_grub_default_io import read_grub_default
@@ -123,19 +125,19 @@ class WorkflowController:
 
             if idx == 1:
                 logger.debug("[WorkflowController.on_save._on_response] Confirmation utilisateur")
-                self._perform_save(apply_now=True)
+                self.perform_save(apply_now=True)
 
         dialog.choose(self.window, None, _on_response)
 
-    def _perform_save(self, apply_now: bool) -> None:
+    def perform_save(self, apply_now: bool) -> None:
         """Exécute le workflow de sauvegarde via ApplyManager."""
-        logger.info(f"[WorkflowController._perform_save] Début (apply_now={apply_now})")
+        logger.info(f"[WorkflowController.perform_save] Début (apply_now={apply_now})")
         self.state_manager.apply_state(AppState.APPLYING, self.save_btn, self.reload_btn)
 
         try:
             model = self.read_model_cb()
             logger.debug(
-                f"[WorkflowController._perform_save] Modèle lu: timeout={model.timeout}, default={model.default}"
+                f"[WorkflowController.perform_save] Modèle lu: timeout={model.timeout}, default={model.default}"
             )
 
             merged_config = merged_config_from_model(self.state_manager.state_data.raw_config, model)

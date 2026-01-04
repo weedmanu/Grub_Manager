@@ -122,7 +122,7 @@ def test_confirm_action_glib_error_does_not_call_callback(monkeypatch, mock_cont
             callback(self, object())
 
     monkeypatch.setattr("ui.ui_dialogs.GLib.Error", FakeGLibError)
-    monkeypatch.setattr("ui.ui_dialogs.Gtk.AlertDialog", lambda: FakeDialog())
+    monkeypatch.setattr("ui.ui_dialogs.Gtk.AlertDialog", FakeDialog)
 
     confirm_action(cb, "msg", mock_controller)
     assert called["v"] is False

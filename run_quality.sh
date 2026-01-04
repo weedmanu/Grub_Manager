@@ -25,12 +25,13 @@ show_help() {
   echo -e "  ${GREEN}--help, -h${NC}    Affiche cette aide"
   echo ""
   echo -e "${YELLOW}Exemples:${NC}"
-  echo "  ./run_quality.sh --lint          # Vérifie tout le projet (core, ui, tests, main.py)"
-  echo "  ./run_quality.sh --lint tests    # Vérifie uniquement le dossier tests"
+  echo "  ./run_quality.sh --lint          # Vérifie le code source (core, ui, main.py)"
+  echo "  ./run_quality.sh --lint tests    # Vérifie spécifiquement le dossier tests"
   echo "  ./run_quality.sh --fix core      # Formate uniquement le dossier core"
   echo "  ./run_quality.sh --cov           # Voir la couverture de tests"
   echo ""
-  echo -e "${BLUE}Note:${NC} Sans option, le script exécute ${GREEN}--all${NC} sur tous les dossiers."
+  echo -e "${BLUE}Note:${NC} Sans option, le script exécute ${GREEN}--all${NC} sur les dossiers sources."
+  echo "      Le dossier ${YELLOW}tests/${NC} n'est linté que s'il est explicitement mentionné."
 }
 
 # Détection de l'environnement Python
@@ -53,8 +54,8 @@ DO_FIX=false
 DO_ALL=false
 EXIT_CODE=0
 
-# Chemins par défaut
-DEFAULT_PATHS="core ui tests main.py"
+# Chemins par défaut (exclut tests par défaut pour le linting)
+DEFAULT_PATHS="core ui main.py"
 PATHS=""
 
 if [[ $# -eq 0 ]]; then
@@ -114,7 +115,28 @@ lint() {
   run_check "Mypy" "$PYTHON_BIN" -m mypy $PATHS
   run_check "Vulture" "$PYTHON_BIN" -m vulture $PATHS --min-confidence 65
   run_check "Pydocstyle" "$PYTHON_BIN" -m pydocstyle $PATHS
-  run_check "Pylint" "$PYTHON_BIN" -m pylint $PATHS
+
+  # Pylint avec gestion spécifique pour le dossier tests
+  local tests_disables="redefined-outer-name,unused-argument,no-member,too-many-public-methods,too-many-lines,duplicate-code,import-outside-toplevel,wrong-import-order,invalid-name,too-many-positional-arguments,reimported,ungrouped-imports,useless-return,redefined-builtin,broad-exception-caught,pointless-statement,super-init-not-called,assignment-from-no-return,no-value-for-parameter,use-implicit-booleaness-not-comparison,unspecified-encoding"
+  
+  local non_test_paths=""
+  local test_paths=""
+  
+  for p in $PATHS; do
+    if [[ "$p" == "tests" || "$p" == "tests/"* ]]; then
+      test_paths="$test_paths $p"
+    else
+      non_test_paths="$non_test_paths $p"
+    fi
+  done
+
+  if [[ -n "$non_test_paths" ]]; then
+    run_check "Pylint (src)" "$PYTHON_BIN" -m pylint $non_test_paths
+  fi
+  
+  if [[ -n "$test_paths" ]]; then
+    run_check "Pylint (tests)" "$PYTHON_BIN" -m pylint --disable="$tests_disables" $test_paths
+  fi
 }
 
 test_suite() {

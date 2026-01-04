@@ -8,6 +8,12 @@ from unittest.mock import MagicMock, mock_open, patch
 import pytest
 
 from core.managers.core_apply_manager import ApplyResult, ApplyState, GrubApplyManager
+from core.core_exceptions import (
+    GrubBackupError,
+    GrubCommandError,
+    GrubValidationError,
+    GrubRollbackError,
+)
 
 
 class TestApplyState:
@@ -91,7 +97,7 @@ class TestGrubApplyManager:
     def test_create_backup_file_missing(self, mock_exists, manager):
         """Vérifie que _create_backup échoue si le fichier n'existe pas."""
         mock_exists.return_value = False
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(GrubBackupError):
             manager._create_backup()
 
     @patch("core.managers.core_apply_manager.Path.exists")
@@ -100,9 +106,10 @@ class TestGrubApplyManager:
         """Vérifie que _create_backup échoue si la source est vide."""
         mock_exists.return_value = True
         mock_stat.return_value.st_size = 0
-        with pytest.raises(RuntimeError, match="Le fichier source est vide"):
+        with pytest.raises(GrubBackupError, match="Fichier vide"):
             manager._create_backup()
 
+    @patch("core.managers.core_apply_manager.Path.read_text")
     @patch("core.managers.core_apply_manager.subprocess.run")
     @patch("core.managers.core_apply_manager.Path.exists")
     @patch("core.managers.core_apply_manager.Path.stat")
@@ -111,11 +118,19 @@ class TestGrubApplyManager:
         new_callable=mock_open,
         read_data="menuentry 'Ubuntu' {\n}\n### BEGIN /etc/\n### END /etc/\nlinux /boot/vmlinuz",
     )
-    def test_generate_test_config_success(self, mock_file, mock_stat, mock_exists, mock_run, manager):
+    def test_generate_test_config_success(self, mock_file, mock_stat, mock_exists, mock_run, mock_read, manager):
         """Vérifie la génération réussie de la config de test."""
         mock_run.return_value.returncode = 0
         mock_exists.return_value = True
         mock_stat.return_value.st_size = 200
+        # Need at least 5 meaningful lines
+        mock_read.return_value = (
+            "menuentry 'Ubuntu' {\n}\n"
+            "### BEGIN /etc/\n### END /etc/\n"
+            "linux /boot/vmlinuz\n"
+            "initrd /boot/initrd\n"
+            "boot"
+        )
 
         manager._generate_test_config()
 
@@ -128,7 +143,7 @@ class TestGrubApplyManager:
         mock_run.return_value.returncode = 1
         mock_run.return_value.stderr = "Error"
 
-        with pytest.raises(RuntimeError, match="grub-mkconfig a échoué"):
+        with pytest.raises(GrubCommandError, match="grub-mkconfig a échoué"):
             manager._generate_test_config()
 
     @patch("core.managers.core_apply_manager.shutil.which")
@@ -155,7 +170,7 @@ class TestGrubApplyManager:
     def test_validate_config_missing_file(self, mock_exists, manager):
         """Vérifie l'échec si le fichier de test manque."""
         mock_exists.return_value = False
-        with pytest.raises(RuntimeError, match="Le fichier de configuration de test a disparu"):
+        with pytest.raises(GrubValidationError, match="Le fichier de configuration de test a disparu"):
             manager._validate_config()
 
     @patch("core.managers.core_apply_manager.shutil.which")
@@ -200,7 +215,7 @@ class TestGrubApplyManager:
     def test_rollback_no_backup(self, mock_exists, manager):
         """Vérifie l'échec du rollback sans backup."""
         mock_exists.return_value = False
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(GrubRollbackError):
             manager._rollback()
 
     @patch("core.managers.core_apply_manager.write_grub_default")
@@ -284,7 +299,17 @@ class TestGrubApplyManager:
         """Test d'intégration avec mocks bas niveau pour couvrir la logique interne."""
         # Setup mocks
         mock_exists.return_value = True
-        mock_read.return_value = "GRUB_TIMEOUT=5\n"
+        # 1. Source validation
+        # 2. Temp file validation
+        # 3. Generated file validation
+        mock_read.side_effect = [
+            "GRUB_TIMEOUT=5\n",
+            "GRUB_TIMEOUT=10\n",
+            "menuentry 'Ubuntu' {\n}\n### BEGIN /etc/\n### END /etc/\nlinux /boot/vmlinuz\ninitrd /boot/initrd\nboot",
+            "menuentry 'Ubuntu' {\n}\n### BEGIN /etc/\n### END /etc/\nlinux /boot/vmlinuz\ninitrd /boot/initrd\nboot",
+            "GRUB_TIMEOUT=5\n",
+            "GRUB_TIMEOUT=5\n",
+        ] + ["GRUB_TIMEOUT=5\n"] * 10
         mock_which.return_value = "/usr/sbin/update-grub"
         mock_run.return_value.returncode = 0
 
@@ -344,7 +369,18 @@ class TestGrubApplyManager:
     ):
         """Test échec validation config (syntaxe invalide)."""
         mock_exists.return_value = True
-        mock_read.return_value = "GRUB_TIMEOUT=5\n"
+        # 1. Source
+        # 2. Temp
+        # 3. Generated (valid content for validate_grub_file, but script-check fails)
+        # 4. Backup (during rollback)
+        mock_read.side_effect = [
+            "GRUB_TIMEOUT=5\n",
+            "GRUB_TIMEOUT=10\n",
+            "line1\nline2\nline3\nline4\nline5",
+            "line1\nline2\nline3\nline4\nline5",
+            "GRUB_TIMEOUT=5\n",
+            "GRUB_TIMEOUT=5\n",
+        ] + ["GRUB_TIMEOUT=5\n"] * 10
         mock_stat.return_value.st_size = 100
         mock_which.return_value = "/usr/bin/grub-script-check"
 
@@ -409,7 +445,7 @@ class TestGrubApplyManager:
         mock_exists.return_value = True
         mock_stat.return_value.st_size = 100
         mock_read.return_value = "# Only comments\n\n"
-        with pytest.raises(RuntimeError, match="Le fichier source ne contient pas de configuration valide"):
+        with pytest.raises(GrubBackupError, match="Trop peu de lignes"):
             manager._create_backup()
 
     @patch("core.managers.core_apply_manager.shutil.copy2")
@@ -419,9 +455,12 @@ class TestGrubApplyManager:
     def test_create_backup_size_mismatch(self, mock_read, mock_stat, mock_exists, mock_copy, manager):
         """Test backup avec taille incorrecte (217-218)."""
         mock_exists.return_value = True
-        mock_stat.side_effect = [MagicMock(st_size=100), MagicMock(st_size=50)]  # Source=100, Backup=50
+        # 1. validate_grub_file(source) -> stat
+        # 2. source_size = source.stat()
+        # 3. backup_size = backup.stat()
+        mock_stat.side_effect = [MagicMock(st_size=100), MagicMock(st_size=100), MagicMock(st_size=50)]
         mock_read.return_value = "CONFIG=1"
-        with pytest.raises(RuntimeError, match="Le backup est incomplet"):
+        with pytest.raises(GrubBackupError, match="Le backup est incomplet"):
             manager._create_backup()
 
     @patch("core.managers.core_apply_manager.shutil.copy2")
@@ -434,7 +473,7 @@ class TestGrubApplyManager:
         mock_stat.return_value.st_size = 100
         mock_read.return_value = "CONFIG=1"
         mock_copy.side_effect = OSError("Permission denied")
-        with pytest.raises(OSError):
+        with pytest.raises(GrubBackupError):
             manager._create_backup()
 
     @patch("core.managers.core_apply_manager.subprocess.run")
@@ -445,19 +484,20 @@ class TestGrubApplyManager:
         mock_run.return_value = MagicMock(returncode=0)
         mock_exists.return_value = True
         mock_stat.return_value.st_size = 0
-        with pytest.raises(RuntimeError, match="Le fichier de configuration généré est vide ou absent"):
+        with pytest.raises(GrubValidationError, match="Le fichier de configuration généré est vide ou absent"):
             manager._generate_test_config()
 
     @patch("core.managers.core_apply_manager.subprocess.run")
     @patch("core.managers.core_apply_manager.Path.exists")
     @patch("core.managers.core_apply_manager.Path.stat")
-    @patch("builtins.open", new_callable=mock_open, read_data="line1\nline2")
-    def test_generate_test_config_too_short(self, mock_file, mock_stat, mock_exists, mock_run, manager):
+    @patch("core.managers.core_apply_manager.Path.read_text")
+    def test_generate_test_config_too_short(self, mock_read, mock_stat, mock_exists, mock_run, manager):
         """Test génération config trop courte (248-251)."""
         mock_run.return_value = MagicMock(returncode=0)
         mock_exists.return_value = True
         mock_stat.return_value.st_size = 100
-        with pytest.raises(RuntimeError, match="Le fichier de configuration généré est anormalement court"):
+        mock_read.return_value = "line1\nline2"
+        with pytest.raises(GrubValidationError, match="Trop peu de lignes"):
             manager._generate_test_config()
 
     @patch("core.managers.core_apply_manager.subprocess.run")
@@ -468,8 +508,8 @@ class TestGrubApplyManager:
         mock_run.return_value = MagicMock(returncode=0)
         mock_exists.return_value = True
         mock_stat.return_value.st_size = 100
-        with patch("builtins.open", side_effect=OSError("Read error")):
-            with pytest.raises(RuntimeError, match="Impossible de valider le fichier généré"):
+        with patch("core.managers.core_apply_manager.Path.read_text", side_effect=OSError("Read error")):
+            with pytest.raises(GrubValidationError, match="Erreur de lecture"):
                 manager._generate_test_config()
 
     @patch("core.managers.core_apply_manager.write_grub_default")
@@ -518,7 +558,7 @@ class TestGrubApplyManager:
         """Test _create_backup avec OSError sur read_text (206-207)."""
         mock_stat.return_value.st_size = 100
         mock_read.side_effect = OSError("Read failure")
-        with pytest.raises(OSError, match="Read failure"):
+        with pytest.raises(GrubBackupError, match="Erreur de lecture"):
             manager._create_backup()
 
     @patch("core.managers.core_apply_manager.shutil.copy2")
@@ -565,7 +605,7 @@ class TestGrubApplyManager:
         """Test validation config vide (280-281)."""
         mock_exists.return_value = True
         mock_stat.return_value.st_size = 0
-        with pytest.raises(RuntimeError, match="Le fichier de configuration généré est vide"):
+        with pytest.raises(GrubValidationError, match="Le fichier de configuration généré est vide"):
             manager._validate_config()
 
     @patch("core.managers.core_apply_manager.Path.exists")
@@ -588,7 +628,7 @@ class TestGrubApplyManager:
         """Test validation marqueurs manquants et trop minimal (324, 327-333)."""
         mock_exists.return_value = True
         mock_stat.return_value.st_size = 200
-        with pytest.raises(RuntimeError, match="La configuration générée semble incomplète"):
+        with pytest.raises(GrubValidationError, match="La configuration générée semble incomplète"):
             manager._validate_config()
 
     @patch("core.managers.core_apply_manager.Path.exists")
@@ -599,7 +639,7 @@ class TestGrubApplyManager:
         mock_exists.return_value = True
         mock_stat.return_value.st_size = 200
         with patch("builtins.open", side_effect=OSError("Read error")):
-            with pytest.raises(RuntimeError, match="Erreur de lecture du fichier de configuration"):
+            with pytest.raises(GrubValidationError, match="Erreur de lecture du fichier de configuration"):
                 manager._validate_config()
 
     @patch("core.managers.core_apply_manager.shutil.which", return_value=None)
@@ -607,7 +647,7 @@ class TestGrubApplyManager:
     def test_apply_final_no_update_grub(self, mock_run, mock_which, manager):
         """Test apply_final sans update-grub (362-363)."""
         mock_run.return_value = MagicMock(returncode=1, stderr="Error")
-        with pytest.raises(RuntimeError, match="Mise à jour finale échouée"):
+        with pytest.raises(GrubCommandError, match="Mise à jour finale échouée"):
             manager._apply_final()
 
     @patch("core.managers.core_apply_manager.Path.exists")
@@ -616,7 +656,7 @@ class TestGrubApplyManager:
         """Test rollback avec backup vide (378-379)."""
         mock_exists.return_value = True
         mock_stat.return_value.st_size = 0
-        with pytest.raises(RuntimeError, match="Le fichier de sauvegarde est vide"):
+        with pytest.raises(GrubRollbackError, match="Le fichier de sauvegarde est vide"):
             manager._rollback()
 
     @patch("core.managers.core_apply_manager.Path.exists")
@@ -625,7 +665,7 @@ class TestGrubApplyManager:
         """Test rollback avec erreur OS (381-383)."""
         mock_exists.return_value = True
         mock_stat.side_effect = OSError("Stat error")
-        with pytest.raises(OSError):
+        with pytest.raises(GrubRollbackError):
             manager._rollback()
 
     @patch("core.managers.core_apply_manager.Path.exists")
@@ -650,7 +690,7 @@ class TestGrubApplyManager:
         mock_exists.return_value = True
         mock_stat.return_value.st_size = 100
         mock_read.return_value = "# Empty restored file"
-        with pytest.raises(RuntimeError, match="Le fichier restauré est invalide"):
+        with pytest.raises(GrubRollbackError, match="Le fichier restauré est invalide"):
             manager._rollback()
 
     @patch("core.managers.core_apply_manager.Path.exists")

@@ -149,7 +149,7 @@ def test_on_save_root_confirm_triggers_perform_save():
     with (
         patch("ui.ui_workflow_controller.os.geteuid", return_value=0),
         patch("ui.ui_workflow_controller.Gtk.AlertDialog", return_value=dialog),
-        patch.object(controller, "_perform_save") as mock_perform,
+        patch.object(controller, "perform_save") as mock_perform,
     ):
         controller.on_save()
         callback = captured["callback"]
@@ -173,7 +173,7 @@ def test_on_save_root_dialog_exception_is_swallowed():
         patch("ui.ui_workflow_controller.os.geteuid", return_value=0),
         patch("ui.ui_workflow_controller.Gtk.AlertDialog", return_value=dialog),
         patch("ui.ui_workflow_controller.GLib.Error", new=Exception),
-        patch.object(controller, "_perform_save") as mock_perform,
+        patch.object(controller, "perform_save") as mock_perform,
     ):
         controller.on_save()
         dialog.choose_finish.side_effect = Exception("cancel")
@@ -198,7 +198,7 @@ def test_perform_save_success_apply_now_with_hidden_entries_adds_mask_info():
         patch("ui.ui_workflow_controller.apply_hidden_entries_to_grub_cfg", return_value=("/boot/grub/grub.cfg", 2)),
         patch("ui.ui_workflow_controller.read_grub_default", return_value={"GRUB_TIMEOUT": "999", "GRUB_DEFAULT": "x"}),
     ):
-        controller._perform_save(apply_now=True)
+        controller.perform_save(apply_now=True)
 
     read_model_cb.assert_called_once()
     sm.apply_state.assert_any_call(AppState.APPLYING, controller.save_btn, controller.reload_btn)
@@ -226,7 +226,7 @@ def test_perform_save_success_apply_now_without_hidden_entries_stays_info():
         patch("ui.ui_workflow_controller.GrubApplyManager", return_value=apply_manager),
         patch("ui.ui_workflow_controller.read_grub_default", return_value={"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "0"}),
     ):
-        controller._perform_save(apply_now=True)
+        controller.perform_save(apply_now=True)
 
     msg, msg_type = show_info_cb.call_args[0]
     assert msg.startswith("OK")
@@ -248,7 +248,7 @@ def test_perform_save_apply_now_true_entries_visibility_dirty_does_not_add_skip_
         patch("ui.ui_workflow_controller.GrubApplyManager", return_value=apply_manager),
         patch("ui.ui_workflow_controller.read_grub_default", return_value={"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "0"}),
     ):
-        controller._perform_save(apply_now=True)
+        controller.perform_save(apply_now=True)
 
     msg, msg_type = show_info_cb.call_args[0]
     assert msg.startswith("OK")
@@ -271,7 +271,7 @@ def test_perform_save_success_apply_now_masking_failure_becomes_warning():
         patch("ui.ui_workflow_controller.apply_hidden_entries_to_grub_cfg", side_effect=RuntimeError("boom")),
         patch("ui.ui_workflow_controller.read_grub_default", side_effect=OSError("nope")),
     ):
-        controller._perform_save(apply_now=True)
+        controller.perform_save(apply_now=True)
 
     msg, msg_type = show_info_cb.call_args[0]
     assert "Masquage échoué" in msg
@@ -292,7 +292,7 @@ def test_perform_save_success_no_apply_adds_visibility_note():
         patch("ui.ui_workflow_controller.GrubApplyManager", return_value=apply_manager),
         patch("ui.ui_workflow_controller.read_grub_default", return_value={"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "0"}),
     ):
-        controller._perform_save(apply_now=False)
+        controller.perform_save(apply_now=False)
 
     msg, msg_type = show_info_cb.call_args[0]
     assert "Masquage non appliqué" in msg
@@ -313,7 +313,7 @@ def test_perform_save_success_no_apply_and_not_dirty_does_not_add_visibility_not
         patch("ui.ui_workflow_controller.GrubApplyManager", return_value=apply_manager),
         patch("ui.ui_workflow_controller.read_grub_default", return_value={"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "0"}),
     ):
-        controller._perform_save(apply_now=False)
+        controller.perform_save(apply_now=False)
 
     msg, msg_type = show_info_cb.call_args[0]
     assert msg.startswith("OK")
@@ -333,7 +333,7 @@ def test_perform_save_failure_sets_dirty_and_shows_error():
         patch("ui.ui_workflow_controller.merged_config_from_model", return_value={"A": "B"}),
         patch("ui.ui_workflow_controller.GrubApplyManager", return_value=apply_manager),
     ):
-        controller._perform_save(apply_now=True)
+        controller.perform_save(apply_now=True)
 
     sm.apply_state.assert_any_call(AppState.DIRTY, controller.save_btn, controller.reload_btn)
     msg, msg_type = show_info_cb.call_args[0]
@@ -346,7 +346,7 @@ def test_perform_save_exception_sets_dirty_and_shows_unexpected_error():
 
     read_model_cb.side_effect = RuntimeError("boom")
 
-    controller._perform_save(apply_now=True)
+    controller.perform_save(apply_now=True)
 
     sm.apply_state.assert_any_call(AppState.DIRTY, controller.save_btn, controller.reload_btn)
     msg, msg_type = show_info_cb.call_args[0]

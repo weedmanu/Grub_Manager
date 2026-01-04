@@ -102,7 +102,7 @@ class TabThemeConfig:
     def refresh(self) -> None:
         """Rafraîchit l'affichage des scripts et des thèmes."""
         _scan_grub_scripts(self)
-        self._scan_system_themes()
+        self.scan_system_themes()
 
     def _build_header(self, container: Gtk.Box) -> None:
         """Construit l'en-tête de l'onglet."""
@@ -236,7 +236,7 @@ class TabThemeConfig:
         except (OSError, RuntimeError) as e:
             logger.error(f"[TabThemeConfig._load_themes] Erreur: {e}")
 
-    def _scan_system_themes(self) -> None:
+    def scan_system_themes(self) -> None:
         """Scanne les répertoires système pour trouver les thèmes."""
         self.available_themes.clear()
         self.theme_paths.clear()
@@ -260,7 +260,7 @@ class TabThemeConfig:
             self._add_theme_to_list(theme, item)
 
         if len(self.available_themes) == 0:
-            logger.warning("[TabThemeConfig._scan_system_themes] Aucun thème valide trouvé")
+            logger.warning("[TabThemeConfig.scan_system_themes] Aucun thème valide trouvé")
             # Ajouter un placeholder
             row = Gtk.ListBoxRow()
             row.set_selectable(False)
@@ -669,7 +669,7 @@ def _on_delete_confirmed(dialog: Gtk.AlertDialog, result, user_data: tuple) -> N
                 create_error_dialog(f"Impossible de supprimer le thème '{theme_name}'")
 
             # Recharger la liste des thèmes
-            tab._scan_system_themes()
+            tab.scan_system_themes()
 
     except (OSError, RuntimeError) as e:
         logger.error(f"[_on_delete_confirmed] Erreur: {e}")

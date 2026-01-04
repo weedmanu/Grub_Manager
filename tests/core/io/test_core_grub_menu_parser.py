@@ -11,14 +11,14 @@ import pytest
 from core.io.core_grub_menu_parser import (
     GrubDefaultChoice,
     _candidate_grub_cfg_paths,
-    _discover_efi_grub_cfg_paths,
-    _extract_menuentry_id,
     _iter_readable_grub_cfg_lines,
     _parse_choices,
     get_simulated_os_prober_entries,
     read_grub_default_choices,
     read_grub_default_choices_with_source,
 )
+from core.config.core_paths import discover_grub_cfg_paths
+from core.io.grub_parsing_utils import extract_menuentry_id
 
 
 class TestGrubDefaultChoice:
@@ -48,47 +48,47 @@ class TestGrubDefaultChoice:
 
 
 class TestExtractMenuentryId:
-    """Tests pour _extract_menuentry_id."""
+    """Tests pour extract_menuentry_id."""
 
     def test_extract_id_with_equals(self):
         """Vérifie l'extraction avec --id=value."""
         line = "menuentry 'Ubuntu' --id=gnulinux-simple {"
-        assert _extract_menuentry_id(line) == "gnulinux-simple"
+        assert extract_menuentry_id(line) == "gnulinux-simple"
 
     def test_extract_id_with_space(self):
         """Vérifie l'extraction avec --id value."""
         line = "menuentry 'Ubuntu' --id gnulinux-simple {"
-        assert _extract_menuentry_id(line) == "gnulinux-simple"
+        assert extract_menuentry_id(line) == "gnulinux-simple"
 
     def test_extract_id_with_quotes(self):
         """Vérifie l'extraction avec quotes."""
         line = "menuentry 'Ubuntu' --id 'gnulinux-simple' {"
-        assert _extract_menuentry_id(line) == "gnulinux-simple"
+        assert extract_menuentry_id(line) == "gnulinux-simple"
 
     def test_extract_id_dynamic(self):
         """Vérifie l'extraction avec $menuentry_id_option."""
         line = "menuentry 'Ubuntu' $menuentry_id_option 'gnulinux-simple-id' {"
-        assert _extract_menuentry_id(line) == "gnulinux-simple-id"
+        assert extract_menuentry_id(line) == "gnulinux-simple-id"
 
     def test_extract_id_no_id(self):
         """Vérifie le cas sans ID."""
         line = "menuentry 'Ubuntu' {"
-        assert _extract_menuentry_id(line) == ""
+        assert extract_menuentry_id(line) == ""
 
     def test_extract_id_complex_attributes(self):
         """Vérifie l'extraction avec plusieurs attributs."""
         line = "menuentry 'Ubuntu' --class gnu-linux --class os --id 'ubuntu-20' --users root {"
-        assert _extract_menuentry_id(line) == "ubuntu-20"
+        assert extract_menuentry_id(line) == "ubuntu-20"
 
     def test_extract_id_single_quotes_mixed(self):
         """Vérifie l'extraction avec mélange de quotes."""
         line = 'menuentry "Ubuntu" --id ubuntu-simple {'
-        assert _extract_menuentry_id(line) == "ubuntu-simple"
+        assert extract_menuentry_id(line) == "ubuntu-simple"
 
     def test_extract_id_with_dashes(self):
         """Vérifie les IDs avec des tirets."""
         line = "menuentry 'Ubuntu' --id 'gnu-linux-simple-ubuntu' {"
-        assert _extract_menuentry_id(line) == "gnu-linux-simple-ubuntu"
+        assert extract_menuentry_id(line) == "gnu-linux-simple-ubuntu"
 
 
 class TestParseChoices:
@@ -375,15 +375,15 @@ class TestGrubCfgDiscovery:
 
     def test_discover_efi_grub_cfg_paths(self):
         """Test la découverte des chemins EFI."""
-        with patch("core.io.core_grub_menu_parser.glob", return_value=["/boot/efi/EFI/ubuntu/grub.cfg"]):
-            paths = _discover_efi_grub_cfg_paths()
+        with patch("core.config.core_paths.glob", return_value=["/boot/efi/EFI/ubuntu/grub.cfg"]):
+            paths = discover_grub_cfg_paths()
             assert "/boot/efi/EFI/ubuntu/grub.cfg" in paths
 
     def test_candidate_grub_cfg_paths_default(self):
         """Test les candidats par défaut avec doublons."""
         with patch("core.io.core_grub_menu_parser.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg", "/boot/grub/grub.cfg"]):
             with patch(
-                "core.io.core_grub_menu_parser._discover_efi_grub_cfg_paths",
+                "core.io.core_grub_menu_parser.discover_grub_cfg_paths",
                 return_value=["/boot/grub/grub.cfg", "/efi/grub.cfg"],
             ):
                 paths = _candidate_grub_cfg_paths("/boot/grub/grub.cfg")

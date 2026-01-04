@@ -221,7 +221,6 @@ def test_color_picker_get_widget():
     assert isinstance(widget, Gtk.Box)
     # Check if label and button are in the box
     # In GTK4 we can't easily list children like in GTK3 without iterating
-    pass
 
 
 def test_create_color_grid_row():

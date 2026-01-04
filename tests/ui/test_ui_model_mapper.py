@@ -16,9 +16,9 @@ def _make_window() -> MagicMock:
     window.state_manager = MagicMock()
     window.state_manager.hidden_entry_ids = set()
 
-    window._sync_timeout_choices = MagicMock()
-    window._refresh_default_choices = MagicMock()
-    window._set_default_choice = MagicMock()
+    window.sync_timeout_choices = MagicMock()
+    window.refresh_default_choices = MagicMock()
+    window.set_default_choice = MagicMock()
 
     window.hidden_timeout_check = MagicMock()
     window.cmdline_dropdown = MagicMock()
@@ -29,9 +29,9 @@ def _make_window() -> MagicMock:
     window.hide_advanced_options_check = MagicMock()
     window.hide_memtest_check = MagicMock()
 
-    window._get_default_choice = MagicMock(return_value="0")
-    window._get_timeout_value = MagicMock(return_value=5)
-    window._get_cmdline_value = MagicMock(return_value="quiet splash")
+    window.get_default_choice = MagicMock(return_value="0")
+    window.get_timeout_value = MagicMock(return_value=5)
+    window.get_cmdline_value = MagicMock(return_value="quiet splash")
 
     return window
 

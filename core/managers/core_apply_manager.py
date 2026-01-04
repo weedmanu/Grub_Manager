@@ -16,7 +16,14 @@ from pathlib import Path
 from loguru import logger
 
 from ..config.core_paths import GRUB_CFG_PATH, GRUB_DEFAULT_PATH
+from ..core_exceptions import (
+    GrubBackupError,
+    GrubCommandError,
+    GrubRollbackError,
+    GrubValidationError,
+)
 from ..io.core_grub_default_io import write_grub_default
+from ..io.grub_validation import validate_grub_file
 
 
 class ApplyState(Enum):
@@ -65,7 +72,7 @@ class GrubApplyManager:
             logger.debug("[apply_configuration] Validation préalable de la config")
             if not new_config:
                 logger.error("[apply_configuration] ERREUR: Configuration vide fournie")
-                raise ValueError("Configuration fournie est vide")
+                raise GrubValidationError("Configuration fournie est vide")
 
             required_keys = {"GRUB_TIMEOUT", "GRUB_DEFAULT"}
             missing_keys = required_keys - set(new_config.keys())
@@ -89,7 +96,7 @@ class GrubApplyManager:
             written_lines = [line for line in written_content.splitlines() if line.strip() and not line.startswith("#")]
             if len(written_lines) == 0:
                 logger.error("[apply_configuration] ERREUR: Fichier écrit est vide ou invalide")
-                raise RuntimeError("Le fichier écrit ne contient pas de configuration valide")
+                raise GrubValidationError("Le fichier écrit ne contient pas de configuration valide")
             logger.debug(f"[apply_configuration] Fichier écrit valide: {len(written_lines)} lignes")
 
             # 3. GENERATE TEST
@@ -184,30 +191,26 @@ class GrubApplyManager:
             # Si le fichier n'existe pas, c'est étrange mais on peut créer un fichier vide pour le rollback
             # ou juste noter qu'il n'existait pas. Pour l'instant on assume qu'il doit exister.
             logger.error(f"[_create_backup] ERREUR: Le fichier {self.grub_default_path} n'existe pas")
-            raise FileNotFoundError(f"Le fichier {self.grub_default_path} n'existe pas.")
+            raise GrubBackupError(f"Le fichier {self.grub_default_path} n'existe pas.")
 
         # === Vérification du fichier source ===
         logger.debug("[_create_backup] Vérification du fichier source")
         try:
-            source_size = self.grub_default_path.stat().st_size
-            if source_size == 0:
-                logger.error("[_create_backup] ERREUR: Le fichier source est vide")
-                raise RuntimeError("Le fichier source est vide")
+            validation = validate_grub_file(self.grub_default_path)
+            if not validation.is_valid:
+                logger.error(f"[_create_backup] ERREUR: {validation.error_message}")
+                raise GrubBackupError(f"Source invalide: {validation.error_message}")
 
-            # Vérifier que le fichier contient de la configuration valide
-            content = self.grub_default_path.read_text(encoding="utf-8", errors="replace")
-            lines = [line for line in content.splitlines() if line.strip() and not line.startswith("#")]
-            if len(lines) == 0:
-                logger.error("[_create_backup] ERREUR: Le fichier source ne contient pas de configuration")
-                raise RuntimeError("Le fichier source ne contient pas de configuration valide")
-
-            logger.debug(f"[_create_backup] Fichier source valide: {source_size} bytes, {len(lines)} lignes")
+            logger.debug(
+                f"[_create_backup] Fichier source valide: {validation.file_size} bytes, {validation.meaningful_lines} lignes"
+            )
         except OSError as e:
             logger.error(f"[_create_backup] ERREUR: Impossible de vérifier le fichier source - {e}")
             raise
 
         # === Création du backup ===
         try:
+            source_size = self.grub_default_path.stat().st_size
             shutil.copy2(self.grub_default_path, self.backup_path)
             logger.info(f"[_create_backup] Backup créé: {self.backup_path}")
 
@@ -215,12 +218,12 @@ class GrubApplyManager:
             backup_size = self.backup_path.stat().st_size
             if backup_size != source_size:
                 logger.error(f"[_create_backup] ERREUR: Taille du backup ({backup_size}) != source ({source_size})")
-                raise RuntimeError(f"Le backup est incomplet: {backup_size} vs {source_size} bytes")
+                raise GrubBackupError(f"Le backup est incomplet: {backup_size} vs {source_size} bytes")
 
             logger.success(f"[_create_backup] Succès - {source_size} bytes sauvegardés, backup: {self.backup_path}")
         except OSError as e:
             logger.error(f"[_create_backup] ERREUR: Impossible de créer le backup - {e}")
-            raise
+            raise GrubBackupError(f"Impossible de créer le backup: {e}") from e
 
     def _generate_test_config(self):
         """Génère une configuration GRUB de test."""
@@ -231,37 +234,38 @@ class GrubApplyManager:
 
         if result.returncode != 0:
             logger.error(f"[_generate_test_config] ERREUR: grub-mkconfig failed - {result.stderr[:200]}")
-            raise RuntimeError(f"grub-mkconfig a échoué:\n{result.stderr}")
+            raise GrubCommandError(
+                f"grub-mkconfig a échoué:\n{result.stderr}",
+                command=" ".join(cmd),
+                returncode=result.returncode,
+                stderr=result.stderr,
+            )
 
         if not self.temp_cfg_path.exists() or self.temp_cfg_path.stat().st_size == 0:
             logger.error("[_generate_test_config] ERREUR: Fichier généré vide ou absent")
-            raise RuntimeError("Le fichier de configuration généré est vide ou absent.")
+            raise GrubValidationError("Le fichier de configuration généré est vide ou absent.")
 
         # === VALIDATION SUPPLÉMENTAIRE: Contenu du fichier généré ===
         logger.debug("[_generate_test_config] Vérification du contenu du fichier généré")
         try:
-            with open(self.temp_cfg_path, encoding="utf-8", errors="replace") as f:
-                content = f.read()
-                # Au minimum, un grub.cfg valide doit avoir des lignes non-vides
-                lines = [line for line in content.splitlines() if line.strip()]
-                if len(lines) < 5:
-                    logger.error(
-                        f"[_generate_test_config] ERREUR: Fichier généré trop court ({len(lines)} lignes utiles)"
-                    )
-                    raise RuntimeError(
-                        f"Le fichier de configuration généré est anormalement court ({len(lines)} lignes)."
-                    )
+            validation = validate_grub_file(self.temp_cfg_path, min_lines=5)
+            if not validation.is_valid:
+                logger.error(f"[_generate_test_config] ERREUR: {validation.error_message}")
+                raise GrubValidationError(f"Le fichier de configuration généré est invalide: {validation.error_message}")
 
-                # Vérifier la présence de marqueurs essentiels
-                if "menuentry" not in content.lower() and "echo" not in content.lower():
-                    logger.warning(
-                        "[_generate_test_config] ATTENTION: Pas de 'menuentry' trouvé, configuration minimaliste"
-                    )
+            # Vérifier la présence de marqueurs essentiels
+            content = self.temp_cfg_path.read_text(encoding="utf-8", errors="replace")
+            if "menuentry" not in content.lower() and "echo" not in content.lower():
+                logger.warning(
+                    "[_generate_test_config] ATTENTION: Pas de 'menuentry' trouvé, configuration minimaliste"
+                )
 
-                logger.debug(f"[_generate_test_config] Validation contenu: OK ({len(lines)} lignes utiles)")
+            logger.debug(
+                f"[_generate_test_config] Validation contenu: OK ({validation.meaningful_lines} lignes utiles)"
+            )
         except OSError as e:
             logger.error(f"[_generate_test_config] ERREUR: Impossible de lire le fichier généré - {e}")
-            raise RuntimeError(f"Impossible de valider le fichier généré: {e}") from e
+            raise GrubValidationError(f"Impossible de valider le fichier généré: {e}") from e
 
         logger.info(f"Configuration de test générée: {self.temp_cfg_path} ({self.temp_cfg_path.stat().st_size} bytes)")
 
@@ -273,12 +277,12 @@ class GrubApplyManager:
         logger.debug("[_validate_config] Validation 1: Existence et format du fichier")
         if not self.temp_cfg_path.exists():
             logger.error("[_validate_config] ERREUR: Fichier de test introuvable")
-            raise RuntimeError("Le fichier de configuration de test a disparu")
+            raise GrubValidationError("Le fichier de configuration de test a disparu")
 
         file_size = self.temp_cfg_path.stat().st_size
         if file_size == 0:
             logger.error("[_validate_config] ERREUR: Fichier vide")
-            raise RuntimeError("Le fichier de configuration généré est vide")
+            raise GrubValidationError("Le fichier de configuration généré est vide")
 
         if file_size < 100:
             logger.warning(
@@ -296,7 +300,7 @@ class GrubApplyManager:
             logger.debug(f"[_validate_config] grub-script-check returncode={result.returncode}")
             if result.returncode != 0:
                 logger.error(f"[_validate_config] ERREUR: Validation syntaxique échouée - {result.stderr[:200]}")
-                raise RuntimeError(f"Validation syntaxique échouée:\n{result.stderr}")
+                raise GrubValidationError(f"Validation syntaxique échouée:\n{result.stderr}")
             logger.success("[_validate_config] Validation syntaxique: OK")
         else:
             logger.warning("[_validate_config] grub-script-check non trouvé, validation syntaxique ignorée.")
@@ -334,14 +338,14 @@ class GrubApplyManager:
                         f"[_validate_config] ERREUR: Config générée trop minimale "
                         f"({len(non_empty_lines)} lignes de code)"
                     )
-                    raise RuntimeError(
+                    raise GrubValidationError(
                         f"La configuration générée semble incomplète " f"({len(non_empty_lines)} lignes de code)"
                     )
 
                 logger.success(f"[_validate_config] Cohérence vérifiée: {len(non_empty_lines)} lignes de code")
         except OSError as e:
             logger.error(f"[_validate_config] ERREUR: Impossible de lire le fichier - {e}")
-            raise RuntimeError(f"Erreur de lecture du fichier de configuration: {e}") from e
+            raise GrubValidationError(f"Erreur de lecture du fichier de configuration: {e}") from e
 
         logger.success("[_validate_config] Toutes les validations réussies")
 
@@ -360,7 +364,12 @@ class GrubApplyManager:
         logger.debug(f"[_apply_final] Résultat: returncode={result.returncode}")
         if result.returncode != 0:
             logger.error(f"[_apply_final] ERREUR: Mise à jour finale échouée - {result.stderr[:200]}")
-            raise RuntimeError(f"Mise à jour finale échouée:\n{result.stderr}")
+            raise GrubCommandError(
+                f"Mise à jour finale échouée:\n{result.stderr}",
+                command=" ".join(cmd),
+                returncode=result.returncode,
+                stderr=result.stderr,
+            )
         logger.success("[_apply_final] Configuration GRUB appliquée avec succès")
 
     def _rollback(self):
@@ -368,7 +377,7 @@ class GrubApplyManager:
         logger.warning("[_rollback] Début du rollback")
         if not self.backup_path.exists():
             logger.error(f"[_rollback] ERREUR CRITIQUE: Backup introuvable à {self.backup_path}")
-            raise FileNotFoundError(f"Backup introuvable: {self.backup_path}")
+            raise GrubRollbackError(f"Backup introuvable: {self.backup_path}")
 
         # === SÉCURITÉ: Vérifier que le backup est valide avant de l'appliquer ===
         logger.debug("[_rollback] Vérification du backup avant restauration")
@@ -376,11 +385,11 @@ class GrubApplyManager:
             backup_size = self.backup_path.stat().st_size
             if backup_size == 0:
                 logger.error("[_rollback] ERREUR CRITIQUE: Le backup est vide, refus de restaurer")
-                raise RuntimeError("Le fichier de sauvegarde est vide")
+                raise GrubRollbackError("Le fichier de sauvegarde est vide")
             logger.debug(f"[_rollback] Backup valide: {backup_size} bytes")
         except OSError as e:
             logger.error(f"[_rollback] ERREUR CRITIQUE: Impossible de vérifier le backup - {e}")
-            raise
+            raise GrubRollbackError(f"Impossible de vérifier le backup: {e}") from e
 
         # === Restauration ===
         try:
@@ -406,13 +415,15 @@ class GrubApplyManager:
             ]
             if len(restored_lines) == 0:
                 logger.error("[_rollback] ERREUR CRITIQUE: Fichier restauré est vide ou invalide")
-                raise RuntimeError("Le fichier restauré est invalide")
+                raise GrubRollbackError("Le fichier restauré est invalide")
             logger.debug(f"[_rollback] Fichier restauré valide: {len(restored_lines)} lignes de config")
 
             logger.success("[_rollback] Succès - ancien fichier restauré et vérifié")
         except Exception as e:
             logger.error(f"[_rollback] ERREUR: Impossible de restaurer le backup - {e!s}")
-            raise
+            if isinstance(e, GrubRollbackError):
+                raise
+            raise GrubRollbackError(f"Impossible de restaurer le backup: {e}") from e
 
     def _cleanup_backup(self):
         """Supprime le backup temporaire en cas de succès."""

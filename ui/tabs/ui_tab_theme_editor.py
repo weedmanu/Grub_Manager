@@ -125,7 +125,7 @@ class TabThemeEditor:
         two_columns.append(right_column)
 
         # Charger le thème par défaut
-        self._load_default_theme()
+        self.load_default_theme()
 
         logger.success("[TabThemeEditor] Interface construite")
         return main_box
@@ -429,7 +429,7 @@ class TabThemeEditor:
 
         return section
 
-    def _load_default_theme(self) -> None:
+    def load_default_theme(self) -> None:
         """Charge un thème par défaut dans l'interface."""
         self.current_theme = create_custom_theme("mon_theme")
         self._updating_ui = True

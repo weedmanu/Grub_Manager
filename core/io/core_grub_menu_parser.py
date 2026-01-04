@@ -11,11 +11,11 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass
-from glob import glob
 
 from loguru import logger
 
-from ..config.core_paths import GRUB_CFG_PATH, GRUB_CFG_PATHS
+from ..config.core_paths import GRUB_CFG_PATH, GRUB_CFG_PATHS, discover_grub_cfg_paths
+from .grub_parsing_utils import extract_menuentry_id
 
 
 @dataclass(frozen=True)
@@ -45,29 +45,7 @@ class _Scope:
 
 _MENUENTRY_RE = re.compile(r"^\s*menuentry\b.*?['\"]([^'\"]+)['\"]")
 _SUBMENU_RE = re.compile(r"^\s*submenu\b.*?['\"]([^'\"]+)['\"]")
-_MENUENTRY_ID_RE = re.compile(r"\s--id(?:=|\s+)(['\"]?)([^'\"\s]+)\1")
-_MENUENTRY_DYNAMIC_ID_RE = re.compile(r"\$\{?menuentry_id_option\}?\s+['\"]([^'\"]+)['\"]")
 _SECTION_BEGIN_RE = re.compile(r"^### BEGIN /etc/grub\.d/(\S+) ###")
-
-
-def _extract_menuentry_id(line: str) -> str:
-    m = _MENUENTRY_ID_RE.search(line)
-    if m:
-        return m.group(2)
-    m = _MENUENTRY_DYNAMIC_ID_RE.search(line)
-    if m:
-        return m.group(1)
-    return ""
-
-
-def _discover_efi_grub_cfg_paths() -> list[str]:
-    """Découvre des candidats `grub.cfg` EFI sous `/boot/efi/EFI/*/grub.cfg`.
-
-    Certains systèmes (notamment UEFI) exposent aussi un `grub.cfg` sous la
-    partition EFI. Il peut s'agir d'un stub (sans `menuentry`) ou du vrai.
-    On l'ajoute en candidats *après* les chemins classiques.
-    """
-    return sorted(glob("/boot/efi/EFI/*/grub.cfg"))
 
 
 def _candidate_grub_cfg_paths(path: str) -> list[str]:
@@ -75,7 +53,7 @@ def _candidate_grub_cfg_paths(path: str) -> list[str]:
     if path == GRUB_CFG_PATH:
         # Même logique que Grub_utils: conserver l'ordre des chemins standards.
         ordered: list[str] = []
-        for p in [*GRUB_CFG_PATHS, *_discover_efi_grub_cfg_paths()]:
+        for p in [*GRUB_CFG_PATHS, *discover_grub_cfg_paths()]:
             if p not in ordered:
                 ordered.append(p)
         return ordered
@@ -115,6 +93,11 @@ def _parse_choices(lines: list[str]) -> list[GrubDefaultChoice]:
     current_source = "unknown"
 
     for line in lines:
+        # Invariant: la pile ne doit jamais être vide
+        assert len(stack) > 0, "Parser stack is empty (bug)"
+        # Invariant: brace_depth >= 0
+        assert brace_depth >= 0, f"Negative brace depth: {brace_depth}"
+
         m_section = _SECTION_BEGIN_RE.match(line)
         if m_section:
             current_source = m_section.group(1)
@@ -147,7 +130,7 @@ def _parse_choices(lines: list[str]) -> list[GrubDefaultChoice]:
         m_ent = _MENUENTRY_RE.match(line)
         if m_ent:
             title = m_ent.group(1)
-            menu_id = _extract_menuentry_id(line)
+            menu_id = extract_menuentry_id(line)
             idx = stack[-1].next_index
             stack[-1].next_index += 1
 

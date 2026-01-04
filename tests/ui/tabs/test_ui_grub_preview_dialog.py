@@ -1,16 +1,23 @@
+import os
+from unittest.mock import MagicMock, patch
+
 import gi
+import pytest
 
 gi.require_version("Gtk", "4.0")
-from unittest.mock import patch
+from gi.repository import Gtk
 
 from core.services.core_grub_service import GrubConfig, MenuEntry
 from core.theme.core_theme_generator import GrubTheme
 from ui.tabs.ui_grub_preview_dialog import GrubPreviewDialog
 
+# Set headless backend for GTK
+os.environ["GDK_BACKEND"] = "headless"
+
 
 def test_grub_preview_dialog_fallback():
-    theme = GrubTheme(name="test_theme")
-    dialog = GrubPreviewDialog(theme)
+    theme_obj = GrubTheme(name="test_theme")
+    dialog = GrubPreviewDialog(theme_obj)
 
     with (
         patch("core.services.core_grub_service.GrubService.read_current_config", side_effect=OSError("Error")),
@@ -19,16 +26,6 @@ def test_grub_preview_dialog_fallback():
 
         # Should not crash and use fallback
         dialog.show()
-
-
-import os
-from unittest.mock import MagicMock
-
-import pytest
-from gi.repository import Gtk
-
-# Set headless backend for GTK
-os.environ["GDK_BACKEND"] = "headless"
 
 
 @pytest.fixture

@@ -49,7 +49,7 @@ def test_theme_editor_dialog_init(parent_window, state_manager):
 
         assert dialog.state_manager == state_manager
         assert dialog.title_color_btn == mock_editor.title_color_btn
-        assert mock_editor._load_default_theme.called
+        assert mock_editor.load_default_theme.called
 
 
 def test_theme_editor_dialog_load_default_theme_no_editor(parent_window, state_manager):

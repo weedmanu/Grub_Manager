@@ -6,6 +6,8 @@ import gi
 from loguru import logger
 
 gi.require_version("Gtk", "4.0")
+
+# pylint: disable=wrong-import-position
 from gi.repository import GLib, Gtk
 
 INFO = "info"
@@ -66,9 +68,9 @@ class InfoBarController:
                 GLib.source_remove(self._timeout_id)
 
             # Masquer automatiquement après 5 secondes
-            self._timeout_id = GLib.timeout_add_seconds(5, self._hide_info_callback)
+            self._timeout_id = GLib.timeout_add_seconds(5, self.hide_info_callback)
 
-    def _hide_info_callback(self) -> bool:
+    def hide_info_callback(self) -> bool:
         """Callback pour masquer la barre d'information."""
         if self.revealer is not None:
             self.revealer.set_reveal_child(False)

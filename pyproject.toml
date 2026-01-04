@@ -170,22 +170,11 @@ exclude_lines = [
     "class .*\\bProtocol\\):",
 ]
 
+[tool.pylint.master]
+init-hook = "import sys; sys.path.append('.')"
+
 [tool.pylint.messages_control]
-disable = [
-    "missing-module-docstring",
-    "missing-class-docstring",
-    "missing-function-docstring",
-    "too-few-public-methods",
-    "duplicate-code",
-    "too-many-arguments",
-    "too-many-return-statements",
-    "too-many-branches",
-    "too-many-locals",
-    "too-many-statements",
-    "too-many-instance-attributes",
-    "protected-access",
-    "wrong-import-position",
-]
+disable = []
 
 [tool.pylint.format]
 max-line-length = 120

@@ -5,6 +5,7 @@ Module séparé pour éviter les dépendances circulaires et clarifier les respo
 
 from __future__ import annotations
 
+from glob import glob
 from pathlib import Path
 from typing import Final
 
@@ -44,3 +45,22 @@ def get_all_grub_themes_dirs() -> list[Path]:
         Liste des chemins vers les répertoires des thèmes
     """
     return [Path(d) for d in GRUB_THEMES_DIRS if Path(d).exists()]
+
+
+def discover_grub_cfg_paths() -> list[str]:
+    """Découvre tous les chemins grub.cfg candidats (standards + EFI).
+
+    Returns:
+        Liste dédoublonnée des chemins potentiels vers grub.cfg
+    """
+    candidates = list(GRUB_CFG_PATHS)
+    efi_paths = sorted(glob("/boot/efi/EFI/*/grub.cfg"))
+
+    # Dédoublonnage préservant l'ordre
+    seen = set()
+    result = []
+    for p in [*candidates, *efi_paths]:
+        if p not in seen:
+            seen.add(p)
+            result.append(p)
+    return result

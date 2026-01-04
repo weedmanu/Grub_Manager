@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from gi.repository import Gtk
 from loguru import logger
 
+from core.core_exceptions import GrubBackupError
 from core.io.core_grub_default_io import (
     create_grub_default_backup,
     delete_grub_default_backup,
@@ -69,10 +70,7 @@ def _on_create_clicked(_btn, controller, refresh_callback):
 
         controller.show_info(f"Sauvegarde créée avec succès:\n{os.path.basename(backup_path)}", "info")
         refresh_callback()
-    except (OSError, ValueError, RuntimeError) as e:
-        logger.error(f"[_on_create_clicked] ERREUR: {e}")
-        controller.show_info(f"❌ Échec de la création:\n{e}", "error")
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except (OSError, ValueError, RuntimeError, GrubBackupError) as e:
         logger.error(f"[_on_create_clicked] ERREUR: {e}")
         controller.show_info(f"❌ Échec de la création:\n{e}", "error")
 
