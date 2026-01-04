@@ -36,6 +36,7 @@ from ui.ui_model_mapper import ModelWidgetMapper
 from ui.ui_workflow_controller import WorkflowController
 from ui.ui_state import AppState, AppStateManager
 from ui.controllers import TimeoutController, DefaultChoiceController, PermissionController
+from ui.ui_protocols import TimeoutWidget, DefaultChoiceWidget, ConfigModelMapper, PermissionChecker, InfoDisplay
 
 __all__ = [
     "ActiveThemeManager",
@@ -48,7 +49,18 @@ __all__ = [
 
 
 class GrubConfigManager(Gtk.ApplicationWindow):
-    """Fenêtre principale de l'application GTK (édition de `/etc/default/grub`)."""
+    """Fenêtre principale de l'application GTK (édition de `/etc/default/grub`).
+    
+    Implémente les Protocols (interfaces ségrégées):
+    - TimeoutWidget: gestion du timeout GRUB
+    - DefaultChoiceWidget: gestion du choix par défaut
+    - ConfigModelMapper: sync modèle ↔ widgets
+    - PermissionChecker: vérifications de permissions
+    - InfoDisplay: affichage de messages
+    
+    Note: Les Protocols sont utilisés pour la vérification de type statique (mypy),
+          pas hérités à runtime (incompatibilité métaclasse GTK).
+    """
 
     # Membres pour les contrôleurs délégués (déclarés ici pour les tests qui bypassent __init__)
     infobar: InfoBarController | None = None
