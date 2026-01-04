@@ -18,7 +18,7 @@ show_help() {
   echo -e "${YELLOW}Options:${NC}"
   echo -e "  ${GREEN}--clean${NC}       Supprime les caches (.pytest, .ruff, .mypy) et __pycache__"
   echo -e "  ${GREEN}--fix${NC}         Applique les corrections automatiques (ruff, black, isort)"
-  echo -e "  ${GREEN}--lint${NC}        Vérifie le code (ruff, black --check, mypy, vulture, pydocstyle)"
+  echo -e "  ${GREEN}--lint${NC}        Vérifie le code (ruff, black --check, mypy, vulture, pydocstyle, pylint)"
   echo -e "  ${GREEN}--test${NC}        Exécute la suite de tests pytest"
   echo -e "  ${GREEN}--cov${NC}         Exécute les tests avec rapport de couverture détaillé"
   echo -e "  ${GREEN}--all${NC}         Enchaîne : clean -> fix -> lint -> test (comportement par défaut)"
@@ -114,6 +114,7 @@ lint() {
   run_check "Mypy" "$PYTHON_BIN" -m mypy $PATHS
   run_check "Vulture" "$PYTHON_BIN" -m vulture $PATHS --min-confidence 65
   run_check "Pydocstyle" "$PYTHON_BIN" -m pydocstyle $PATHS
+  run_check "Pylint" "$PYTHON_BIN" -m pylint $PATHS
 }
 
 test_suite() {
