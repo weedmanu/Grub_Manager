@@ -18,36 +18,39 @@ from loguru import logger
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gio", "2.0")
-from gi.repository import GLib, Gtk  # noqa: E402
+from gi.repository import Gtk  # noqa: E402
 
-from core.io.core_grub_default_io import read_grub_default  # noqa: E402
-from core.managers.core_apply_manager import GrubApplyManager  # noqa: E402
 from core.managers.core_entry_visibility_manager import (  # noqa: E402
-    apply_hidden_entries_to_grub_cfg,
     save_hidden_entry_ids,
 )
-from core.models.core_grub_ui_model import merged_config_from_model  # noqa: E402
 from core.system.core_grub_system_commands import (  # noqa: E402
     GrubDefaultChoice,
     GrubUiModel,
-    GrubUiState,
     load_grub_ui_state,
 )
 from core.system.core_sync_checker import check_grub_sync  # noqa: E402
-from core.config.core_paths import get_grub_themes_dir  # noqa: E402
-from core.theme.core_active_theme_manager import ActiveThemeManager  # noqa: E402
 from ui.tabs.ui_entries_renderer import render_entries as render_entries_view  # noqa: E402
 from ui.ui_builder import UIBuilder  # noqa: E402
 from ui.ui_gtk_helpers import GtkHelper  # noqa: E402
+from ui.ui_infobar_controller import InfoBarController, INFO, WARNING, ERROR  # noqa: E402
+from ui.ui_model_mapper import ModelWidgetMapper  # noqa: E402
+from ui.ui_workflow_controller import WorkflowController  # noqa: E402
 from ui.ui_state import AppState, AppStateManager  # noqa: E402
 
-INFO = "info"
-WARNING = "warning"
-ERROR = "error"
+# Re-exports pour compatibilité avec les tests existants
+from core.managers.core_apply_manager import GrubApplyManager  # noqa: F401
+from core.models.core_grub_ui_model import merged_config_from_model  # noqa: F401
+from core.theme.core_active_theme_manager import ActiveThemeManager  # noqa: F401
+from core.managers.core_entry_visibility_manager import apply_hidden_entries_to_grub_cfg  # noqa: F401
+from core.config.core_paths import get_grub_themes_dir  # noqa: F401
 
 
 class GrubConfigManager(Gtk.ApplicationWindow):
     """Fenêtre principale de l'application GTK (édition de `/etc/default/grub`)."""
+
+    # Membres pour les contrôleurs délégués (déclarés ici pour les tests qui bypassent __init__)
+    infobar: InfoBarController | None = None
+    workflow: WorkflowController | None = None
 
     def __init__(self, application: Gtk.Application):
         """Initialise la fenêtre.
@@ -88,7 +91,9 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         self.reload_btn: Gtk.Button | None = None
         self.save_btn: Gtk.Button | None = None
 
-        # Délégation: Gestionnaire d'état
+        # Contrôleurs délégués
+        self.infobar: InfoBarController | None = None
+        self.workflow: WorkflowController | None = None
         self.state_manager = AppStateManager()
 
         self.create_ui()
@@ -257,150 +262,11 @@ class GrubConfigManager(Gtk.ApplicationWindow):
 
     def _apply_model_to_ui(self, model: GrubUiModel, entries: list[GrubDefaultChoice]) -> None:
         """Synchronize data model to GTK4 widgets."""
-        logger.debug("[_apply_model_to_ui] Début - synchronisation modèle → UI")
-        logger.debug(
-            f"[_apply_model_to_ui] Model values: timeout={model.timeout}, "
-            f"default={model.default}, hidden_timeout={model.hidden_timeout}"
-        )
-        logger.debug(f"[_apply_model_to_ui] Graphics: gfxmode={model.gfxmode}, gfxpayload={model.gfxpayload_linux}")
-        logger.debug(f"[_apply_model_to_ui] Flags: disable_os_prober={model.disable_os_prober}")
-
-        self.state_manager.set_loading(True)
-        logger.debug("[_apply_model_to_ui] Loading flag set to True")
-        try:
-            self._sync_timeout_choices(int(model.timeout))
-
-            if self.hidden_timeout_check is not None:
-                self.hidden_timeout_check.set_active(bool(model.hidden_timeout))
-                logger.debug(f"[_apply_model_to_ui] hidden_timeout_check.set_active({bool(model.hidden_timeout)})")
-
-            # Configurer le dropdown cmdline selon les valeurs quiet/splash
-            cmdline_dropdown = getattr(self, "cmdline_dropdown", None)
-            if cmdline_dropdown is not None:
-                if model.quiet and model.splash:
-                    cmdline_dropdown.set_selected(0)  # quiet splash
-                elif model.quiet:
-                    cmdline_dropdown.set_selected(1)  # quiet
-                elif model.splash:
-                    cmdline_dropdown.set_selected(2)  # splash
-                else:
-                    cmdline_dropdown.set_selected(3)  # verbose
-                logger.debug(f"[_apply_model_to_ui] cmdline_dropdown set to index {cmdline_dropdown.get_selected()}")
-
-            if self.gfxmode_dropdown is not None:
-                GtkHelper.dropdown_set_value(self.gfxmode_dropdown, model.gfxmode)
-                logger.debug(f"[_apply_model_to_ui] gfxmode_dropdown set to '{model.gfxmode}'")
-            if self.gfxpayload_dropdown is not None:
-                GtkHelper.dropdown_set_value(self.gfxpayload_dropdown, model.gfxpayload_linux)
-                logger.debug(f"[_apply_model_to_ui] gfxpayload_dropdown set to '{model.gfxpayload_linux}'")
-
-            if self.disable_os_prober_check is not None:
-                self.disable_os_prober_check.set_active(bool(model.disable_os_prober))
-                logger.debug(
-                    f"[_apply_model_to_ui] disable_os_prober_check.set_active({bool(model.disable_os_prober)})"
-                )
-
-            # Synchroniser les switches de masquage global (Advanced options / memtest)
-            # Basé sur les IDs actuellement masqués.
-            hide_advanced_options_check = getattr(self, "hide_advanced_options_check", None)
-            if hide_advanced_options_check is not None:
-                adv_ids = {
-                    (e.menu_id or "").strip()
-                    for e in (entries or [])
-                    if (e.menu_id or "").strip() and ("advanced options" in (e.title or "").lower())
-                }
-                hide_advanced_options_check.set_active(
-                    bool(adv_ids) and adv_ids.issubset(self.state_manager.hidden_entry_ids)
-                )
-
-            hide_memtest_check = getattr(self, "hide_memtest_check", None)
-            if hide_memtest_check is not None:
-                mem_ids = {
-                    (e.menu_id or "").strip()
-                    for e in (entries or [])
-                    if (e.menu_id or "").strip()
-                    and (("memtest" in (e.title or "").lower()) or ("memtest" in ((e.source or "").lower())))
-                }
-                hide_memtest_check.set_active(bool(mem_ids) and mem_ids.issubset(self.state_manager.hidden_entry_ids))
-
-            self._refresh_default_choices(entries)
-            logger.debug(f"[_apply_model_to_ui] refresh_default_choices completed with {len(entries)} entries")
-
-            self._set_default_choice(model.default)
-            logger.debug(f"[_apply_model_to_ui] set_default_choice to '{model.default}'")
-
-            logger.success(f"[_apply_model_to_ui] Synchronisation complète - {len(entries)} entrées disponibles")
-        finally:
-            self.state_manager.set_loading(False)
-            logger.debug("[_apply_model_to_ui] Loading flag set to False")
+        ModelWidgetMapper.apply_model_to_ui(self, model, entries)
 
     def _read_model_from_ui(self) -> GrubUiModel:
         """Extract current widget values into GrubUiModel for persistence."""
-        logger.debug("[_read_model_from_ui] Début - lecture UI → modèle")
-
-        default_value = self._get_default_choice()
-        logger.debug(f"[_read_model_from_ui] default_value='{default_value}'")
-
-        timeout_val = self._get_timeout_value()
-        logger.debug(f"[_read_model_from_ui] timeout_val={timeout_val}")
-
-        hidden_timeout = (
-            bool(self.hidden_timeout_check.get_active()) if self.hidden_timeout_check is not None else False
-        )
-        logger.debug(f"[_read_model_from_ui] hidden_timeout={hidden_timeout}")
-
-        gfxmode = (
-            (GtkHelper.dropdown_get_value(self.gfxmode_dropdown) or "").strip()
-            if self.gfxmode_dropdown is not None
-            else ""
-        )
-        logger.debug(f"[_read_model_from_ui] gfxmode='{gfxmode}'")
-
-        gfxpayload = (
-            (GtkHelper.dropdown_get_value(self.gfxpayload_dropdown) or "").strip()
-            if self.gfxpayload_dropdown is not None
-            else ""
-        )
-        logger.debug(f"[_read_model_from_ui] gfxpayload='{gfxpayload}'")
-
-        disable_os_prober = (
-            bool(self.disable_os_prober_check.get_active()) if self.disable_os_prober_check is not None else False
-        )
-        logger.debug(f"[_read_model_from_ui] flags: disable_os_prober={disable_os_prober}")
-
-        # Lire les paramètres kernel depuis le dropdown
-        cmdline_value = self._get_cmdline_value()
-        quiet = "quiet" in cmdline_value
-        splash = "splash" in cmdline_value
-        logger.debug(f"[_read_model_from_ui] cmdline='{cmdline_value}', quiet={quiet}, splash={splash}")
-
-        # Lire le thème actif depuis le gestionnaire de thème
-        grub_theme = ""
-        try:
-            theme_manager = ActiveThemeManager()
-            active_theme = theme_manager.get_active_theme()
-            if active_theme and active_theme.name:
-                # Construire le chemin vers le fichier theme.txt
-                theme_dir = get_grub_themes_dir()
-                grub_theme = str(theme_dir / active_theme.name / "theme.txt")
-                logger.debug(f"[_read_model_from_ui] grub_theme='{grub_theme}'")
-        except (OSError, RuntimeError) as e:
-            logger.debug(f"[_read_model_from_ui] Pas de thème actif: {e}")
-
-        model = GrubUiModel(
-            timeout=timeout_val,
-            default=default_value,
-            save_default=(default_value == "saved"),
-            hidden_timeout=hidden_timeout,
-            gfxmode=gfxmode,
-            gfxpayload_linux=gfxpayload,
-            disable_os_prober=disable_os_prober,
-            grub_theme=grub_theme,
-            quiet=quiet,
-            splash=splash,
-        )
-        logger.success("[_read_model_from_ui] Modèle extrait avec succès")
-        return model
+        return ModelWidgetMapper.read_model_from_ui(self)
 
     # ========================================================================
     # CONSTRUCTION UI & CHARGEMENT
@@ -409,6 +275,16 @@ class GrubConfigManager(Gtk.ApplicationWindow):
     def create_ui(self):
         """Build main GTK4 window with all UI components and event handlers."""
         UIBuilder.create_main_ui(self)
+        self.infobar = InfoBarController(self.info_revealer, self.info_box, self.info_label)
+        self.workflow = WorkflowController(
+            window=self,
+            state_manager=self.state_manager,
+            save_btn=self.save_btn,
+            reload_btn=self.reload_btn,
+            load_config_cb=self.load_config,
+            read_model_cb=self._read_model_from_ui,
+            show_info_cb=self.show_info,
+        )
         self.state_manager.apply_state(AppState.CLEAN, self.save_btn, self.reload_btn)
 
     def check_permissions(self):
@@ -580,163 +456,33 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         self._apply_state(self.state_manager.state)
         render_entries_view(self)
 
-    def on_reload(self, _button):
+    def on_reload(self, button):
         """Reload GRUB configuration from disk, discarding all UI changes."""
-        logger.info("[on_reload] Demande de recharge")
-        logger.debug(f"[on_reload] Config modified state: {self.state_manager.modified}")
-        if self.state_manager.modified:
-            logger.debug("[on_reload] Showing confirmation dialog")
-            dialog = Gtk.AlertDialog()
-            dialog.set_message("Modifications non enregistrées")
-            dialog.set_detail("Voulez-vous vraiment recharger et perdre vos modifications ?")
-            dialog.set_buttons(["Annuler", "Recharger"])
-            dialog.set_cancel_button(0)
-            dialog.set_default_button(1)
+        if self.workflow:
+            self.workflow.on_reload(button)
 
-            def _on_choice(dlg, result):
-                idx = None
-                try:
-                    idx = dlg.choose_finish(result)
-                    logger.debug(f"[on_reload._on_choice] Dialog result: {idx}")
-                except GLib.Error as e:
-                    logger.debug(f"[on_reload._on_choice] Dialog cancelled: {e}")
-
-                if idx == 1:
-                    logger.debug("[on_reload._on_choice] User confirmed reload")
-                    self.load_config()
-                    self.show_info("Configuration rechargée", INFO)
-
-            dialog.choose(self, None, _on_choice)
-            return
-
-        logger.debug("[on_reload] No modifications, reloading config")
-        self.load_config()
-        self.show_info("Configuration rechargée", INFO)
-
-    def on_save(self, _button):
+    def on_save(self, button):
         """Validate UI values and save configuration using ApplyManager."""
-        logger.info("[on_save] Demande de sauvegarde")
-        logger.debug(f"[on_save] Current UID: {os.geteuid()}")
-
-        if os.geteuid() != 0:
-            logger.error("[on_save] Not running as root")
-            self.show_info("Droits administrateur requis pour enregistrer", ERROR)
-            return
-
-        logger.debug("[on_save] Showing confirmation dialog")
-        dialog = Gtk.AlertDialog()
-        dialog.set_message("Appliquer la configuration")
-        dialog.set_detail(
-            "Voulez-vous appliquer les changements maintenant ?\n"
-            "Cela exécutera 'update-grub' et peut prendre quelques secondes."
-        )
-        dialog.set_buttons(["Annuler", "Appliquer"])
-        dialog.set_cancel_button(0)
-        dialog.set_default_button(1)
-
-        def _on_response(dlg, result):
-            idx = None
-            try:
-                idx = dlg.choose_finish(result)
-                logger.debug(f"[on_save._on_response] Dialog result: {idx}")
-            except GLib.Error as e:
-                logger.debug(f"[on_save._on_response] Dialog cancelled: {e}")
-
-            if idx == 1:
-                logger.debug("[on_save._on_response] User confirmed save")
-                self._perform_save(apply_now=True)
-
-        dialog.choose(self, None, _on_response)
+        if self.workflow:
+            self.workflow.on_save(button)
 
     def _perform_save(self, apply_now: bool):
-        """Execute save workflow using ApplyManager."""
-        logger.info(f"[_perform_save] Début du workflow de sauvegarde (apply_now={apply_now})")
-        self.state_manager.apply_state(AppState.APPLYING, self.save_btn, self.reload_btn)
-
-        try:
-            model = self._read_model_from_ui()
-            logger.debug(f"[_perform_save] Model read from UI: timeout={model.timeout}, default={model.default}")
-
-            merged_config = merged_config_from_model(self.state_manager.state_data.raw_config, model)
-            logger.debug(f"[_perform_save] Config merged, apply_now={apply_now}")
-
-            manager = GrubApplyManager()
-            result = manager.apply_configuration(merged_config, apply_changes=apply_now)
-            logger.debug(f"[_perform_save] Apply result: success={result.success}")
-
-            if result.success:
-                logger.debug("[_perform_save] Configuration applied successfully")
-
-                # Vérification post-application: lire le fichier pour confirmer
-                try:
-                    verified_config = read_grub_default()
-                    matches = (
-                        verified_config.get("GRUB_TIMEOUT") == str(model.timeout)
-                        and verified_config.get("GRUB_DEFAULT") == model.default
-                    )
-                    logger.debug(f"[_perform_save] Vérification: matches={matches}")
-
-                    if not matches:
-                        logger.warning("[_perform_save] ATTENTION: Valeurs écrites ne correspondent pas au modèle")
-                except Exception as e:
-                    logger.warning(f"[_perform_save] Impossible de vérifier les valeurs écrites: {e}")
-
-                self.state_manager.update_state_data(
-                    GrubUiState(model=model, entries=self.state_manager.state_data.entries, raw_config=merged_config)
-                )
-                self.state_manager.apply_state(AppState.CLEAN, self.save_btn, self.reload_btn)
-
-                msg = result.message
-                msg_type = INFO
-
-                # Ajouter détails de vérification si disponibles
-                if result.details:
-                    msg += f"\n{result.details}"
-
-                if apply_now:
-                    if self.state_manager.hidden_entry_ids:
-                        try:
-                            used_path, masked = apply_hidden_entries_to_grub_cfg(self.state_manager.hidden_entry_ids)
-                            self.state_manager.entries_visibility_dirty = False
-                            msg += f"\nEntrées masquées: {masked} ({used_path})"
-                        except Exception as e:
-                            logger.error(f"[_perform_save] ERREUR masquage: {e}")
-                            msg += f"\nAttention: Masquage échoué: {e}"
-                            msg_type = WARNING
-                elif self.state_manager.entries_visibility_dirty and not apply_now:
-                    msg += "\n(Masquage non appliqué car update-grub ignoré)"
-
-                self.show_info(msg, msg_type)
-            else:
-                self.state_manager.apply_state(AppState.DIRTY, self.save_btn, self.reload_btn)
-                self.show_info(f"Erreur: {result.message}", ERROR)
-
-        except Exception as e:
-            logger.exception("[_perform_save] ERREUR inattendue")
-            self.state_manager.apply_state(AppState.DIRTY, self.save_btn, self.reload_btn)
-            self.show_info(f"Erreur inattendue: {e}", ERROR)
+        """Wrapper pour compatibilité avec les tests."""
+        if self.workflow:
+            self.workflow._perform_save(apply_now)
 
     def _hide_info_callback(self):
-        if self.info_revealer is None:
-            return False
-        self.info_revealer.set_reveal_child(False)
+        """Wrapper pour compatibilité avec les tests."""
+        if self.infobar:
+            return self.infobar._hide_info_callback()
         return False
 
     def show_info(self, message, msg_type):
         """Display temporary message in info area."""
-        if self.info_label is None:
-            return
-        self.info_label.set_text(message)
-
-        if self.info_box is None or self.info_revealer is None:
-            return
-
-        for klass in ("info", "warning", "error"):
-            if self.info_box.has_css_class(klass):
-                self.info_box.remove_css_class(klass)
-        if msg_type in (INFO, WARNING, ERROR):
-            self.info_box.add_css_class(msg_type)
-
-        self.info_revealer.set_reveal_child(True)
-
-        GLib.timeout_add_seconds(5, self._hide_info_callback)
+        if self.infobar:
+            self.infobar.show(message, msg_type)
+        elif self.info_label:
+            # Fallback pour les tests qui n'initialisent pas infobar
+            self.info_label.set_text(message)
+            if self.info_revealer:
+                self.info_revealer.set_reveal_child(True)

@@ -17,8 +17,10 @@ class TestThemeServiceCoverage:
         """Test exception in read_grub_default and finding theme in grub.cfg."""
         mock_read_default.side_effect = OSError("Read error")
 
-        with patch("pathlib.Path.exists", return_value=True), \
-             patch("pathlib.Path.read_text", return_value="set theme=/boot/grub/themes/test/theme.txt"):
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("pathlib.Path.read_text", return_value="set theme=/boot/grub/themes/test/theme.txt"),
+        ):
             assert service.is_theme_enabled_in_grub() is True
 
     @patch("core.services.core_theme_service.read_grub_default")
@@ -36,8 +38,10 @@ class TestThemeServiceCoverage:
         """Test permission error when reading grub.cfg."""
         mock_read_default.return_value = {}
 
-        with patch("pathlib.Path.exists", return_value=True), \
-             patch("pathlib.Path.read_text", side_effect=PermissionError("Denied")):
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("pathlib.Path.read_text", side_effect=PermissionError("Denied")),
+        ):
             assert service.is_theme_enabled_in_grub() is False
 
     @patch("core.services.core_theme_service.read_grub_default")
@@ -46,8 +50,10 @@ class TestThemeServiceCoverage:
         """Test no theme found in grub.cfg."""
         mock_read_default.return_value = {}
 
-        with patch("pathlib.Path.exists", return_value=True), \
-             patch("pathlib.Path.read_text", return_value="set timeout=5"):
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("pathlib.Path.read_text", return_value="set timeout=5"),
+        ):
             assert service.is_theme_enabled_in_grub() is False
 
     @patch("core.services.core_theme_service.read_grub_default")
@@ -63,8 +69,10 @@ class TestThemeServiceCoverage:
         """Test empty theme path in grub.cfg."""
         mock_read_default.return_value = {}
 
-        with patch("pathlib.Path.exists", return_value=True), \
-             patch("pathlib.Path.read_text", return_value="set theme=\nset theme=\"\""):
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("pathlib.Path.read_text", return_value='set theme=\nset theme=""'),
+        ):
             assert service.is_theme_enabled_in_grub() is False
 
     @patch("core.services.core_theme_service.get_all_grub_themes_dirs")

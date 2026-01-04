@@ -16,6 +16,7 @@ from ui.tabs.ui_tab_entries import build_entries_tab
 from ui.tabs.ui_tab_general import build_general_tab
 from ui.tabs.ui_tab_maintenance import build_maintenance_tab
 from ui.tabs.ui_tab_theme_config import TabThemeConfig
+from ui.ui_tab_policy import apply_tab_policy
 
 if TYPE_CHECKING:
     from ui.ui_manager import GrubConfigManager
@@ -143,29 +144,10 @@ class UIBuilder:
         build_maintenance_tab(window, notebook)
 
         # === Connect tab switch signal ===
-        def _on_switch_page(nb, page, page_num):
+        def _on_switch_page(nb, page, _page_num):
             """Handle tab switch - trace which tab is now active."""
             tab_label = nb.get_tab_label_text(page)
-            logger.info(f"[_on_switch_page] User switched to tab #{page_num}: '{tab_label}'")
-
-            # Politique de boutons:
-            # - Général/Menu/Affichage: Recharger + Appliquer toujours disponibles.
-            # - Sauvegardes/Maintenance: pas d'édition => boutons désactivés.
-            # - Autres onglets: Recharger disponible, Appliquer dépend de l'état "dirty".
-            if tab_label in ("Sauvegardes", "Maintenance"):
-                window.save_btn.set_sensitive(False)
-                window.reload_btn.set_sensitive(False)
-                logger.debug(f"[_on_switch_page] Boutons Appliquer/Recharger désactivés pour l'onglet '{tab_label}'")
-                return
-
-            if tab_label in ("Général", "General", "Menu", "Affichage"):
-                window.save_btn.set_sensitive(True)
-                window.reload_btn.set_sensitive(True)
-                return
-
-            # Par défaut: Recharger reste disponible; Appliquer dépend des changements.
-            window.reload_btn.set_sensitive(True)
-            window.save_btn.set_sensitive(bool(window.state_manager.is_dirty()))
+            apply_tab_policy(window, tab_label)
 
         notebook.connect("switch-page", _on_switch_page)
         logger.debug("[UIBuilder._create_notebook] Tab switch signal connected")

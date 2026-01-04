@@ -1,9 +1,13 @@
+import os
 from unittest.mock import MagicMock, patch
 
 import gi
 
 gi.require_version("Gtk", "4.0")
 from gi.repository import GObject, Gtk
+
+# Set headless backend for GTK
+os.environ["GDK_BACKEND"] = "headless"
 
 from ui.ui_gtk_helpers import GtkHelper
 
@@ -214,3 +218,107 @@ def test_dropdown_set_value_insertion_check_failure_fallback_zero():
 
         # Fallback to 0
         dropdown.set_selected.assert_called_with(0)
+
+
+def test_resolve_parent_window_skips_widgets_with_get_root_errors_and_uses_fallback():
+    widget_bad = MagicMock()
+    widget_bad.get_root.side_effect = TypeError("bad mock")
+
+    fallback = MagicMock(spec=Gtk.Window)
+    assert GtkHelper.resolve_parent_window(widget_bad, fallback=fallback) is fallback
+
+
+def test_resolve_parent_window_accepts_root_with_present_attr():
+    widget = MagicMock()
+
+    root = MagicMock()
+    root.present = MagicMock()
+    widget.get_root.return_value = root
+
+    assert GtkHelper.resolve_parent_window(widget, fallback=None) is root
+
+
+def test_resolve_parent_window_ignores_root_without_present_and_returns_fallback():
+    widget = MagicMock()
+    widget.get_root.return_value = object()
+
+    fallback = MagicMock(spec=Gtk.Window)
+    assert GtkHelper.resolve_parent_window(widget, fallback=fallback) is fallback
+
+
+def test_resolve_parent_window():
+    # Case 1: Widget with root as Gtk.Window
+    mock_window = MagicMock(spec=Gtk.Window)
+    mock_widget = MagicMock(spec=Gtk.Widget)
+    mock_widget.get_root.return_value = mock_window
+    assert GtkHelper.resolve_parent_window(mock_widget) == mock_window
+
+    # Case 2: Widget with root having present() (mock window)
+    mock_root = MagicMock()
+    mock_root.present = MagicMock()
+    mock_widget2 = MagicMock()
+    mock_widget2.get_root.return_value = mock_root
+    assert GtkHelper.resolve_parent_window(mock_widget2) == mock_root
+
+    # Case 3: Multiple widgets, first is None
+    assert GtkHelper.resolve_parent_window(None, mock_widget) == mock_window
+
+    # Case 4: No root found, use fallback
+    mock_widget_no_root = MagicMock()
+    mock_widget_no_root.get_root.return_value = None
+    fallback = MagicMock(spec=Gtk.Window)
+    assert GtkHelper.resolve_parent_window(mock_widget_no_root, fallback=fallback) == fallback
+
+    # Case 5: AttributeError on get_root
+    mock_widget_err = MagicMock()
+    mock_widget_err.get_root.side_effect = AttributeError
+    assert GtkHelper.resolve_parent_window(mock_widget_err, fallback=fallback) == fallback
+
+
+def test_stringlist_find_real():
+    model = Gtk.StringList.new(["a", "b", "c"])
+    assert GtkHelper.stringlist_find(model, "b") == 1
+    assert GtkHelper.stringlist_find(model, "z") is None
+
+
+def test_stringlist_insert_success_real():
+    model = Gtk.StringList.new(["a", "c"])
+    GtkHelper.stringlist_insert(model, 1, "b")
+    assert model.get_string(1) == "b"
+    assert model.get_n_items() == 3
+
+
+def test_dropdown_get_value_success_real():
+    model = Gtk.StringList.new(["a", "b"])
+    dropdown = MagicMock(spec=Gtk.DropDown)
+    dropdown.get_selected.return_value = 1
+    dropdown.get_model.return_value = model
+    assert GtkHelper.dropdown_get_value(dropdown) == "b"
+
+
+def test_dropdown_get_value_auto_real():
+    model = Gtk.StringList.new(["auto (default)", "b"])
+    dropdown = MagicMock(spec=Gtk.DropDown)
+    dropdown.get_selected.return_value = 0
+    dropdown.get_model.return_value = model
+    assert GtkHelper.dropdown_get_value(dropdown) == ""
+
+
+def test_dropdown_set_value_exact_match_real():
+    model = Gtk.StringList.new(["a", "b"])
+    dropdown = MagicMock(spec=Gtk.DropDown)
+    dropdown.get_model.return_value = model
+    GtkHelper.dropdown_set_value(dropdown, "b")
+    dropdown.set_selected.assert_called_with(1)
+
+
+def test_dropdown_set_value_add_new_with_auto_real():
+    model = Gtk.StringList.new(["auto (default)", "a"])
+    dropdown = MagicMock(spec=Gtk.DropDown)
+    dropdown.get_model.return_value = model
+    GtkHelper.dropdown_set_value(dropdown, "new")
+    assert model.get_string(1) == "new"
+    dropdown.set_selected.assert_called_with(1)
+
+    # Case 6: No widgets, no fallback
+    assert GtkHelper.resolve_parent_window() is None

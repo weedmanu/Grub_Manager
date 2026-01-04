@@ -95,13 +95,7 @@ class TestTabModules:
     def test_all_tab_modules_exist(self):
         """Vérifie que tous les modules d'onglets existent."""
         from ui import ui_widgets
-        from ui.tabs import (
-            ui_entries_renderer,
-            ui_tab_backups,
-            ui_tab_display,
-            ui_tab_entries,
-            ui_tab_general,
-        )
+        from ui.tabs import ui_entries_renderer, ui_tab_backups, ui_tab_display, ui_tab_entries, ui_tab_general
 
         assert ui_tab_backups is not None
         assert ui_widgets is not None

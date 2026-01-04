@@ -122,3 +122,16 @@ class TestAppStateManager:
         ids = ["0", "1", "saved"]
         manager.update_default_choice_ids(ids)
         assert manager.get_default_choice_ids() == ids
+
+    def test_is_dirty(self, manager):
+        """Test is_dirty."""
+        manager.modified = False
+        manager.entries_visibility_dirty = False
+        assert manager.is_dirty() is False
+
+        manager.modified = True
+        assert manager.is_dirty() is True
+
+        manager.modified = False
+        manager.entries_visibility_dirty = True
+        assert manager.is_dirty() is True

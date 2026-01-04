@@ -5,9 +5,7 @@ from __future__ import annotations
 from gi.repository import Gtk
 from loguru import logger
 
-from core.theme.core_theme_generator import (
-    GrubTheme,
-)
+from core.theme.core_theme_generator import GrubTheme
 from ui.tabs.ui_tab_theme_editor import TabThemeEditor
 
 

@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from time import sleep
+from unittest.mock import patch
 
 from core.system.core_sync_checker import check_grub_sync
 
@@ -110,7 +111,7 @@ def test_sync_checker_os_error(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr("core.system.core_sync_checker.GRUB_DEFAULT_PATH", str(grub_default))
     monkeypatch.setattr("core.system.core_sync_checker.GRUB_CFG_PATH", str(grub_cfg))
 
-    from unittest.mock import MagicMock, patch
+    from unittest.mock import MagicMock
 
     # On simule que exists() fonctionne (renvoie True) mais stat() échoue ensuite
     # exists() appelle stat() en interne.

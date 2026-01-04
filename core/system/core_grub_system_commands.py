@@ -14,23 +14,13 @@ from dataclasses import dataclass
 from loguru import logger
 
 from ..config.core_paths import GRUB_CFG_PATH, GRUB_DEFAULT_PATH
-from ..io.core_grub_default_io import (
-    format_grub_default,
-    parse_grub_default,
-    read_grub_default,
-    write_grub_default,
-)
+from ..io.core_grub_default_io import format_grub_default, parse_grub_default, read_grub_default, write_grub_default
 from ..io.core_grub_menu_parser import (
     GrubDefaultChoice,
     read_grub_default_choices,
     read_grub_default_choices_with_source,
 )
-from ..models.core_grub_ui_model import (
-    GrubUiModel,
-    GrubUiState,
-    load_grub_ui_state,
-    save_grub_ui_state,
-)
+from ..models.core_grub_ui_model import GrubUiModel, GrubUiState, load_grub_ui_state, save_grub_ui_state
 
 __all__ = [
     "GRUB_CFG_PATH",

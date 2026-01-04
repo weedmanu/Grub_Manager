@@ -95,6 +95,6 @@ def test_create_notebook():
         # Trigger switch-page signal - Case 3: Other tab, dirty (buttons NOT disabled by this logic)
         window.state_manager.is_dirty.return_value = True
         window.save_btn.set_sensitive.reset_mock()
-        notebook.set_current_page(0) # Switch back to first tab
+        notebook.set_current_page(0)  # Switch back to first tab
         # Should not call set_sensitive(False) in the elif block
         assert not any(call.args == (False,) for call in window.save_btn.set_sensitive.call_args_list)

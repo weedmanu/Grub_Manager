@@ -85,6 +85,7 @@ class TestMainCoverage:
         def mock_connect(signal, callback):
             if signal == "activate":
                 callback(mock_app_instance)
+
         mock_app_instance.connect.side_effect = mock_connect
 
         # Patch GrubConfigManager where it's imported (inside main)
@@ -105,6 +106,7 @@ class TestMainCoverage:
     def test_main_critical_error(self, mock_parse):
         """Test main() handles critical errors during startup."""
         from main import main as main_func
+
         mock_parse.side_effect = Exception("Critical startup error")
 
         with pytest.raises(SystemExit) as excinfo:
@@ -117,6 +119,7 @@ class TestMainCoverage:
     def test_reexec_as_root_exec_failure(self, mock_execv, mock_which, mock_geteuid):
         """Test _reexec_as_root_once handles execv failure."""
         from main import _reexec_as_root_once
+
         mock_execv.side_effect = OSError("Exec failure")
 
         # Should not raise, just log error
@@ -131,6 +134,7 @@ class TestMainCoverage:
     def test_reexec_as_root_no_xauthority(self, mock_execv, mock_which, mock_exists, mock_geteuid):
         """Test _reexec_as_root_once when Xauthority is missing."""
         from main import _reexec_as_root_once
+
         # Should still call execv but without XAUTHORITY if it doesn't exist
         _reexec_as_root_once()
         assert mock_execv.called
@@ -146,7 +150,7 @@ class TestMainCoverage:
         with patch("main.main", mock_main):
             # We use runpy to execute the module as __main__
             # But we need to be careful about recursion or side effects
-            pass # Just a placeholder, testing the block is hard
+            pass  # Just a placeholder, testing the block is hard
 
     @patch("main.os.geteuid", return_value=1000)
     @patch("main.os.environ", {"XAUTHORITY": "/tmp/custom_xauth"})
@@ -155,6 +159,7 @@ class TestMainCoverage:
     def test_reexec_as_root_xauth_in_env(self, mock_execv, mock_which, mock_geteuid):
         """Test _reexec_as_root_once when XAUTHORITY is already in env."""
         from main import _reexec_as_root_once
+
         _reexec_as_root_once()
         assert mock_execv.called
         args = mock_execv.call_args[0][1]
@@ -166,10 +171,12 @@ class TestMainCoverage:
     @patch("main.Path.exists", return_value=False)
     def test_main_execution_edge_cases(self, mock_path_exists, mock_css, mock_app, mock_backup):
         """Test main execution with missing backup and missing CSS."""
-        with patch("main._reexec_as_root_once"), \
-             patch("main.parse_debug_flag", return_value=(False, [])), \
-             patch("main.configure_logging"), \
-             patch("gi.repository.Gdk.Display.get_default"):
+        with (
+            patch("main._reexec_as_root_once"),
+            patch("main.parse_debug_flag", return_value=(False, [])),
+            patch("main.configure_logging"),
+            patch("gi.repository.Gdk.Display.get_default"),
+        ):
 
             mock_app_inst = MagicMock()
             mock_app.return_value = mock_app_inst

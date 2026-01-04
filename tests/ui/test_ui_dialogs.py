@@ -2,8 +2,9 @@ import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
+from gi.repository import Gio
 
-from ui.ui_dialogs import run_command_popup
+from ui.ui_dialogs import confirm_action, run_command_popup
 from ui.ui_manager import GrubConfigManager
 
 
@@ -84,6 +85,47 @@ def test_run_command_popup_thread_execution_success(mock_controller):
             # 2. Line 2
             # 3. Success message
             assert mock_idle_add.call_count >= 3
+
+
+def test_confirm_action_glib_error_does_not_call_callback(monkeypatch, mock_controller):
+    called = {"v": False}
+
+    def cb():
+        called["v"] = True
+
+    class FakeGLibError(Exception):
+        pass
+
+    class FakeDialog:
+        def set_modal(self, *_a, **_kw):
+            pass
+
+        def set_message(self, *_a, **_kw):
+            pass
+
+        def set_detail(self, *_a, **_kw):
+            pass
+
+        def set_buttons(self, *_a, **_kw):
+            pass
+
+        def set_default_button(self, *_a, **_kw):
+            pass
+
+        def set_cancel_button(self, *_a, **_kw):
+            pass
+
+        def choose_finish(self, _result):
+            raise FakeGLibError("boom")
+
+        def choose(self, _controller, _cancellable, callback):
+            callback(self, object())
+
+    monkeypatch.setattr("ui.ui_dialogs.GLib.Error", FakeGLibError)
+    monkeypatch.setattr("ui.ui_dialogs.Gtk.AlertDialog", lambda: FakeDialog())
+
+    confirm_action(cb, "msg", mock_controller)
+    assert called["v"] is False
 
 
 def test_run_command_popup_thread_execution_failure(mock_controller):
@@ -227,3 +269,31 @@ def test_append_text_helper(mock_controller):
                 # Test with tag
                 append_text_func("Error", "error")
                 mock_buffer.insert_with_tags_by_name.assert_called()
+
+
+@patch("gi.repository.Gtk.AlertDialog")
+def test_confirm_action(mock_dialog_class, mock_controller):
+    """Test the confirm_action dialog and its callbacks."""
+    mock_dialog = mock_dialog_class.return_value
+    callback = MagicMock()
+
+    confirm_action(callback, "Message", mock_controller)
+    mock_dialog.choose.assert_called_once()
+
+    # Test callback
+    on_response = mock_dialog.choose.call_args[0][2]
+
+    # Case 1: Confirm (index 1)
+    mock_dialog.choose_finish.return_value = 1
+    on_response(mock_dialog, MagicMock(spec=Gio.AsyncResult))
+    callback.assert_called_once()
+
+    # Case 2: Cancel (index 0)
+    callback.reset_mock()
+    mock_dialog.choose_finish.return_value = 0
+    on_response(mock_dialog, MagicMock(spec=Gio.AsyncResult))
+    callback.assert_not_called()
+
+    # Case 3: Exception
+    mock_dialog.choose_finish.side_effect = Exception("Err")
+    on_response(mock_dialog, MagicMock(spec=Gio.AsyncResult))  # Should not crash

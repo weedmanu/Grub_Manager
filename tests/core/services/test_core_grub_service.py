@@ -80,6 +80,17 @@ class TestGrubService:
         assert entries[1].id == "windows_id"
 
     @patch("core.services.core_grub_service.get_simulated_os_prober_entries")
+    def test_get_menu_entries_non_dict_objects(self, mock_get_entries):
+        class Obj:
+            def __init__(self, title: str, id: str):
+                self.title = title
+                self.id = id
+
+        mock_get_entries.return_value = [Obj("Linux", "linux_id")]
+        entries = GrubService.get_menu_entries()
+        assert entries == [MenuEntry(title="Linux", id="linux_id")]
+
+    @patch("core.services.core_grub_service.get_simulated_os_prober_entries")
     def test_get_menu_entries_error(self, mock_get_entries):
         """Test la gestion d'erreur lors de la récupération des entrées."""
         mock_get_entries.side_effect = ValueError("Erreur parsing")

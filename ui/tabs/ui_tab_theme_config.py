@@ -632,9 +632,7 @@ def _on_delete_theme(_button: Gtk.Button | None, theme_name: str, tab: TabThemeC
         dialog.set_cancel_button(0)
 
         # On a besoin d'un parent pour le dialogue
-        parent = tab.parent_window
-        if not parent and _button:
-            parent = _button.get_root()
+        parent = GtkHelper.resolve_parent_window(_button, fallback=tab.parent_window)
 
         dialog.choose(
             parent=parent,

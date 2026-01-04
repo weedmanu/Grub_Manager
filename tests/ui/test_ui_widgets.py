@@ -70,8 +70,51 @@ def test_box_helpers():
     box_append_label(box, "Test Label Italic", italic=True)
     box_append_section_title(box, "Section Title")
 
+    switch = Gtk.Switch()
+    from ui.ui_widgets import box_append_switch
+
+    box_append_switch(box, "Switch Label", switch)
+
     main_box = create_main_box(spacing=5, margin=10)
     assert main_box.get_spacing() == 5
+
+
+def test_grid_add_switch():
+    grid = Gtk.Grid()
+    switch = Gtk.Switch()
+    from ui.ui_widgets import grid_add_switch
+
+    next_row = grid_add_switch(grid, 0, "Switch Label", switch)
+    assert next_row == 1
+
+
+def test_create_two_column_layout():
+    parent = Gtk.Box()
+    from ui.ui_widgets import create_two_column_layout
+
+    columns, left, right = create_two_column_layout(parent, spacing=20)
+    assert columns.get_parent() == parent
+    assert left.get_parent() == columns
+    assert right.get_parent() == columns
+    assert columns.get_spacing() == 20
+
+
+def test_create_info_box():
+    from ui.ui_widgets import create_info_box
+
+    box = create_info_box("Title", "Content")
+    assert isinstance(box, Gtk.Box)
+    # Check if title and content are there
+    # First child should be title label
+    title_label = box.get_first_child()
+    assert "Title" in title_label.get_label()
+    # Second child should be content label
+    content_label = title_label.get_next_sibling()
+    assert content_label.get_label() == "Content"
+
+    box_no_title = create_info_box("", "Content Only")
+    label = box_no_title.get_first_child()
+    assert label.get_label() == "Content Only"
 
 
 def test_listbox_helpers():

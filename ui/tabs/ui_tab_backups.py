@@ -19,12 +19,7 @@ from core.io.core_grub_default_io import (
     restore_grub_default_backup,
 )
 from ui.ui_dialogs import confirm_action
-from ui.ui_widgets import (
-    apply_margins,
-    box_append_label,
-    box_append_section_title,
-    create_two_column_layout,
-)
+from ui.ui_widgets import apply_margins, box_append_label, box_append_section_title, create_two_column_layout
 
 
 def _format_size(size: int) -> str:

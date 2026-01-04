@@ -11,12 +11,7 @@ from loguru import logger
 
 from core.services.core_maintenance_service import MaintenanceService
 from ui.ui_dialogs import run_command_popup
-from ui.ui_widgets import (
-    apply_margins,
-    box_append_label,
-    box_append_section_title,
-    create_two_column_layout,
-)
+from ui.ui_widgets import apply_margins, box_append_label, box_append_section_title, create_two_column_layout
 
 if TYPE_CHECKING:
     from ui.ui_manager import GrubConfigManager

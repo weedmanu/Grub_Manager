@@ -6,13 +6,10 @@ from gi.repository import Gdk, Gtk
 from loguru import logger
 
 from core.config.core_paths import get_grub_themes_dir
-from core.theme.core_theme_generator import (
-    GrubTheme,
-    ThemeGenerator,
-    create_custom_theme,
-)
+from core.theme.core_theme_generator import GrubTheme, ThemeGenerator, create_custom_theme
 from ui.tabs.ui_grub_preview_dialog import GrubPreviewDialog
 from ui.ui_constants import COLOR_PRESETS
+from ui.ui_gtk_helpers import GtkHelper
 from ui.ui_widgets import (
     create_error_dialog,
     create_main_box,
@@ -521,7 +518,7 @@ class TabThemeEditor:
         dialog.set_cancel_button(4)
 
         dialog.choose(
-            parent=button.get_root(),
+            parent=GtkHelper.resolve_parent_window(button),
             cancellable=None,
             callback=self._on_preset_selected,
         )
