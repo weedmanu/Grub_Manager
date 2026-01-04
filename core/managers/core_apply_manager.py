@@ -419,11 +419,15 @@ class GrubApplyManager:
             logger.debug(f"[_rollback] Fichier restauré valide: {len(restored_lines)} lignes de config")
 
             logger.success("[_rollback] Succès - ancien fichier restauré et vérifié")
-        except Exception as e:
+        except (OSError, IOError) as e:
             logger.error(f"[_rollback] ERREUR: Impossible de restaurer le backup - {e!s}")
-            if isinstance(e, GrubRollbackError):
-                raise
             raise GrubRollbackError(f"Impossible de restaurer le backup: {e}") from e
+        except GrubRollbackError:
+            logger.error("[_rollback] ERREUR: Rollback déjà en erreur, relancer")
+            raise
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.critical(f"[_rollback] ERREUR INATTENDUE: {e!s}")
+            raise GrubRollbackError(f"Impossible de restaurer le backup (erreur inattendue): {e}") from e
 
     def _cleanup_backup(self):
         """Supprime le backup temporaire en cas de succès."""
