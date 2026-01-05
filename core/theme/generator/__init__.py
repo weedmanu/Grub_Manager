@@ -3,7 +3,7 @@
 Ce package contient le générateur, découpé en modules simples (configs, palettes,
 templates, validation) afin de rester SOLID et testable.
 
-API publique: importer depuis `core.theme.theme_generator`.
+API publique: importer depuis `core.theme.generator`.
 """
 
 from .core_theme_generator import (

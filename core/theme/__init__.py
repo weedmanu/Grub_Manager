@@ -1,6 +1,6 @@
 """Module de génération de thèmes GRUB personnalisés."""
 
-from core.models.core_theme_models import (
+from core.models.core_models_theme import (
     GrubTheme,
     ThemeColors,
     ThemeFonts,
@@ -8,7 +8,7 @@ from core.models.core_theme_models import (
     ThemeLayout,
     create_custom_theme,
 )
-from core.theme.core_active_theme_manager import ActiveThemeManager
+from core.theme.core_theme_active_manager import ActiveThemeManager
 
 __all__ = [
     "ActiveThemeManager",

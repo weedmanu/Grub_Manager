@@ -12,7 +12,7 @@ from typing import Final
 
 from loguru import logger
 
-from core.models.core_theme_models import GrubTheme, create_custom_theme
+from core.models.core_models_theme import GrubTheme, create_custom_theme
 
 
 class ActiveThemeManager:
