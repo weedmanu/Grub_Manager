@@ -144,8 +144,8 @@ def apply_hidden_entries_to_grub_cfg(
 
     Raises:
         FileNotFoundError si grub.cfg est introuvable.
-        OSError si la lecture/écriture échoue.
-        ValueError si le masquage laisserait moins de 2 entrées visibles.
+        GrubConfigError si la lecture/écriture échoue.
+        GrubValidationError si le masquage ne laisserait aucune entrée visible.
     """
     logger.debug(f"[apply_hidden_entries_to_grub_cfg] Début - {len(hidden_ids)} entrées à masquer")
     if not hidden_ids:
@@ -159,8 +159,11 @@ def apply_hidden_entries_to_grub_cfg(
         raise GrubConfigError("grub.cfg introuvable")
 
     logger.debug(f"[apply_hidden_entries_to_grub_cfg] Utilisation: {used_path}")
-    with open(used_path, encoding="utf-8", errors="replace") as f:
-        lines = f.read().splitlines()
+    try:
+        with open(used_path, encoding="utf-8", errors="replace") as f:
+            lines = f.read().splitlines()
+    except OSError as e:
+        raise GrubConfigError(f"Impossible de lire grub.cfg: {e}") from e
 
     _validate_masking_safety(lines, hidden_ids)
 
@@ -179,8 +182,11 @@ def apply_hidden_entries_to_grub_cfg(
     except OSError as e:
         logger.warning(f"[apply_hidden_entries_to_grub_cfg] Impossible de créer le backup: {e}")
 
-    with open(used_path, "w", encoding="utf-8") as f:
-        f.write(new_text)
+    try:
+        with open(used_path, "w", encoding="utf-8") as f:
+            f.write(new_text)
+    except OSError as e:
+        raise GrubConfigError(f"Impossible d'écrire grub.cfg: {e}") from e
 
     logger.success(f"[apply_hidden_entries_to_grub_cfg] Succès - {masked_count} entrée(s) masquée(s)")
     return used_path, masked_count

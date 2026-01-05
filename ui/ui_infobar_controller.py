@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-import gi
 from loguru import logger
 
-gi.require_version("Gtk", "4.0")
-
-# pylint: disable=wrong-import-position
-from gi.repository import GLib, Gtk
+from ui.ui_gtk_imports import GLib, Gtk
 
 INFO = "info"
 WARNING = "warning"

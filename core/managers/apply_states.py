@@ -21,6 +21,15 @@ from ..core_exceptions import (
 from ..io.core_grub_default_io import write_grub_default
 from ..io.grub_validation import validate_grub_file
 from ..services.core_grub_script_service import GrubScriptService
+from ..system.core_grub_system_commands import resolve_executable
+
+
+@dataclass
+class ApplyPaths:
+    """Sous-ensemble de chemins utilisés durant l'application."""
+
+    backup_path: Path
+    temp_cfg_path: Path
 
 
 @dataclass
@@ -28,13 +37,22 @@ class ApplyContext:
     """Contexte partagé entre les états."""
 
     grub_default_path: Path
-    backup_path: Path
-    temp_cfg_path: Path
+    paths: ApplyPaths
     new_config: dict[str, str]
     apply_changes: bool
     theme_management_enabled: bool = True
     pending_script_changes: dict[str, bool] = field(default_factory=dict)
     verification_details: str | None = None
+
+    @property
+    def backup_path(self) -> Path:
+        """Chemin du backup courant."""
+        return self.paths.backup_path
+
+    @property
+    def temp_cfg_path(self) -> Path:
+        """Chemin du grub.cfg temporaire (test/validation)."""
+        return self.paths.temp_cfg_path
 
 
 class GrubApplyState(ABC):
@@ -71,7 +89,7 @@ class BackupState(GrubApplyState):
                 raise GrubBackupError(f"Source invalide: {validation.error_message}")
         except OSError as e:
             logger.error(f"[BackupState] ERREUR: Impossible de vérifier le fichier source - {e}")
-            raise
+            raise GrubBackupError(f"Impossible de vérifier le fichier source: {e}") from e
 
         # Création backup
         try:
@@ -138,7 +156,8 @@ class GenerateTestState(GrubApplyState):
 
     def execute(self) -> type[GrubApplyState] | None:
         """Génère un fichier grub.cfg temporaire pour validation."""
-        cmd = ["grub-mkconfig", "-o", str(self.context.temp_cfg_path)]
+        mkconfig_cmd = resolve_executable("grub-mkconfig", return_name_if_missing=True) or "grub-mkconfig"
+        cmd = [mkconfig_cmd, "-o", str(self.context.temp_cfg_path)]
         logger.debug(f"[GenerateTestState] Exécution: {' '.join(cmd)}")
 
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)
@@ -183,7 +202,7 @@ class ValidateState(GrubApplyState):
             raise GrubValidationError("Le fichier de configuration généré est vide")
 
         # Validation 2: Syntaxe GRUB
-        check_cmd = shutil.which("grub-script-check")
+        check_cmd = resolve_executable("grub-script-check", return_name_if_missing=False)
         if check_cmd:
             cmd = [check_cmd, str(self.context.temp_cfg_path)]
             result = subprocess.run(cmd, capture_output=True, text=True, check=False)
@@ -205,65 +224,87 @@ class ValidateState(GrubApplyState):
 class ApplyFinalState(GrubApplyState):
     """État 5: Application finale (update-grub)."""
 
-    def execute(self) -> type[GrubApplyState] | None:
-        """Applique la configuration finale via update-grub."""
-        if not self.context.apply_changes:
-            logger.info("[ApplyFinalState] Application ignorée à la demande.")
-            self.context.verification_details = "Configuration validée (update-grub non exécuté)"
-            return CleanupState
+    @staticmethod
+    def _resolve_pending_target(pending: dict, script_path: Path) -> bool | None:
+        """Retourne l'état exécutable demandé pour un script, ou None si non spécifié."""
+        key_str = str(script_path)
+        if key_str in pending:
+            return bool(pending[key_str])
+        if script_path in pending:  # type: ignore[operator]
+            return bool(pending[script_path])  # type: ignore[index]
+        return None
 
-        # Gestion des scripts de thème AVANT update-grub
-        try:
-            script_service = GrubScriptService()
-            theme_scripts = script_service.scan_theme_scripts()
+    def _apply_theme_scripts(self) -> tuple[GrubScriptService, list[tuple[Path, bool]]]:
+        """Applique (best-effort) les changements de scripts et retourne un snapshot pour rollback."""
+        script_service = GrubScriptService()
+        theme_scripts = script_service.scan_theme_scripts()
+
+        logger.info(f"[ApplyFinalState] Gestion des scripts (Target Enabled={self.context.theme_management_enabled})")
+
+        applied: list[tuple[Path, bool]] = []
+        pending = self.context.pending_script_changes
+
+        for script in theme_scripts:
+            should_be_executable: bool | None
+            if self.context.theme_management_enabled:
+                should_be_executable = True
+            else:
+                should_be_executable = self._resolve_pending_target(pending, Path(script.path))
+
+            if should_be_executable is None:
+                continue
+
+            if bool(script.is_executable) == bool(should_be_executable):
+                logger.debug(
+                    f"[ApplyFinalState] Script {script.name} déjà dans l'état souhaité ({should_be_executable})"
+                )
+                continue
 
             logger.info(
-                f"[ApplyFinalState] Gestion des scripts (Target Enabled={self.context.theme_management_enabled})"
+                f"[ApplyFinalState] Modification script {script.name}: {script.is_executable} -> {should_be_executable}"
             )
+            # Snapshot de l'état initial pour rollback éventuel.
+            applied.append((Path(script.path), bool(script.is_executable)))
+            try:
+                if should_be_executable:
+                    script_service.make_executable(script.path)
+                else:
+                    script_service.make_non_executable(script.path)
+                logger.success(f"[ApplyFinalState] Script {script.name} mis à jour")
+            except (OSError, PermissionError, RuntimeError, ValueError) as e:
+                logger.error(f"[ApplyFinalState] Échec modification {script.name}: {e}")
 
-            for script in theme_scripts:
-                should_be_executable = None
+        return script_service, applied
 
-                # Si la gestion de thème est activée (Mode Thème), on active les scripts par défaut (comportement existant)
-                if self.context.theme_management_enabled:
-                    should_be_executable = True
-                # Si la gestion de thème est désactivée (Mode Simple Config), on applique les changements demandés
-                elif script.path in self.context.pending_script_changes:
-                    should_be_executable = self.context.pending_script_changes[script.path]
-                
-                # Si should_be_executable est None, on ne change rien (on garde l'état actuel)
+    @staticmethod
+    def _build_apply_command() -> list[str]:
+        """Construit la commande d'application finale (update-grub ou fallback grub-mkconfig)."""
+        update_cmd = resolve_executable("update-grub", return_name_if_missing=False)
+        if update_cmd:
+            return [update_cmd]
 
-                if should_be_executable is not None:
-                    # Si l'état actuel diffère de l'état souhaité
-                    if script.is_executable != should_be_executable:
-                        logger.info(
-                            f"[ApplyFinalState] Modification script {script.name}: {script.is_executable} -> {should_be_executable}"
-                        )
-                        try:
-                            if should_be_executable:
-                                script_service.make_executable(script.path)
-                            else:
-                                script_service.make_non_executable(script.path)
-                            logger.success(f"[ApplyFinalState] Script {script.name} mis à jour")
-                        except Exception as e:
-                            logger.error(f"[ApplyFinalState] Échec modification {script.name}: {e}")
-                    else:
-                        logger.debug(
-                            f"[ApplyFinalState] Script {script.name} déjà dans l'état souhaité ({should_be_executable})"
-                        )
+        mkconfig_cmd = resolve_executable("grub-mkconfig", return_name_if_missing=True) or "grub-mkconfig"
+        return [mkconfig_cmd, "-o", GRUB_CFG_PATH]
 
-        except Exception as e:
-            logger.warning(f"[ApplyFinalState] Erreur lors de la gestion des scripts de thème: {e}")
-            # On continue quand même pour update-grub
+    @staticmethod
+    def _rollback_script_changes(script_service: GrubScriptService, changes: list[tuple[Path, bool]]) -> None:
+        """Rollback best-effort des chmod effectués."""
+        if not changes:
+            return
+        logger.warning("[ApplyFinalState] Échec apply: rollback des scripts (best-effort)")
+        for script_path, was_executable in changes:
+            try:
+                if was_executable:
+                    script_service.make_executable(script_path)
+                else:
+                    script_service.make_non_executable(script_path)
+            except (OSError, PermissionError, RuntimeError, ValueError) as e:
+                logger.warning(f"[ApplyFinalState] Rollback chmod échoué pour {script_path}: {e}")
 
-        grub_cfg_mtime_before = Path(GRUB_CFG_PATH).stat().st_mtime if Path(GRUB_CFG_PATH).exists() else 0
-
-        update_cmd = shutil.which("update-grub")
-        cmd = [update_cmd] if update_cmd else ["grub-mkconfig", "-o", GRUB_CFG_PATH]
-
+    def _run_apply_command(self, cmd: list[str]) -> None:
+        """Exécute la commande d'application finale et lève GrubCommandError en cas d'échec."""
         logger.info(f"[ApplyFinalState] Exécution: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-
         if result.returncode != 0:
             raise GrubCommandError(
                 f"Mise à jour finale échouée:\n{result.stderr}",
@@ -272,13 +313,41 @@ class ApplyFinalState(GrubApplyState):
                 stderr=result.stderr,
             )
 
-        # Vérification modification
-        if Path(GRUB_CFG_PATH).exists():
-            grub_cfg_mtime_after = Path(GRUB_CFG_PATH).stat().st_mtime
-            if grub_cfg_mtime_after > grub_cfg_mtime_before:
-                self.context.verification_details = f"✓ {GRUB_CFG_PATH} régénéré"
-            else:
-                self.context.verification_details = f"⚠ {GRUB_CFG_PATH} non modifié"
+    def _update_verification_details(self, grub_cfg_mtime_before: float) -> None:
+        """Met à jour le message de vérification après exécution."""
+        if not Path(GRUB_CFG_PATH).exists():
+            return
+        grub_cfg_mtime_after = Path(GRUB_CFG_PATH).stat().st_mtime
+        if grub_cfg_mtime_after > grub_cfg_mtime_before:
+            self.context.verification_details = f"✓ {GRUB_CFG_PATH} régénéré"
+        else:
+            self.context.verification_details = f"⚠ {GRUB_CFG_PATH} non modifié"
+
+    def execute(self) -> type[GrubApplyState] | None:
+        """Applique la configuration finale via update-grub."""
+        if not self.context.apply_changes:
+            logger.info("[ApplyFinalState] Application ignorée à la demande.")
+            self.context.verification_details = "Configuration validée (update-grub non exécuté)"
+            return CleanupState
+
+        grub_cfg_mtime_before = Path(GRUB_CFG_PATH).stat().st_mtime if Path(GRUB_CFG_PATH).exists() else 0
+
+        script_service = GrubScriptService()
+        applied_script_changes: list[tuple[Path, bool]] = []
+        try:
+            script_service, applied_script_changes = self._apply_theme_scripts()
+        except (OSError, PermissionError, RuntimeError, ValueError) as e:
+            logger.warning(f"[ApplyFinalState] Erreur lors de la gestion des scripts de thème: {e}")
+
+        cmd = self._build_apply_command()
+
+        try:
+            self._run_apply_command(cmd)
+        except GrubCommandError:
+            self._rollback_script_changes(script_service, applied_script_changes)
+            raise
+
+        self._update_verification_details(grub_cfg_mtime_before)
 
         return CleanupState
 

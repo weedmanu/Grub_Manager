@@ -180,7 +180,7 @@ class ModelWidgetMapper:
                 logger.debug(f"[ModelWidgetMapper.read_model_from_ui] Background image: {grub_bg}")
 
             try:
-                from ui.tabs.ui_tab_theme_config import GRUB_COLORS
+                from ui.ui_constants import GRUB_COLORS
 
                 # Only update if widgets are available
                 if ctrl.normal_fg_combo and ctrl.normal_bg_combo:
@@ -194,8 +194,8 @@ class ModelWidgetMapper:
                         ctrl.highlight_fg_combo, ctrl.highlight_bg_combo, GRUB_COLORS
                     )
                     logger.debug(f"[ModelWidgetMapper.read_model_from_ui] Color highlight: {color_highlight}")
-            except ImportError:
-                logger.warning("Impossible d'importer GRUB_COLORS pour lire la config simple")
+            except (AttributeError, KeyError, TypeError) as e:
+                logger.warning(f"Impossible de lire la config simple (couleurs): {e}")
 
         model = GrubUiModel(
             timeout=timeout_val,

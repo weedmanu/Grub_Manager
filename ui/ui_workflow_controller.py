@@ -6,13 +6,7 @@ import os
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-import gi
 from loguru import logger
-
-gi.require_version("Gtk", "4.0")
-
-# pylint: disable=wrong-import-position
-from gi.repository import GLib, Gtk
 
 from core.config.core_paths import GRUB_DEFAULT_PATH
 from core.io.core_grub_default_io import (
@@ -24,6 +18,7 @@ from core.managers.core_apply_manager import GrubApplyManager
 from core.managers.core_entry_visibility_manager import apply_hidden_entries_to_grub_cfg
 from core.models.core_grub_ui_model import merged_config_from_model
 from core.system.core_grub_system_commands import GrubUiState
+from ui.ui_gtk_imports import GLib, Gtk
 from ui.ui_infobar_controller import ERROR, INFO, WARNING
 from ui.ui_state import AppState
 
@@ -57,7 +52,6 @@ class WorkflowController:
             read_model_cb: Callback pour lire le modèle depuis l'UI.
             show_info_cb: Callback pour afficher des messages.
         """
-        # pylint: disable=too-many-arguments
         self.window = window
         self.state_manager = state_manager
         self.save_btn = save_btn

@@ -17,8 +17,8 @@ show_help() {
   echo ""
   echo -e "${YELLOW}Options:${NC}"
   echo -e "  ${GREEN}--clean${NC}       Supprime les caches (.pytest, .ruff, .mypy) et __pycache__"
-  echo -e "  ${GREEN}--fix${NC}         Applique les corrections automatiques (ruff, black, isort)"
-  echo -e "  ${GREEN}--lint${NC}        Vérifie le code (ruff, black --check, mypy, vulture, pydocstyle, pylint)"
+  echo -e "  ${GREEN}--fix${NC}         Applique les corrections automatiques (ruff, isort, black)"
+  echo -e "  ${GREEN}--lint${NC}        Vérifie le code (pydocstyle, vulture, black --check, isort --check, ruff, mypy, pylint, radon)"
   echo -e "  ${GREEN}--test${NC}        Exécute la suite de tests pytest"
   echo -e "  ${GREEN}--cov${NC}         Exécute les tests avec rapport de couverture détaillé"
   echo -e "  ${GREEN}--all${NC}         Enchaîne : clean -> fix -> lint -> test (comportement par défaut)"
@@ -106,15 +106,18 @@ clean() {
 
 fix() {
   run_check "Ruff (fix)" "$PYTHON_BIN" -m ruff check $PATHS --fix
+  run_check "Isort" "$PYTHON_BIN" -m isort $PATHS
   run_check "Black" "$PYTHON_BIN" -m black $PATHS
 }
 
 lint() {
-  run_check "Ruff" "$PYTHON_BIN" -m ruff check $PATHS
-  run_check "Black (check)" "$PYTHON_BIN" -m black --check $PATHS
-  run_check "Mypy" "$PYTHON_BIN" -m mypy $PATHS
-  run_check "Vulture" "$PYTHON_BIN" -m vulture $PATHS --min-confidence 65
+  # Ordre demandé: pydocstyle -> vulture (50%) -> black -> isort -> ruff -> mypy -> pylint
   run_check "Pydocstyle" "$PYTHON_BIN" -m pydocstyle $PATHS
+  run_check "Vulture" "$PYTHON_BIN" -m vulture $PATHS
+  run_check "Black (check)" "$PYTHON_BIN" -m black --check $PATHS
+  run_check "Isort (check)" "$PYTHON_BIN" -m isort --check-only --diff $PATHS
+  run_check "Ruff" "$PYTHON_BIN" -m ruff check $PATHS
+  run_check "Mypy" "$PYTHON_BIN" -m mypy $PATHS
 
   # Pylint avec gestion spécifique pour le dossier tests
   local tests_disables="redefined-outer-name,unused-argument,no-member,too-many-public-methods,too-many-lines,duplicate-code,import-outside-toplevel,wrong-import-order,invalid-name,too-many-positional-arguments,reimported,ungrouped-imports,useless-return,redefined-builtin,broad-exception-caught,pointless-statement,super-init-not-called,assignment-from-no-return,no-value-for-parameter,use-implicit-booleaness-not-comparison,unspecified-encoding"
@@ -131,11 +134,98 @@ lint() {
   done
 
   if [[ -n "$non_test_paths" ]]; then
-    run_check "Pylint (src)" "$PYTHON_BIN" -m pylint $non_test_paths
+    run_check "Pylint (qualité)" "$PYTHON_BIN" -m pylint $non_test_paths
+
+    # Passes ciblées pour mieux voir les hotspots (doublons + patterns récurrents).
+    # Elles n'ajoutent pas de nouvelles règles, elles filtrent l'output.
+    # Seuil réglable via env: PYLINT_DUP_MIN_LINES (défaut: 8)
+    local dup_min_lines=${PYLINT_DUP_MIN_LINES:-8}
+    run_check "Pylint (doublons)" "$PYTHON_BIN" -m pylint \
+      --disable=all --enable=R0801 --min-similarity-lines="$dup_min_lines" \
+      $non_test_paths
+
+    run_check "Pylint (patterns)" "$PYTHON_BIN" -m pylint \
+      --disable=all \
+      --enable=R0902,R0903,R0912,R0913,R0914,R0915,C0415,W0718 \
+      $non_test_paths
   fi
   
   if [[ -n "$test_paths" ]]; then
     run_check "Pylint (tests)" "$PYTHON_BIN" -m pylint --disable="$tests_disables" $test_paths
+  fi
+
+  # Radon (complexité) - exécuté après pylint comme demandé.
+  # Par défaut, échoue si une fonction/méthode dépasse le rang C.
+  # Surcharge possible: RADON_MAX_RANK=A|B|C|D|E|F
+  if [[ -n "$non_test_paths" ]]; then
+    run_check "Radon (complexité)" "$PYTHON_BIN" - $non_test_paths <<'PY'
+import os
+import subprocess
+import sys
+
+
+def main() -> int:
+  max_rank = os.environ.get("RADON_MAX_RANK", "C").strip().upper()
+  order = "ABCDEF"
+  if max_rank not in order:
+    print(f"RADON_MAX_RANK invalide: {max_rank!r}", file=sys.stderr)
+    return 2
+
+  paths = sys.argv[1:]
+  if not paths:
+    return 0
+
+  cmd = [sys.executable, "-m", "radon", "cc", "-j", *paths]
+  try:
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+  except FileNotFoundError as exc:
+    print(f"Impossible d'exécuter radon: {exc}", file=sys.stderr)
+    return 2
+
+  if proc.returncode != 0:
+    # Typiquement: radon non installé
+    err = (proc.stderr or "").strip()
+    if err:
+      print(err, file=sys.stderr)
+    else:
+      print("Radon a échoué.", file=sys.stderr)
+    return proc.returncode
+
+  import json  # noqa: E402
+
+  try:
+    data = json.loads(proc.stdout or "{}")
+  except json.JSONDecodeError as exc:
+    print(f"Sortie radon invalide: {exc}", file=sys.stderr)
+    return 2
+
+  max_idx = order.index(max_rank)
+  bad: list[tuple[str, str, str, int, int]] = []
+  for file_path, blocks in data.items():
+    for block in blocks or []:
+      rank = str(block.get("rank", "")).strip().upper()
+      if not rank or rank not in order:
+        continue
+      if order.index(rank) > max_idx:
+        name = str(block.get("name", "<unknown>"))
+        complexity = int(block.get("complexity", 0) or 0)
+        lineno = int(block.get("lineno", 0) or 0)
+        bad.append((file_path, name, rank, complexity, lineno))
+
+  if not bad:
+    print(f"Radon: OK (max rank {max_rank})")
+    return 0
+
+  print(f"Radon: complexité trop élevée (max rank {max_rank}).", file=sys.stderr)
+  for file_path, name, rank, complexity, lineno in sorted(bad):
+    loc = f"{file_path}:{lineno}" if lineno else file_path
+    print(f"- {loc} {name} rank={rank} cc={complexity}", file=sys.stderr)
+  return 1
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())
+PY
   fi
 }
 
@@ -148,8 +238,9 @@ test_suite() {
 }
 
 # Exécution des étapes
-if $DO_ALL || $CLEAN; then
-  clean
+# Toujours nettoyer en premier si on exécute une action qualité.
+if $DO_ALL || $CLEAN || $DO_FIX || $DO_LINT || $DO_TEST || $DO_COV; then
+  run_check "Clean" clean
 fi
 
 if $DO_ALL || $DO_FIX; then

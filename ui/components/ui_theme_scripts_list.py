@@ -7,6 +7,8 @@ from typing import Any
 from gi.repository import Gtk
 from loguru import logger
 
+from ui.components.ui_theme_scripts_renderer import clear_list_box, populate_theme_scripts_list
+
 HORIZONTAL = Gtk.Orientation.HORIZONTAL
 VERTICAL = Gtk.Orientation.VERTICAL
 
@@ -57,72 +59,28 @@ class ThemeScriptsList(Gtk.Box):
 
     def refresh(self) -> None:
         """Scanne et affiche les scripts GRUB."""
-        # Nettoyer l'affichage précédent
-        while True:
-            child = self.scripts_list_box.get_first_child()
-            if child is None:
-                break
-            self.scripts_list_box.remove(child)
+        clear_list_box(self.scripts_list_box)
 
         logger.debug("[ThemeScriptsList] Scan des scripts GRUB")
 
         # Utiliser le service pour scanner les scripts
         theme_scripts = self.script_service.scan_theme_scripts()
 
-        if theme_scripts:
-            logger.info(f"[ThemeScriptsList] {len(theme_scripts)} script(s) de thème trouvé(s)")
+        if not theme_scripts:
+            return
 
-            for script in theme_scripts:
-                row = Gtk.ListBoxRow()
-                row.set_selectable(False)
+        logger.info(f"[ThemeScriptsList] {len(theme_scripts)} script(s) de thème trouvé(s)")
+        populate_theme_scripts_list(
+            gtk_module=Gtk,
+            list_box=self.scripts_list_box,
+            theme_scripts=list(theme_scripts),
+            pending_changes=getattr(self.state_manager, "pending_script_changes", {}),
+            on_toggle=self.on_script_switch_toggled,
+        )
 
-                script_box = Gtk.Box(orientation=HORIZONTAL, spacing=10)
-                script_box.set_margin_top(8)
-                script_box.set_margin_bottom(8)
-                script_box.set_margin_start(10)
-                script_box.set_margin_end(10)
-
-                # Déterminer l'état effectif (en attente ou actuel)
-                is_executable = script.is_executable
-                is_pending = False
-                
-                if script.path in self.state_manager.pending_script_changes:
-                    is_executable = self.state_manager.pending_script_changes[script.path]
-                    is_pending = True
-
-                # Nom du script
-                script_name = script.name
-                if script_name in ["05_debian_theme", "05_grub_colors"]:
-                    script_name += " (Défaut)"
-                
-                if is_pending:
-                    script_name += " *"
-
-                name_label = Gtk.Label(label=script_name)
-                name_label.set_halign(Gtk.Align.START)
-                name_label.set_hexpand(True)
-                name_label.add_css_class("title-4")
-                script_box.append(name_label)
-
-                # Label d'état
-                state_text = "actif" if is_executable else "inactif"
-                state_label = Gtk.Label(label=state_text)
-                state_label.set_margin_end(10)
-                if not is_executable:
-                    state_label.add_css_class("warning")
-                script_box.append(state_label)
-
-                # Switch d'activation
-                switch = Gtk.Switch()
-                switch.set_active(is_executable)
-                switch.set_valign(Gtk.Align.CENTER)
-                
-                switch.connect("notify::active", lambda s, p, sc=script, lbl=state_label: self._on_script_switch_toggled(s, sc, lbl))
-                
-                script_box.append(switch)
-
-                row.set_child(script_box)
-                self.scripts_list_box.append(row)
+    def on_script_switch_toggled(self, switch: Gtk.Switch, script: Any, label: Gtk.Label | None = None) -> None:
+        """API publique: appelée quand le switch d'un script est basculé."""
+        self._on_script_switch_toggled(switch, script, label)
 
     def _on_script_switch_toggled(self, switch: Gtk.Switch, script: Any, label: Gtk.Label | None = None) -> None:
         """Appelé quand le switch d'un script est basculé."""
@@ -131,19 +89,22 @@ class ThemeScriptsList(Gtk.Box):
 
         is_active = switch.get_active()
         logger.debug(f"[ThemeScriptsList] Script {script.name} -> {is_active}")
-        
+
         if label:
             label.set_label("actif" if is_active else "inactif")
             if is_active:
                 label.remove_css_class("warning")
             else:
                 label.add_css_class("warning")
-        
-        self.state_manager.pending_script_changes[script.path] = is_active
-        
+
+        script_path = getattr(script, "path", "")
+        key_str = str(script_path)
+        self.state_manager.pending_script_changes[key_str] = is_active
+
         if script.is_executable == is_active:
-            if script.path in self.state_manager.pending_script_changes:
-                del self.state_manager.pending_script_changes[script.path]
+            self.state_manager.pending_script_changes.pop(key_str, None)
+            # compat: éventuelles anciennes clés Path
+            self.state_manager.pending_script_changes.pop(script_path, None)
 
         # AppStateManager.update_model attend un modèle; on repasse le modèle courant
         # pour déclencher la synchronisation des états UI (boutons, etc.).

@@ -7,18 +7,17 @@ les thèmes avec la configuration réelle du système.
 from __future__ import annotations
 
 import os
-from gi.repository import Gtk, Gdk, Gio
+
+from gi.repository import Gdk, Gtk
 from loguru import logger
 
-from core.services.core_grub_service import GrubConfig, GrubService, MenuEntry
-from core.models.core_theme_models import GrubTheme
 from core.models.core_grub_ui_model import GrubUiModel
+from core.models.core_theme_models import GrubTheme
+from core.services.core_grub_service import GrubService, MenuEntry
 
 
 class GrubPreviewDialog:
     """Dialog pour prévisualiser un thème GRUB."""
-
-    # pylint: disable=too-few-public-methods
 
     def __init__(self, theme: GrubTheme, model: GrubUiModel | None = None, theme_name: str = "") -> None:
         """Initialise le dialog de preview.
@@ -67,14 +66,14 @@ class GrubPreviewDialog:
         else:
             bg_widget.set_keep_aspect_ratio(False)
         bg_widget.set_overflow(Gtk.Overflow.HIDDEN)
-        
+
         # Déterminer l'image de fond
         bg_path = ""
         if self.theme and self.theme.image.desktop_image:
             bg_path = self.theme.image.desktop_image
         elif self.model and self.model.grub_background:
             bg_path = self.model.grub_background
-            
+
         if bg_path and os.path.exists(bg_path):
             try:
                 bg_widget.set_filename(bg_path)
@@ -101,7 +100,7 @@ class GrubPreviewDialog:
         self._create_grub_preview(preview_box)
 
         overlay.add_overlay(preview_box)
-        
+
         # Frame pour la bordure
         frame = Gtk.Frame()
         frame.set_child(overlay)
@@ -127,17 +126,17 @@ class GrubPreviewDialog:
     def _apply_preview_styles(self, window: Gtk.Window) -> None:
         """Applique des styles CSS pour rendre l'aperçu plus fidèle."""
         css_provider = Gtk.CssProvider()
-        
+
         # Valeurs par défaut (Mode Simple ou Fallback)
         fg_color = "white"
-        bg_color = "rgba(0, 0, 0, 0.5)" # Semi-transparent par défaut pour le menu
+        bg_color = "rgba(0, 0, 0, 0.5)"  # Semi-transparent par défaut pour le menu
         hl_fg = "black"
-        hl_bg = "#D3D3D3" # light-gray
-        
+        hl_bg = "#D3D3D3"  # light-gray
+
         title_color = "white"
         title_font = "DejaVu Sans Bold 14pt"
         entry_font = "DejaVu Sans Mono 12pt"
-        
+
         # Mise en page par défaut
         menu_top = "20%"
         menu_left = "15%"
@@ -149,7 +148,7 @@ class GrubPreviewDialog:
                 return default
             # Gérer le format fg/bg ou juste fg
             fg = grub_color.split("/")[0].strip() if "/" in grub_color else grub_color.strip()
-            
+
             color_map = {
                 "light-gray": "#D3D3D3",
                 "dark-gray": "#555555",
@@ -160,44 +159,44 @@ class GrubPreviewDialog:
                 "blue": "blue",
                 "cyan": "cyan",
                 "magenta": "magenta",
-                "yellow": "yellow"
+                "yellow": "yellow",
             }
             return color_map.get(fg, fg)
 
         # 1. Priorité au thème si activé
         if self.model and self.model.theme_management_enabled and self.theme:
             fg_color = parse_grub_color(self.theme.colors.menu_normal_fg, "white")
-            
+
             # Si le fond du menu est noir dans un thème, c'est souvent transparent
             theme_bg = self.theme.colors.menu_normal_bg
             if theme_bg == "black":
                 bg_color = "rgba(0, 0, 0, 0.4)"
             else:
                 bg_color = parse_grub_color(theme_bg, "rgba(0, 0, 0, 0.4)")
-            
+
             hl_fg = parse_grub_color(self.theme.colors.menu_highlight_fg, "black")
             hl_bg = parse_grub_color(self.theme.colors.menu_highlight_bg, "#D3D3D3")
-            
+
             title_color = parse_grub_color(self.theme.colors.title_color, "white")
-            
+
             # Layout
             if self.theme.layout:
                 menu_top = self.theme.layout.menu_top
                 menu_left = self.theme.layout.menu_left
                 menu_width = self.theme.layout.menu_width
                 menu_height = self.theme.layout.menu_height
-            
+
             # Fonts (simplifié pour GTK)
             if self.theme.fonts:
                 # On essaie de convertir le format GRUB "DejaVu Sans Bold 16" en CSS
                 title_font = self.theme.fonts.title_font.replace("Regular", "").strip()
                 entry_font = self.theme.fonts.terminal_font.replace("Regular", "").strip()
-        
+
         # 2. Sinon utiliser la configuration simple du modèle
         elif self.model:
             fg_color = parse_grub_color(self.model.grub_color_normal, "white")
             hl_fg = parse_grub_color(self.model.grub_color_highlight, "black")
-            
+
             # En mode simple, GRUB n'a pas de boîte de menu, mais on en garde une pour la lisibilité
             bg_color = "rgba(0, 0, 0, 0.6)"
 
@@ -249,9 +248,7 @@ class GrubPreviewDialog:
         else:
             css_provider.load_from_data(css.encode())
         Gtk.StyleContext.add_provider_for_display(
-            Gdk.Display.get_default(),
-            css_provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            Gdk.Display.get_default(), css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
 
     def _create_grub_preview(self, container: Gtk.Box) -> None:
@@ -260,25 +257,21 @@ class GrubPreviewDialog:
         Args:
             container: Container où placer le preview
         """
-        # pylint: disable=too-many-locals,too-many-statements
         try:
             # Utiliser le modèle si disponible, sinon le service
             if self.model:
                 timeout = self.model.timeout
                 default_entry = self.model.default
-                gfxmode = self.model.gfxmode
             else:
                 config = GrubService.read_current_config()
                 timeout = config.timeout
                 default_entry = config.default_entry
-                gfxmode = config.grub_gfxmode
-                
+
             menu_entries = GrubService.get_menu_entries()
         except (OSError, RuntimeError) as e:
             logger.warning(f"[GrubPreviewDialog] Erreur lecture config: {e}")
             timeout = 10
             default_entry = "0"
-            gfxmode = "auto"
             menu_entries = [MenuEntry(title="Ubuntu", id="gnulinux")]
 
         # Titre du système
@@ -306,13 +299,13 @@ class GrubPreviewDialog:
 
         for i, entry in enumerate(menu_entries):
             is_selected = i == default_index
-            
+
             entry_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
             entry_box.add_css_class("grub-entry")
-            
+
             if is_selected:
                 entry_box.add_css_class("grub-entry-selected")
-                # GRUB utilise souvent une bordure ou un fond différent, 
+                # GRUB utilise souvent une bordure ou un fond différent,
                 # mais l'astérisque est classique pour le mode texte
                 marker = Gtk.Label(label="*")
                 entry_box.append(marker)
@@ -334,7 +327,7 @@ class GrubPreviewDialog:
         )
         if timeout >= 0:
             help_text += f"\n\nL'entrée sélectionnée sera démarrée automatiquement dans {timeout}s."
-            
+
         help_label = Gtk.Label(label=help_text)
         help_label.set_justify(Gtk.Justification.CENTER)
         help_label.add_css_class("grub-info")

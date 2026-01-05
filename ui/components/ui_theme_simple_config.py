@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 from typing import Any
 
 from gi.repository import Gtk
 from loguru import logger
 
+from ui.components.ui_theme_simple_config_logic import apply_simple_theme_config_from_widgets
 from ui.ui_constants import GRUB_COLORS
+from ui.ui_file_dialogs import open_image_file_dialog
 from ui.ui_gtk_helpers import GtkHelper
 
 HORIZONTAL = Gtk.Orientation.HORIZONTAL
@@ -136,52 +137,32 @@ class ThemeSimpleConfigPanel(Gtk.Box):
 
     def _on_select_bg_image(self, button: Gtk.Button) -> None:
         """Ouvre un sélecteur de fichier pour l'image de fond."""
-        dialog = Gtk.FileDialog()
-        dialog.set_title("Choisir une image de fond")
-
-        filters = Gtk.FileFilter()
-        filters.set_name("Images")
-        filters.add_mime_type("image/jpeg")
-        filters.add_mime_type("image/png")
-        filters.add_mime_type("image/tga")
-        dialog.set_default_filter(filters)
-
-        parent = GtkHelper.resolve_parent_window(button)
-        dialog.open(parent, None, self._on_bg_image_selected)
-
-    def _on_bg_image_selected(self, dialog: Gtk.FileDialog, result) -> None:
-        """Callback après sélection de l'image."""
-        try:
-            file = dialog.open_finish(result)
-            if file and self.bg_image_entry:
-                self.bg_image_entry.set_text(file.get_path())
-        except (OSError, RuntimeError) as e:
-            logger.warning(f"[ThemeSimpleConfigPanel] Sélection d'image annulée ou échouée: {e}")
+        open_image_file_dialog(
+            gtk_module=Gtk,
+            button=button,
+            title="Choisir une image de fond",
+            parent_window=GtkHelper.resolve_parent_window(button),
+            on_selected=lambda path: self.bg_image_entry.set_text(path) if self.bg_image_entry else None,
+        )
 
     def _on_config_changed(self, *_) -> None:
         """Met à jour le modèle quand la config change."""
         if self._updating_ui:
             return
 
-        # Récupérer les valeurs
-        bg_image = self.bg_image_entry.get_text()
+        try:
+            updated = apply_simple_theme_config_from_widgets(
+                state_manager=self.state_manager,
+                colors=list(GRUB_COLORS),
+                bg_image_entry=self.bg_image_entry,
+                normal_fg_combo=self.normal_fg_combo,
+                normal_bg_combo=self.normal_bg_combo,
+                highlight_fg_combo=self.highlight_fg_combo,
+                highlight_bg_combo=self.highlight_bg_combo,
+            )
+        except (AttributeError, IndexError) as exc:
+            logger.debug(f"[ThemeSimpleConfigPanel] Widgets incomplets/invalides: {exc}")
+            return
 
-        n_fg = GRUB_COLORS[self.normal_fg_combo.get_selected()]
-        n_bg = GRUB_COLORS[self.normal_bg_combo.get_selected()]
-        color_normal = f"{n_fg}/{n_bg}"
-
-        h_fg = GRUB_COLORS[self.highlight_fg_combo.get_selected()]
-        h_bg = GRUB_COLORS[self.highlight_bg_combo.get_selected()]
-        color_highlight = f"{h_fg}/{h_bg}"
-
-        # Mettre à jour le modèle
-        current_model = self.state_manager.get_model()
-        new_model = replace(
-            current_model,
-            grub_background=bg_image,
-            grub_color_normal=color_normal,
-            grub_color_highlight=color_highlight,
-        )
-
-        self.state_manager.update_model(new_model)
-        self.on_changed()
+        if updated:
+            self.on_changed()

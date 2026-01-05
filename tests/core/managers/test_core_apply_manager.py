@@ -9,6 +9,7 @@ import pytest
 from core.core_exceptions import GrubRollbackError
 from core.managers.apply_states import (
     ApplyContext,
+    ApplyPaths,
     BackupState,
     WriteState,
 )
@@ -163,9 +164,8 @@ class TestGrubApplyManager:
     def test_perform_rollback_remove_error(self, manager, tmp_path):
         """Vérifie l'erreur de suppression du fichier temporaire lors du rollback."""
         context = ApplyContext(
+            paths=ApplyPaths(backup_path=tmp_path / "backup", temp_cfg_path=tmp_path / "temp"),
             grub_default_path=tmp_path / "grub",
-            backup_path=tmp_path / "backup",
-            temp_cfg_path=tmp_path / "temp",
             new_config={},
             apply_changes=True,
         )
@@ -180,9 +180,8 @@ class TestGrubApplyManager:
     def test_perform_rollback_write_state_exception(self, manager, tmp_path):
         """Vérifie les exceptions lors du rollback via WriteState."""
         context = ApplyContext(
+            paths=ApplyPaths(backup_path=tmp_path / "backup", temp_cfg_path=tmp_path / "temp"),
             grub_default_path=tmp_path / "grub",
-            backup_path=tmp_path / "backup",
-            temp_cfg_path=tmp_path / "temp",
             new_config={},
             apply_changes=True,
         )
@@ -213,9 +212,8 @@ class TestGrubApplyManager:
     def test_perform_rollback(self, MockWrite, manager, tmp_path):
         """Vérifie le rollback global."""
         context = ApplyContext(
+            paths=ApplyPaths(backup_path=tmp_path / "backup", temp_cfg_path=tmp_path / "temp"),
             grub_default_path=tmp_path / "grub",
-            backup_path=tmp_path / "backup",
-            temp_cfg_path=tmp_path / "temp",
             new_config={},
             apply_changes=True,
         )

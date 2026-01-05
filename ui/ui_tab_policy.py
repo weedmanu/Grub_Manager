@@ -8,8 +8,6 @@ from loguru import logger
 class TabPolicy:
     """Définit la politique d'activation des boutons selon l'onglet actif."""
 
-    # pylint: disable=too-few-public-methods
-
     @staticmethod
     def get_button_states(tab_label: str, is_dirty: bool) -> tuple[bool, bool]:
         """Détermine l'état (sensible ou non) des boutons Recharger et Appliquer.

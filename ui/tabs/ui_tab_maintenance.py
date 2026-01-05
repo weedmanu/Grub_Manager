@@ -24,7 +24,6 @@ def build_maintenance_tab(controller: GrubConfigManager, notebook: Gtk.Notebook)
     - Diagnostic commands (update-grub, check syntax, list partitions)
     - Restoration from repositories
     """
-    # pylint: disable=too-many-locals,too-many-statements
     logger.debug("[build_maintenance_tab] Construction de l'onglet Maintenance")
     service = MaintenanceService()
 

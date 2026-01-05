@@ -43,7 +43,6 @@ def build_theme_config_right_column(
 
     Ne modifie pas l'UX: mêmes labels, mêmes styles, même disposition.
     """
-    # pylint: disable=too-many-locals
 
     def _on_preview_clicked(_button: Gtk.Button) -> None:
         on_preview()

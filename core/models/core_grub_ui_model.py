@@ -14,6 +14,7 @@ from loguru import logger
 from ..config.core_paths import GRUB_CFG_PATH, GRUB_DEFAULT_PATH
 from ..io.core_grub_default_io import read_grub_default, write_grub_default
 from ..io.core_grub_menu_parser import GrubDefaultChoice, read_grub_default_choices_with_source
+from ..services.core_grub_script_service import GrubScriptService
 
 
 @dataclass(frozen=True)
@@ -144,53 +145,42 @@ def merged_config_from_model(base_config: dict[str, str], model: GrubUiModel) ->
         cfg.pop(k, None)
 
     # === OPTIONS OBLIGATOIRES (toujours présentes) ===
-    cfg["GRUB_TIMEOUT"] = str(int(model.timeout))
-    cfg["GRUB_DEFAULT"] = (model.default or "0").strip() or "0"
-    cfg["GRUB_TIMEOUT_STYLE"] = "hidden" if model.hidden_timeout else "menu"
+    cfg.update(
+        {
+            "GRUB_TIMEOUT": str(int(model.timeout)),
+            "GRUB_DEFAULT": (model.default or "0").strip() or "0",
+            "GRUB_TIMEOUT_STYLE": "hidden" if model.hidden_timeout else "menu",
+            # Force l'activation pour les versions récentes de GRUB (2.06+) où c'est désactivé par défaut
+            "GRUB_DISABLE_OS_PROBER": "true" if model.disable_os_prober else "false",
+        }
+    )
 
     # === OPTIONS BOOLÉENNES (présentes SI activées) ===
     # GRUB_SAVEDEFAULT: True si GRUB_DEFAULT=saved OU si explicitement demandé
     if model.save_default or model.default == "saved":
         cfg["GRUB_SAVEDEFAULT"] = "true"
 
-    if model.disable_os_prober:
-        cfg["GRUB_DISABLE_OS_PROBER"] = "true"
-    else:
-        # Force l'activation pour les versions récentes de GRUB (2.06+) où c'est désactivé par défaut
-        cfg["GRUB_DISABLE_OS_PROBER"] = "false"
-
-    # === OPTIONS GRAPHIQUES (présentes si non vides) ===
-    if model.gfxmode.strip():
-        cfg["GRUB_GFXMODE"] = model.gfxmode.strip()
-    if model.gfxpayload_linux.strip():
-        cfg["GRUB_GFXPAYLOAD_LINUX"] = model.gfxpayload_linux.strip()
+    # === OPTIONS GRAPHIQUES / THÈME SIMPLE (présentes si non vides) ===
+    for key, value in (
+        ("GRUB_GFXMODE", model.gfxmode),
+        ("GRUB_GFXPAYLOAD_LINUX", model.gfxpayload_linux),
+        ("GRUB_BACKGROUND", model.grub_background),
+        ("GRUB_COLOR_NORMAL", model.grub_color_normal),
+        ("GRUB_COLOR_HIGHLIGHT", model.grub_color_highlight),
+    ):
+        value = value.strip()
+        if value:
+            cfg[key] = value
 
     # === THÈME (présent si défini ET activé) ===
-    # Si la gestion des thèmes est activée ET qu'un thème est défini
-    if model.theme_management_enabled and model.grub_theme.strip():
-        cfg["GRUB_THEME"] = model.grub_theme.strip()
+    theme_path = model.grub_theme.strip()
+    if model.theme_management_enabled and theme_path:
+        cfg["GRUB_THEME"] = theme_path
     else:
-        # Si désactivé ou vide, on s'assure que la clé n'existe pas
-        # Cela correspond à "supprimer le theme.txt" de la config
         cfg.pop("GRUB_THEME", None)
 
-    # === THÈME SIMPLE (Background & Colors) ===
-    if model.grub_background.strip():
-        cfg["GRUB_BACKGROUND"] = model.grub_background.strip()
-
-    if model.grub_color_normal.strip():
-        cfg["GRUB_COLOR_NORMAL"] = model.grub_color_normal.strip()
-
-    if model.grub_color_highlight.strip():
-        cfg["GRUB_COLOR_HIGHLIGHT"] = model.grub_color_highlight.strip()
-
     # === PARAMÈTRES KERNEL (GRUB_CMDLINE_LINUX_DEFAULT) ===
-    cmdline_parts = []
-    if model.quiet:
-        cmdline_parts.append("quiet")
-    if model.splash:
-        cmdline_parts.append("splash")
-
+    cmdline_parts = [flag for flag, enabled in (("quiet", model.quiet), ("splash", model.splash)) if enabled]
     if cmdline_parts:
         cfg["GRUB_CMDLINE_LINUX_DEFAULT"] = " ".join(cmdline_parts)
     # Sinon : clé absente = aucun paramètre par défaut
@@ -218,8 +208,6 @@ def load_grub_ui_state(
     logger.debug(f"[load_grub_ui_state] {len(entries)} entrées trouvées")
 
     # Détection de l'état des scripts de thème
-    from ..services.core_grub_script_service import GrubScriptService
-
     script_service = GrubScriptService()
     theme_scripts = script_service.scan_theme_scripts()
     # Si au moins un script de thème est exécutable, on considère que la gestion est activée

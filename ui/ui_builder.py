@@ -32,8 +32,6 @@ class UIBuilder:
     - Configuration des boutons d'action
     """
 
-    # pylint: disable=too-few-public-methods
-
     @staticmethod
     def create_main_ui(window: GrubConfigManager) -> None:
         """Construit l'interface principale complète.

@@ -239,7 +239,7 @@ def create_last_modif_backup(path: str = GRUB_DEFAULT_PATH) -> str:
 
     except (OSError, tarfile.TarError) as e:
         logger.error(f"[create_last_modif_backup] ERREUR: {e}")
-        raise OSError(f"Échec création backup last_modif: {e}") from e
+        raise GrubBackupError(f"Échec création backup last_modif: {e}") from e
 
 
 def _determine_source_path(path: str) -> str:
@@ -278,8 +278,8 @@ def create_grub_default_backup(path: str = GRUB_DEFAULT_PATH) -> str:
         Le chemin du backup créé.
 
     Raises:
-        OSError: si la création échoue.
-        FileNotFoundError: si aucune source (fichier ou fallback) n'est trouvée.
+        GrubBackupError: si la création échoue.
+        GrubConfigError: si aucune source (fichier ou fallback) n'est trouvée.
     """
     logger.debug(f"[create_grub_default_backup] Création d'une nouvelle sauvegarde pour {path}")
 
@@ -320,7 +320,7 @@ def create_grub_default_backup(path: str = GRUB_DEFAULT_PATH) -> str:
 
     except (OSError, tarfile.TarError) as e:
         logger.error(f"[create_grub_default_backup] ERREUR: {e}")
-        raise OSError(f"Échec création sauvegarde: {e}") from e
+        raise GrubBackupError(f"Échec création sauvegarde: {e}") from e
 
     # Roulement: ne garde que les 3 plus récentes sauvegardes manuelles.
     deleted = _prune_manual_backups(path, keep=3)
@@ -361,8 +361,7 @@ def restore_grub_default_backup(backup_path: str, target_path: str = GRUB_DEFAUL
 
     Raises:
         FileNotFoundError: si l'archive n'existe pas.
-        tarfile.TarError: si l'archive est corrompue.
-        OSError: si la restauration échoue.
+        GrubBackupError: si l'archive est corrompue ou si la restauration échoue.
     """
     logger.info(f"[restore_grub_default_backup] Restauration depuis {backup_path}")
 
@@ -378,7 +377,7 @@ def restore_grub_default_backup(backup_path: str, target_path: str = GRUB_DEFAUL
             return
         except OSError as e:
             logger.error(f"[restore_grub_default_backup] ERREUR legacy: {e}")
-            raise OSError(f"Échec de la restauration legacy: {e}") from e
+            raise GrubBackupError(f"Échec de la restauration legacy: {e}") from e
 
     try:
         with tarfile.open(backup_path, "r:gz") as tar:
@@ -419,7 +418,7 @@ def restore_grub_default_backup(backup_path: str, target_path: str = GRUB_DEFAUL
 
     except (tarfile.TarError, OSError) as e:
         logger.error(f"[restore_grub_default_backup] ERREUR: {e}")
-        raise OSError(f"Échec de la restauration: {e}") from e
+        raise GrubBackupError(f"Échec de la restauration: {e}") from e
 
 
 def _best_fallback_for_missing_config(path: str) -> str | None:

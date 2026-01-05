@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from gi.repository import Gtk, Gdk
+from gi.repository import Gdk, Gtk
+
 from .base_editor import BaseElementEditor, _try_set_spin_suffix
 
 
@@ -10,6 +11,7 @@ class TextElementEditor(BaseElementEditor):
     """Generic editor for text elements (timeout, instruction)."""
 
     def __init__(self, element_name: str, element_label: str, default_text: str, default_top: int):
+        """Initialise l'éditeur de texte générique."""
         super().__init__(element_name, element_label)
         self.default_text = default_text
         self.default_top = default_top
@@ -56,6 +58,7 @@ class ColorsEditor(BaseElementEditor):
     """Editor for the theme colors."""
 
     def __init__(self):
+        """Initialise l'éditeur de couleurs."""
         super().__init__("colors", "Couleurs")
         self._build_ui()
 
@@ -86,6 +89,7 @@ class FontsEditor(BaseElementEditor):
     """Editor for the theme fonts."""
 
     def __init__(self):
+        """Initialise l'éditeur de polices."""
         super().__init__("fonts", "Polices")
         self._build_ui()
 

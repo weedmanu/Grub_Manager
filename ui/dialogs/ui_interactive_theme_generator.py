@@ -11,12 +11,12 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from gi.repository import Gdk, Gio, Gtk
+from gi.repository import Gtk
 
-from .theme_editors.layout_editors import BootMenuEditor, ProgressBarEditor, TerminalBoxEditor
 from .theme_editors.base_editor import BaseElementEditor
-from .theme_editors.visual_editors import DesktopImageEditor, IconsEditor, ImageEditor
+from .theme_editors.layout_editors import BootMenuEditor, ProgressBarEditor, TerminalBoxEditor
 from .theme_editors.text_editors import ColorsEditor, FontsEditor, TextElementEditor
+from .theme_editors.visual_editors import DesktopImageEditor, IconsEditor, ImageEditor
 
 logger = logging.getLogger(__name__)
 
@@ -129,9 +129,7 @@ class ElementConfigPanel(Gtk.Box):
         element_configs = {
             "boot_menu": lambda: BootMenuEditor(),
             "progress_bar": lambda: ProgressBarEditor(),
-            "timeout_label": lambda: TextElementEditor(
-                "timeout_label", "Label de délai", "Booting in %d seconds", 82
-            ),
+            "timeout_label": lambda: TextElementEditor("timeout_label", "Label de délai", "Booting in %d seconds", 82),
             "footer_image": lambda: ImageEditor("footer_image", "Image de pied de page", "info.png"),
             "logo_image": lambda: ImageEditor("logo_image", "Logo", "logo.png"),
             "instruction_label": lambda: TextElementEditor(
@@ -175,7 +173,7 @@ class ElementConfigPanel(Gtk.Box):
 class InteractiveThemeGeneratorPanel(Gtk.Box):
     """Main interactive theme generator panel with switches and configuration."""
 
-    def __init__(self, on_theme_updated: Callable = None):
+    def __init__(self, on_theme_updated: Callable | None = None):
         """Initialize the generator panel.
 
         Args:

@@ -50,6 +50,33 @@ class CommandResult:
     stderr: str
 
 
+def _build_search_path() -> str:
+    """Construit un PATH robuste (pkexec peut nettoyer l'environnement)."""
+    base_path = os.environ.get("PATH", "")
+    return f"{base_path}:/usr/sbin:/sbin:/usr/bin:/bin"
+
+
+def resolve_executable(
+    name: str,
+    *,
+    return_name_if_missing: bool = True,
+) -> str | None:
+    """Résout un exécutable via PATH étendu (compatible pkexec).
+
+    Args:
+        name: Nom de commande (ex: update-grub, grub-mkconfig).
+        return_name_if_missing: Si True, renvoie `name` même si introuvable.
+
+    Returns:
+        Chemin absolu de l'exécutable si trouvé, sinon `name` ou None.
+    """
+    search_path = _build_search_path()
+    resolved = shutil.which(name, path=search_path)
+    if resolved:
+        return resolved
+    return name if return_name_if_missing else None
+
+
 def run_update_grub() -> CommandResult:
     """Execute `update-grub` and return stdout/stderr + return code.
 
@@ -60,9 +87,7 @@ def run_update_grub() -> CommandResult:
     """
     logger.info("[run_update_grub] Début")
 
-    base_path = os.environ.get("PATH", "")
-    search_path = f"{base_path}:/usr/sbin:/sbin:/usr/bin:/bin"
-    cmd = shutil.which("update-grub", path=search_path) or "update-grub"
+    cmd = resolve_executable("update-grub", return_name_if_missing=True) or "update-grub"
 
     logger.debug(f"[run_update_grub] Commande trouvée: {cmd}")
     logger.info(f"[run_update_grub] Exécution: {cmd}")

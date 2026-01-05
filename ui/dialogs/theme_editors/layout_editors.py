@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from gi.repository import Gtk
+
 from .base_editor import BaseElementEditor, _try_set_spin_suffix
 
 
@@ -10,6 +11,7 @@ class BootMenuEditor(BaseElementEditor):
     """Editor for the boot menu element."""
 
     def __init__(self):
+        """Initialise l'éditeur du menu de démarrage."""
         super().__init__("boot_menu", "Menu de démarrage")
         self._build_ui()
 
@@ -73,12 +75,13 @@ class ProgressBarEditor(BaseElementEditor):
     """Editor for the progress bar element."""
 
     def __init__(self):
+        """Initialise l'éditeur de la barre de progression."""
         super().__init__("progress_bar", "Barre de progression")
         self._build_ui()
 
     def _build_ui(self) -> None:
         config_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        
+
         # Left
         left_spin = Gtk.SpinButton()
         left_spin.set_range(0, 100)
@@ -102,6 +105,7 @@ class TerminalBoxEditor(BaseElementEditor):
     """Editor for terminal box and selection elements."""
 
     def __init__(self, element_name: str, element_label: str, prefix: str):
+        """Initialise l'éditeur de boîte terminal/sélection."""
         super().__init__(element_name, element_label)
         self.prefix = prefix
         self._build_ui()

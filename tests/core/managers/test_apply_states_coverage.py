@@ -23,12 +23,18 @@ class TestApplyStatesCoverage:
 
     @pytest.fixture
     def context(self):
-        ctx = MagicMock(spec=ApplyContext)
+        # ApplyContext est un dataclass: ses champs ne sont pas des attributs de classe,
+        # donc MagicMock(spec=ApplyContext) bloque l'accès à des champs valides.
+        # Ici on veut un double simple et flexible pour couvrir les branches.
+        ctx = MagicMock()
         ctx.grub_default_path = MagicMock(spec=Path)
         ctx.backup_path = MagicMock(spec=Path)
         ctx.temp_cfg_path = MagicMock(spec=Path)
         ctx.new_config = {"GRUB_TIMEOUT": "5"}
         ctx.apply_changes = True
+        ctx.theme_management_enabled = True
+        ctx.pending_script_changes = {}
+        ctx.verification_details = None
         return ctx
 
     @patch("core.managers.apply_states.validate_grub_file")
@@ -105,7 +111,7 @@ class TestApplyStatesCoverage:
         context.grub_default_path.exists.return_value = True
         mock_validate.side_effect = OSError("Disk error")
         state = BackupState(context)
-        with pytest.raises(OSError, match="Disk error"):
+        with pytest.raises(GrubBackupError, match=r"Impossible de vérifier le fichier source: Disk error"):
             state.execute()
 
     def test_backup_state_copy_oserror(self, context):
@@ -311,7 +317,8 @@ class TestApplyStatesCoverage:
         state = ApplyFinalState(context)
 
         mock_service = MagicMock()
-        mock_service.scan_theme_scripts.side_effect = Exception("Scan failed")
+        # Le code catch explicitement RuntimeError (et pas Exception générique)
+        mock_service.scan_theme_scripts.side_effect = RuntimeError("Scan failed")
 
         with patch("core.managers.apply_states.GrubScriptService", return_value=mock_service), \
              patch("core.managers.apply_states.Path.exists", return_value=True), \

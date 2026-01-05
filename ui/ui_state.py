@@ -6,6 +6,7 @@ Centralise toute la logique d'état (CLEAN/DIRTY/APPLYING) et les flags mutables
 from __future__ import annotations
 
 import os
+from dataclasses import replace
 from enum import Enum
 
 from loguru import logger
@@ -32,8 +33,6 @@ class AppStateManager:
     - Entrées masquées (hidden_entry_ids)
     - Synchronisation UI state
     """
-
-    # pylint: disable=too-many-instance-attributes
 
     def __init__(self):
         """Initialise le gestionnaire d'état."""
@@ -70,9 +69,9 @@ class AppStateManager:
         self.state = state
         self.modified = state == AppState.DIRTY
 
-        can_save = ((state == AppState.DIRTY) or self.entries_visibility_dirty or bool(self.pending_script_changes)) and (
-            os.geteuid() == 0
-        )
+        can_save = (
+            (state == AppState.DIRTY) or self.entries_visibility_dirty or bool(self.pending_script_changes)
+        ) and (os.geteuid() == 0)
         busy = state == AppState.APPLYING
 
         save_btn.set_sensitive(can_save and not busy)
@@ -153,6 +152,4 @@ class AppStateManager:
         Args:
             model: Nouveau modèle
         """
-        from dataclasses import replace
-
         self.state_data = replace(self.state_data, model=model)

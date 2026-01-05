@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from gi.repository import Gtk, Gdk
+from gi.repository import Gdk, Gtk
+
 from .base_editor import BaseElementEditor, _try_set_spin_suffix
 
 
@@ -10,6 +11,7 @@ class ImageEditor(BaseElementEditor):
     """Generic editor for image elements (logo, footer)."""
 
     def __init__(self, element_name: str, element_label: str, default_file: str):
+        """Initialise l'éditeur d'images générique."""
         super().__init__(element_name, element_label)
         self.default_file = default_file
         self._build_ui()
@@ -61,6 +63,7 @@ class DesktopImageEditor(BaseElementEditor):
     """Editor for the desktop background image."""
 
     def __init__(self):
+        """Initialise l'éditeur d'image de fond."""
         super().__init__("desktop_image", "Image de fond")
         self._build_ui()
 
@@ -108,6 +111,7 @@ class IconsEditor(BaseElementEditor):
     """Editor for the icons element."""
 
     def __init__(self):
+        """Initialise l'éditeur d'icônes."""
         super().__init__("icons", "Icônes")
         self._build_ui()
 

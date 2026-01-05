@@ -136,6 +136,7 @@ class GrubTheme:
 
 def create_custom_theme(
     name: str,
+    *,
     title_color: str = "#FFFFFF",
     background_color: str = "#000000",
     menu_fg: str = "white",

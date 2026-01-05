@@ -316,7 +316,7 @@ def test_read_model_from_ui_invalid_bg_index():
 
 def test_read_model_from_ui_bg_index_out_of_range_executes_bg_check():
     """Ensure the bg bounds-check line is executed (fg valid, bg invalid)."""
-    from ui.tabs.ui_tab_theme_config import GRUB_COLORS
+    from ui.ui_constants import GRUB_COLORS
 
     window = _make_window()
     ctrl = window.theme_config_controller

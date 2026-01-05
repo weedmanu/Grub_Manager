@@ -7,7 +7,7 @@ from ui.dialogs.ui_interactive_theme_generator_window import (
 
 @pytest.fixture
 def mock_generator():
-    with patch("ui.dialogs.ui_interactive_theme_generator_window.EnhancedThemeGenerator") as mock:
+    with patch("ui.dialogs.ui_interactive_theme_generator_window.ThemeGenerator") as mock:
         instance = mock.return_value
         instance.create_theme_package.return_value = {"theme.txt": "content"}
         yield instance

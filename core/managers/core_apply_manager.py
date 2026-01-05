@@ -20,6 +20,7 @@ from ..core_exceptions import (
 from .apply_states import (
     ApplyContext,
     ApplyFinalState,
+    ApplyPaths,
     BackupState,
     CleanupState,
     GenerateTestState,
@@ -78,9 +79,8 @@ class GrubApplyManager:
 
         # Initialisation du contexte
         context = ApplyContext(
+            paths=ApplyPaths(backup_path=self.backup_path, temp_cfg_path=self.temp_cfg_path),
             grub_default_path=self.grub_default_path,
-            backup_path=self.backup_path,
-            temp_cfg_path=self.temp_cfg_path,
             new_config=new_config,
             apply_changes=apply_changes,
             theme_management_enabled=theme_management_enabled,

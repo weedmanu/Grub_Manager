@@ -3,39 +3,30 @@
 Contient uniquement l'orchestration (délègue construction UI et gestion d'état).
 """
 
-# isort: skip_file
-
-# Pylint: l'ordre d'import est imposé par `gi.require_version()`, et l'UI attrape
-# volontairement des exceptions larges aux frontières (affichage d'erreurs).
-# pylint: disable=wrong-import-position,broad-exception-caught
-
 from __future__ import annotations
 
 import os
 
-import gi
 from loguru import logger
 
-gi.require_version("Gtk", "4.0")
-gi.require_version("Gio", "2.0")
-from gi.repository import Gtk
-
-from core.core_exceptions import GrubConfigError, GrubParsingError
 from core.config.core_paths import get_grub_themes_dir
+from core.core_exceptions import GrubConfigError, GrubParsingError
 from core.managers.core_apply_manager import GrubApplyManager
 from core.managers.core_entry_visibility_manager import apply_hidden_entries_to_grub_cfg, save_hidden_entry_ids
 from core.models.core_grub_ui_model import merged_config_from_model
 from core.system.core_grub_system_commands import GrubDefaultChoice, GrubUiModel, load_grub_ui_state, run_update_grub
 from core.system.core_sync_checker import check_grub_sync
 from core.theme.core_active_theme_manager import ActiveThemeManager
+from ui.controllers import PermissionController
 from ui.tabs.ui_entries_renderer import render_entries as render_entries_view
+from ui.tabs.ui_tab_theme_config import TabThemeConfig
 from ui.ui_builder import UIBuilder
 from ui.ui_gtk_helpers import GtkHelper
-from ui.ui_infobar_controller import InfoBarController, INFO, WARNING, ERROR
+from ui.ui_gtk_imports import Gtk
+from ui.ui_infobar_controller import ERROR, INFO, WARNING, InfoBarController
 from ui.ui_model_mapper import ModelWidgetMapper
-from ui.ui_workflow_controller import WorkflowController
 from ui.ui_state import AppState, AppStateManager
-from ui.controllers import PermissionController
+from ui.ui_workflow_controller import WorkflowController
 
 __all__ = [
     "ActiveThemeManager",
@@ -61,7 +52,7 @@ class GrubConfigManager(Gtk.ApplicationWindow):
           pas hérités à runtime (incompatibilité métaclasse GTK).
     """
 
-    # pylint: disable=too-many-instance-attributes,too-many-public-methods
+    # pylint: disable=too-many-public-methods
 
     # Membres pour les contrôleurs délégués (déclarés ici pour les tests qui bypassent __init__)
     infobar: InfoBarController | None = None
@@ -97,8 +88,6 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         self.entries_listbox: Gtk.ListBox | None = None
 
         # Contrôleur de l'onglet Thème
-        from ui.tabs.ui_tab_theme_config import TabThemeConfig
-
         self.theme_config_controller: TabThemeConfig | None = None
 
         # Widgets créés par UIBuilder

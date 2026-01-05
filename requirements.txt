@@ -6,3 +6,4 @@ black
 pytest
 pytest-cov
 pytest-timeout
+radon

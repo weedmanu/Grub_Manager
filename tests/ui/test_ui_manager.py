@@ -74,8 +74,8 @@ class GrubConfigManagerFull(GrubConfigManager):
         self.state_manager.is_loading = MagicMock(return_value=False)
 
         def _set_loading(value: bool):
-            # pylint: disable=no-member
-            self.state_manager.is_loading.return_value = bool(value)  # type: ignore[attr-defined]
+            
+            self.state_manager.is_loading.return_value = bool(value)  
 
         def _mark_dirty(*_args, **_kwargs):
             self.state_manager.modified = True

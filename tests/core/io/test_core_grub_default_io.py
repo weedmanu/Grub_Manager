@@ -505,7 +505,7 @@ class TestCreateGrubDefaultBackup:
         fake_grub.write_text("test")
 
         with patch("tarfile.open", side_effect=OSError("Disk full")):
-            with pytest.raises(OSError, match="Échec création sauvegarde"):
+            with pytest.raises(GrubBackupError, match="Échec création sauvegarde"):
                 create_grub_default_backup(str(fake_grub))
 
     def test_create_backup_tar_add_script_failure(self, tmp_path):
@@ -578,7 +578,7 @@ class TestRestoreGrubDefaultBackup:
         archive_path = tmp_path / "corrupt.tar.gz"
         archive_path.write_text("not a tar")
 
-        with pytest.raises(OSError, match="Échec de la restauration"):
+        with pytest.raises(GrubBackupError, match="Échec de la restauration"):
             restore_grub_default_backup(str(archive_path))
 
     def test_restore_backup_legacy_text_file(self, tmp_path):
@@ -597,7 +597,7 @@ class TestRestoreGrubDefaultBackup:
         backup_path.write_text("content")
 
         with patch("shutil.copy2", side_effect=OSError("Disk full")):
-            with pytest.raises(OSError, match="Échec de la restauration legacy"):
+            with pytest.raises(GrubBackupError, match="Échec de la restauration legacy"):
                 restore_grub_default_backup(str(backup_path), "/target")
 
     def test_restore_backup_os_error_during_copy(self, tmp_path):
@@ -609,7 +609,7 @@ class TestRestoreGrubDefaultBackup:
             tar.add(f, arcname="default_grub")
 
         with patch("shutil.copy2", side_effect=OSError("Disk full")):
-            with pytest.raises(OSError, match="Échec de la restauration"):
+            with pytest.raises(GrubBackupError, match="Échec de la restauration"):
                 restore_grub_default_backup(str(archive_path), "/some/target")
 
     def test_restore_backup_cleanup_tmp_grub_d(self, tmp_path):
@@ -1158,7 +1158,7 @@ class TestEdgeCases:
         config_path.write_text("c")
         with patch("core.io.core_grub_default_io.tarfile.open") as mock_open:
             mock_open.return_value.__exit__.side_effect = OSError("Close failed")
-            with pytest.raises(OSError, match="Close failed"):
+            with pytest.raises(GrubBackupError, match="Close failed"):
                 create_grub_default_backup(str(config_path))
 
     def test_restore_backup_file_not_found(self, tmp_path):
@@ -1831,7 +1831,7 @@ def test_restore_grub_default_backup_restores_all_members(tmp_path: Path) -> Non
 
 
 def test_restore_grub_default_backup_wraps_tar_errors(tmp_path: Path) -> None:
-    """Test que les erreurs tarfile sont encapsulées dans des OSError lors de la restauration."""
+    """Test que les erreurs tarfile sont encapsulées dans des GrubBackupError lors de la restauration."""
     backup_path = str(tmp_path / "missing_or_bad.tar.gz")
 
     with (
@@ -1840,7 +1840,7 @@ def test_restore_grub_default_backup_wraps_tar_errors(tmp_path: Path) -> None:
     ):
         from core.io.core_grub_default_io import restore_grub_default_backup
 
-        with pytest.raises(OSError, match="Échec de la restauration"):
+        with pytest.raises(GrubBackupError, match="Échec de la restauration"):
             restore_grub_default_backup(backup_path, target_path=str(tmp_path / "grub"))
 
 
@@ -2256,7 +2256,7 @@ class TestCreateLastModifBackup:
         with patch("core.io.core_grub_default_io.tarfile.open") as mock_tar:
             mock_tar.side_effect = tarfile.TarError("Tar error")
 
-            with pytest.raises(OSError, match="Échec création backup"):
+            with pytest.raises(GrubBackupError, match="Échec création backup"):
                 create_last_modif_backup(str(grub_default))
 
     def test_create_last_modif_backup_oserror(self, tmp_path):
@@ -2267,7 +2267,7 @@ class TestCreateLastModifBackup:
         with patch("core.io.core_grub_default_io.tarfile.open") as mock_tar:
             mock_tar.side_effect = OSError("Permission denied")
 
-            with pytest.raises(OSError, match="Échec création backup"):
+            with pytest.raises(GrubBackupError, match="Échec création backup"):
                 create_last_modif_backup(str(grub_default))
 
     def test_create_last_modif_backup_full_success(self, tmp_path):

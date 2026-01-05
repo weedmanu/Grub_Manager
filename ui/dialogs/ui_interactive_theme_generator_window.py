@@ -8,14 +8,11 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from typing import Any
 
 from gi.repository import Gtk
 
-from core.services.core_theme_generator_enhanced import (
-    ColorScheme,
-    EnhancedThemeGenerator,
-    ThemeResolution,
-)
+from core.theme.theme_generator import ThemeGenerator, ThemeResolution
 from ui.dialogs.ui_interactive_theme_generator import InteractiveThemeGeneratorPanel
 
 logger = logging.getLogger(__name__)
@@ -50,7 +47,7 @@ class InteractiveThemeGeneratorWindow(Gtk.Window):
                 pass
 
         self.on_theme_created = on_theme_created
-        self.generator = EnhancedThemeGenerator()
+        self.generator = ThemeGenerator()
 
         # Build UI
         self._build_ui()
@@ -183,7 +180,7 @@ class InteractiveThemeGeneratorWindow(Gtk.Window):
                 # Get configuration
                 theme_config = self.generator_panel.get_theme_config()
 
-                # Generate theme using enhanced generator
+                # Génération du thème via le générateur
                 package = self.generator.create_theme_package(
                     name=theme_name,
                     theme_config=theme_config,

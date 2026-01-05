@@ -1,7 +1,5 @@
 """Manage GRUB boot menu entry display and visibility filtering."""
 
-# pylint: disable=too-many-statements
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -72,7 +70,7 @@ def render_entries(controller: GrubConfigManager) -> None:
     recovery/os-prober entries based on user settings. Handles entry
     selection and state persistence.
     """
-    # pylint: disable=too-many-locals,too-many-branches
+    # pylint: disable=too-many-branches
     listbox = controller.entries_listbox
     if listbox is None:
         logger.warning("[render_entries] ListBox not initialized")
@@ -185,7 +183,7 @@ def render_entries(controller: GrubConfigManager) -> None:
                     logger.debug("[_on_switch] Entry removed from hidden_entry_ids")
                 save_hidden_entry_ids(controller.state_manager.hidden_entry_ids)
                 controller.state_manager.entries_visibility_dirty = True
-                controller._apply_state(controller.state_manager.state)  # pylint: disable=protected-access
+                controller._apply_state(controller.state_manager.state)
                 controller.show_info("Hide state saved. Apply with update-grub.", "info")
 
             switch.connect("notify::active", _on_switch)

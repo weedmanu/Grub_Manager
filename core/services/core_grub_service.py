@@ -7,6 +7,7 @@ from pathlib import Path
 
 from loguru import logger
 
+from core.core_exceptions import GrubManagerError
 from core.io.core_grub_default_io import read_grub_default
 from core.io.core_grub_menu_parser import read_grub_default_choices_with_source
 
@@ -78,7 +79,7 @@ class GrubService:
                 grub_disable_os_prober=config_dict.get("grub_disable_os_prober", "false"),
                 grub_init_tune=config_dict.get("grub_init_tune"),
             )
-        except (OSError, ValueError) as e:
+        except (GrubManagerError, OSError, ValueError) as e:
             logger.error(f"[GrubService] Erreur lors de la lecture config: {e}")
             return GrubConfig()
 
@@ -92,9 +93,7 @@ class GrubService:
         try:
             raw_entries = get_simulated_os_prober_entries()
             if not raw_entries:
-                logger.warning(
-                    "[GrubService] Aucune entrée trouvée dans grub.cfg, utilisation d'une entrée par défaut"
-                )
+                logger.warning("[GrubService] Aucune entrée trouvée dans grub.cfg, utilisation d'une entrée par défaut")
                 return [MenuEntry(title="Ubuntu", id="gnulinux")]
 
             entries: list[MenuEntry] = []
@@ -110,7 +109,7 @@ class GrubService:
                     entries.append(MenuEntry(title=title, id=entry_id))
 
             return entries or [MenuEntry(title="Ubuntu", id="gnulinux")]
-        except (OSError, ValueError) as e:
+        except (GrubManagerError, OSError, ValueError) as e:
             logger.error(f"[GrubService] Erreur lors de la lecture des entrées: {e}")
             return [MenuEntry(title="Ubuntu", id="gnulinux")]
 

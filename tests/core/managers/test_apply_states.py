@@ -13,6 +13,7 @@ from core.core_exceptions import (
 )
 from core.managers.apply_states import (
     ApplyContext,
+    ApplyPaths,
     ApplyFinalState,
     BackupState,
     CleanupState,
@@ -31,9 +32,11 @@ class TestApplyStates:
         grub_default = tmp_path / "grub"
         grub_default.write_text("GRUB_TIMEOUT=5")
         return ApplyContext(
+            paths=ApplyPaths(
+                backup_path=grub_default.with_suffix(".bak"),
+                temp_cfg_path=grub_default.parent / "grub.cfg.test",
+            ),
             grub_default_path=grub_default,
-            backup_path=grub_default.with_suffix(".bak"),
-            temp_cfg_path=grub_default.parent / "grub.cfg.test",
             new_config={"GRUB_TIMEOUT": "10"},
             apply_changes=True,
         )
@@ -77,7 +80,7 @@ class TestApplyStates:
         state = BackupState(context)
 
         with patch("core.managers.apply_states.validate_grub_file", side_effect=OSError("Disk error")):
-            with pytest.raises(OSError, match="Disk error"):
+            with pytest.raises(GrubBackupError, match=r"Impossible de vérifier le fichier source: Disk error"):
                 state.execute()
 
     def test_backup_state_copy_failure(self, context):
@@ -306,6 +309,40 @@ class TestApplyStates:
                 with pytest.raises(GrubCommandError, match="Mise à jour finale échouée"):
                     state.execute()
 
+    def test_apply_final_state_failure_rolls_back_script_permissions(self, context):
+        """Si l'application échoue, on rollback les chmod effectués (best-effort)."""
+        context.apply_changes = True
+        context.theme_management_enabled = False
+        context.pending_script_changes = {"/etc/grub.d/00_header": False}
+
+        state = ApplyFinalState(context)
+
+        mock_service = MagicMock()
+        mock_script = MagicMock()
+        mock_script.name = "00_header"
+        mock_script.path = Path("/etc/grub.d/00_header")
+        mock_script.is_executable = True
+        mock_service.scan_theme_scripts.return_value = [mock_script]
+
+        with (
+            patch("core.managers.apply_states.GrubScriptService", return_value=mock_service),
+            patch("subprocess.run") as mock_run,
+            patch("shutil.which", return_value="/usr/sbin/update-grub"),
+            patch("core.managers.apply_states.Path.exists", return_value=True),
+            patch("core.managers.apply_states.Path.stat") as mock_stat,
+        ):
+            # La commande d'application échoue
+            mock_run.return_value = MagicMock(returncode=1, stderr="Update failed")
+            mock_stat.return_value.st_mtime = 100
+
+            with pytest.raises(GrubCommandError, match="Mise à jour finale échouée"):
+                state.execute()
+
+        # 1) a tenté d'appliquer la demande (désactiver)
+        mock_service.make_non_executable.assert_called_once_with(Path("/etc/grub.d/00_header"))
+        # 2) a rollback vers l'état initial (exécutable)
+        mock_service.make_executable.assert_called_once_with(Path("/etc/grub.d/00_header"))
+
     def test_apply_final_state_script_exception_handling(self, context):
         """Test ApplyFinalState avec exception lors de la modification des scripts."""
         state = ApplyFinalState(context)
@@ -323,7 +360,7 @@ class TestApplyStates:
             mock_svc.scan_theme_scripts.return_value = [
                 MagicMock(name="test", path="/etc/grub.d/test", is_executable=False)
             ]
-            mock_svc.make_executable.side_effect = Exception("Permission denied")
+            mock_svc.make_executable.side_effect = PermissionError("Permission denied")
 
             mock_run.return_value = MagicMock(returncode=0, stderr="")
 
