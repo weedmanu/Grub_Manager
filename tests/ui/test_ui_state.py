@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ui.ui_state import AppState, AppStateManager
+from ui.models.ui_models_state import AppState, AppStateManager
 
 
 class TestAppStateManager:
@@ -13,8 +13,8 @@ class TestAppStateManager:
     @pytest.fixture
     def manager(self):
         """Fixture pour un AppStateManager avec mocks."""
-        with patch("ui.ui_state.load_hidden_entry_ids", return_value={"entry1"}):
-            with patch("ui.ui_state.ActiveThemeManager"):
+        with patch("ui.models.ui_models_state.load_hidden_entry_ids", return_value={"entry1"}):
+            with patch("ui.models.ui_models_state.ActiveThemeManager"):
                 return AppStateManager()
 
     def test_init(self, manager):

@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
-from core.theme.core_active_theme_manager import ActiveThemeManager
-from core.models.core_theme_models import GrubTheme, create_custom_theme
+from core.models.core_models_theme import GrubTheme, create_custom_theme
+from core.theme.core_theme_active_manager import ActiveThemeManager
 
 
 class TestActiveThemeManager:
@@ -29,7 +29,7 @@ class TestActiveThemeManager:
         assert manager.active_theme is None
         assert manager._cache_timestamp == 0.0
 
-    @patch("core.theme.core_active_theme_manager.ActiveThemeManager.ACTIVE_THEME_FILE")
+    @patch("core.theme.core_theme_active_manager.ActiveThemeManager.ACTIVE_THEME_FILE")
     def test_load_active_theme_no_file(self, mock_file, manager):
         """Test le chargement quand le fichier n'existe pas."""
         mock_file.exists.return_value = False
@@ -44,7 +44,7 @@ class TestActiveThemeManager:
         manager._create_default_theme.assert_called_once()
         manager.save_active_theme.assert_called_once()
 
-    @patch("core.theme.core_active_theme_manager.ActiveThemeManager.ACTIVE_THEME_FILE")
+    @patch("core.theme.core_theme_active_manager.ActiveThemeManager.ACTIVE_THEME_FILE")
     def test_load_active_theme_from_cache(self, mock_file, manager, mock_theme):
         """Test le chargement depuis le cache."""
         manager.active_theme = mock_theme
@@ -55,7 +55,7 @@ class TestActiveThemeManager:
         assert theme == mock_theme
         mock_file.exists.assert_not_called()  # Ne devrait pas vérifier le disque
 
-    @patch("core.theme.core_active_theme_manager.ActiveThemeManager.ACTIVE_THEME_FILE")
+    @patch("core.theme.core_theme_active_manager.ActiveThemeManager.ACTIVE_THEME_FILE")
     def test_load_active_theme_success(self, mock_file, manager):
         """Test le chargement réussi depuis un fichier."""
         mock_file.exists.return_value = True
@@ -77,7 +77,7 @@ class TestActiveThemeManager:
         assert manager._cache_timestamp == 12345.0
         manager._theme_from_dict.assert_called_once_with(theme_data)
 
-    @patch("core.theme.core_active_theme_manager.ActiveThemeManager.ACTIVE_THEME_FILE")
+    @patch("core.theme.core_theme_active_manager.ActiveThemeManager.ACTIVE_THEME_FILE")
     def test_load_active_theme_error(self, mock_file, manager):
         """Test la gestion d'erreur lors du chargement."""
         mock_file.exists.return_value = True
@@ -92,7 +92,7 @@ class TestActiveThemeManager:
         assert theme == "default_theme"
         manager._create_default_theme.assert_called_once()
 
-    @patch("core.theme.core_active_theme_manager.ActiveThemeManager.ACTIVE_THEME_FILE")
+    @patch("core.theme.core_theme_active_manager.ActiveThemeManager.ACTIVE_THEME_FILE")
     def test_save_active_theme(self, mock_file, manager, mock_theme):
         """Test la sauvegarde du thème."""
         manager.active_theme = mock_theme
@@ -153,7 +153,7 @@ class TestActiveThemeManager:
         assert theme.name == "default"
         assert theme.colors.title_color == "#FFFFFF"
 
-    @patch("core.theme.core_active_theme_manager.ActiveThemeManager.ACTIVE_THEME_FILE")
+    @patch("core.theme.core_theme_active_manager.ActiveThemeManager.ACTIVE_THEME_FILE")
     def test_is_cache_valid(self, mock_file, manager):
         """Test la validation du cache."""
         # Cas fichier n'existe pas

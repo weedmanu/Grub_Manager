@@ -13,7 +13,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 import pytest
 
-from ui.components.ui_theme_config_actions import ThemeConfigCallbacks, build_theme_config_right_column
+from ui.components.ui_components_theme_config_actions import ThemeConfigCallbacks, build_theme_config_right_column
 
 
 class TestBuildThemeConfigRightColumn:
@@ -22,7 +22,11 @@ class TestBuildThemeConfigRightColumn:
     @pytest.fixture
     def mock_gtk(self):
         """Mock pour les composants GTK utilisés par ce module."""
-        with patch("ui.components.ui_theme_config_actions.Gtk") as mock_gtk:
+        with (
+            patch("ui.components.ui_components_theme_config_actions.Gtk") as mock_gtk,
+            patch("ui.components.ui_components_theme_config_actions.box_append_section_grid") as mock_grid_helper,
+        ):
+
             actions_title = MagicMock()
             global_title = MagicMock()
             scripts_title = MagicMock()
@@ -33,6 +37,10 @@ class TestBuildThemeConfigRightColumn:
             global_actions_box = MagicMock()
             mock_gtk.Box.side_effect = [actions_box, scripts_box, global_actions_box]
 
+            # Mock box_append_section_grid to return a mock grid
+            mock_grid = MagicMock()
+            mock_grid_helper.return_value = mock_grid
+
             sep_actions = MagicMock()
             mock_gtk.Separator.return_value = sep_actions
 
@@ -42,7 +50,14 @@ class TestBuildThemeConfigRightColumn:
             activate_script_btn = MagicMock()
             deactivate_script_btn = MagicMock()
             editor_btn = MagicMock()
-            mock_gtk.Button.side_effect = [preview_btn, edit_btn, delete_btn, activate_script_btn, deactivate_script_btn, editor_btn]
+            mock_gtk.Button.side_effect = [
+                preview_btn,
+                edit_btn,
+                delete_btn,
+                activate_script_btn,
+                deactivate_script_btn,
+                editor_btn,
+            ]
 
             # Mock Gtk.Orientation constants
             mock_gtk.Orientation.HORIZONTAL = "horizontal"
@@ -54,6 +69,7 @@ class TestBuildThemeConfigRightColumn:
                 "gtk": mock_gtk,
                 "preview_btn": preview_btn,
                 "scripts_title": scripts_title,
+                "grid": mock_grid,
             }
 
     def test_activate_and_preview_handlers_called(self, mock_gtk):
@@ -78,28 +94,35 @@ class TestBuildThemeConfigRightColumn:
 
         # Vérifier que la structure est correcte
         assert parts.buttons.preview_btn is mock_gtk["preview_btn"]
-        
+
         # Les callbacks sont branchés internement via connect("clicked", handler)
         assert mock_gtk["preview_btn"].connect.called
-        
+
         # Récupérer et appeler le handler de preview pour couvrir la ligne 51
         preview_handler = None
         for call in mock_gtk["preview_btn"].connect.call_args_list:
             if call.args[0] == "clicked":
                 preview_handler = call.args[1]
                 break
-        
+
         if preview_handler:
             preview_handler(mock_gtk["preview_btn"])
             on_preview.assert_called_once()
 
     def test_build_theme_config_right_column_all_handlers(self):
         """Test building theme config right column with all handlers connected."""
-        with patch("ui.components.ui_theme_config_actions.Gtk") as mock_gtk:
+        with (
+            patch("ui.components.ui_components_theme_config_actions.Gtk") as mock_gtk,
+            patch("ui.components.ui_components_theme_config_actions.box_append_section_grid") as mock_grid_helper,
+        ):
+
             # Setup mocks
             mock_gtk.Label.side_effect = [MagicMock(), MagicMock(), MagicMock()]
             mock_gtk.Box.side_effect = [MagicMock(), MagicMock(), MagicMock()]
             mock_gtk.Separator.return_value = MagicMock()
+
+            mock_grid = MagicMock()
+            mock_grid_helper.return_value = mock_grid
 
             buttons = [MagicMock() for _ in range(6)]
             mock_gtk.Button.side_effect = buttons

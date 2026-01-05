@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 from gi.repository import Gtk
 
-from ui.tabs.ui_tab_entries import _add_styled_switch, build_entries_tab
+from ui.tabs.ui_tabs_entries import _add_styled_switch, build_entries_tab
 
 
 def test_build_entries_tab():

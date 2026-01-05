@@ -38,7 +38,7 @@ class TestAppState:
 
     def test_app_state_enum(self):
         """Vérifie que AppState existe et a les bonnes valeurs."""
-        from ui.ui_state import AppState
+        from ui.models.ui_models_state import AppState
 
         assert hasattr(AppState, "CLEAN")
         assert hasattr(AppState, "DIRTY")
@@ -54,14 +54,14 @@ class TestGrubConfigManagerStructure:
 
     def test_class_exists(self):
         """Vérifie que la classe principale existe."""
-        from ui.ui_manager import GrubConfigManager
+        from ui.controllers.ui_controllers_manager import GrubConfigManager
 
         assert GrubConfigManager is not None
         assert issubclass(GrubConfigManager, Gtk.ApplicationWindow)
 
     def test_has_required_methods(self):
         """Vérifie que les méthodes essentielles existent."""
-        from ui.ui_manager import GrubConfigManager
+        from ui.controllers.ui_controllers_manager import GrubConfigManager
 
         required_methods = [
             "create_ui",
@@ -80,7 +80,7 @@ class TestGrubConfigManagerStructure:
 
     def test_has_state_management(self):
         """Vérifie la gestion d'état."""
-        from ui.ui_state import AppStateManager
+        from ui.models.ui_models_state import AppStateManager
 
         # Les méthodes d'état sont maintenant dans AppStateManager
         assert hasattr(AppStateManager, "apply_state")
@@ -94,8 +94,14 @@ class TestTabModules:
 
     def test_all_tab_modules_exist(self):
         """Vérifie que tous les modules d'onglets existent."""
-        from ui import ui_widgets
-        from ui.tabs import ui_entries_renderer, ui_tab_backups, ui_tab_display, ui_tab_entries, ui_tab_general
+        from ui.builders import ui_builders_widgets as ui_widgets
+        from ui.tabs import (
+            ui_tabs_backups as ui_tab_backups,
+            ui_tabs_display as ui_tab_display,
+            ui_tabs_entries as ui_tab_entries,
+            ui_tabs_entries_renderer as ui_entries_renderer,
+            ui_tabs_general as ui_tab_general,
+        )
 
         assert ui_tab_backups is not None
         assert ui_widgets is not None
@@ -106,10 +112,10 @@ class TestTabModules:
 
     def test_tab_builders_exist(self):
         """Vérifie que les fonctions de construction d'onglets existent."""
-        from ui.tabs.ui_tab_backups import build_backups_tab
-        from ui.tabs.ui_tab_display import build_display_tab
-        from ui.tabs.ui_tab_entries import build_entries_tab
-        from ui.tabs.ui_tab_general import build_general_tab
+        from ui.tabs.ui_tabs_backups import build_backups_tab
+        from ui.tabs.ui_tabs_display import build_display_tab
+        from ui.tabs.ui_tabs_entries import build_entries_tab
+        from ui.tabs.ui_tabs_general import build_general_tab
 
         assert callable(build_general_tab)
         assert callable(build_display_tab)
@@ -122,7 +128,7 @@ class TestWidgetsHelpers:
 
     def test_widget_helpers_exist(self):
         """Vérifie que les fonctions helper existent."""
-        from ui import ui_widgets
+        from ui.builders import ui_builders_widgets as ui_widgets
 
         expected_functions = [
             "box_append_label",
@@ -142,7 +148,7 @@ class TestBaseHelpers:
 
     def test_base_helpers_exist(self):
         """Vérifie que les fonctions de base existent."""
-        from ui import ui_widgets
+        from ui.builders import ui_builders_widgets as ui_widgets
 
         assert hasattr(ui_widgets, "make_scrolled_grid")
         assert hasattr(ui_widgets, "apply_margins")
@@ -152,7 +158,7 @@ class TestBaseHelpers:
 
     def test_make_scrolled_grid_returns_tuple(self):
         """Vérifie que make_scrolled_grid retourne un tuple."""
-        from ui.ui_widgets import make_scrolled_grid
+        from ui.builders.ui_builders_widgets import make_scrolled_grid
 
         result = make_scrolled_grid()
         assert isinstance(result, tuple)
@@ -164,7 +170,7 @@ class TestBaseHelpers:
 
     def test_apply_margins(self):
         """Vérifie apply_margins."""
-        from ui.ui_widgets import apply_margins
+        from ui.builders.ui_builders_widgets import apply_margins
 
         box = Gtk.Box()
         apply_margins(box, 10)
@@ -180,7 +186,7 @@ class TestEntriesView:
 
     def test_render_entries_exists(self):
         """Vérifie que render_entries existe."""
-        from ui.tabs.ui_entries_renderer import render_entries
+        from ui.tabs.ui_tabs_entries_renderer import render_entries
 
         assert callable(render_entries)
 
@@ -197,7 +203,7 @@ class TestUIIntegration:
 
     def test_constants_exist(self):
         """Vérifie que les constantes UI existent."""
-        from ui.ui_manager import ERROR, INFO, WARNING
+        from ui.controllers.ui_controllers_manager import ERROR, INFO, WARNING
 
         assert INFO == "info"
         assert WARNING == "warning"

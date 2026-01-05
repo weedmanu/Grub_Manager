@@ -2,19 +2,28 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.system.core_grub_system_commands import GrubUiModel
-from ui.ui_model_mapper import ModelWidgetMapper
+from core.system.core_system_grub_commands import GrubUiModel
+from ui.helpers.ui_helpers_model_mapper import ModelWidgetMapper
 
 
 def _make_window() -> MagicMock:
     window = MagicMock()
     window.state_manager = MagicMock()
+    # Le mapper lit la config thème depuis state_manager.state_data.model (plus de switch).
+    window.state_manager.state_data = SimpleNamespace(
+        model=SimpleNamespace(
+            grub_theme="",
+            theme_management_enabled=True,
+            grub_background="",
+            grub_color_normal="",
+            grub_color_highlight="",
+        )
+    )
     window.state_manager.hidden_entry_ids = set()
 
     window.sync_timeout_choices = MagicMock()
@@ -33,14 +42,12 @@ def _make_window() -> MagicMock:
     window.get_default_choice = MagicMock(return_value="0")
     window.get_timeout_value = MagicMock(return_value=5)
     window.get_cmdline_value = MagicMock(return_value="quiet splash")
-    
+
     # Add theme_config_controller with proper mocks for color combos
     window.theme_config_controller = MagicMock()
     window.theme_config_controller.widgets = MagicMock()
     window.theme_config_controller.widgets.panels = MagicMock()
     panels = window.theme_config_controller.widgets.panels
-    panels.theme_switch = MagicMock()
-    panels.theme_switch.get_active.return_value = True
     panels.simple_config_panel = MagicMock()
     panels.simple_config_panel.widgets = MagicMock()
     widgets = panels.simple_config_panel.widgets
@@ -77,11 +84,12 @@ def test_apply_model_to_ui_sets_cmdline_dropdown(monkeypatch, quiet, splash, exp
         splash=splash,
         gfxmode="1024x768",
         gfxpayload_linux="keep",
+        grub_terminal="gfxterm",
         disable_os_prober=False,
         default="0",
     )
 
-    monkeypatch.setattr("ui.ui_model_mapper.GtkHelper.dropdown_set_value", MagicMock())
+    monkeypatch.setattr("ui.helpers.ui_helpers_model_mapper.GtkHelper.dropdown_set_value", MagicMock())
 
     ModelWidgetMapper.apply_model_to_ui(window, model, entries=[])
 
@@ -108,8 +116,8 @@ def test_sync_global_hiding_switches_sets_switches_based_on_hidden_ids():
 
 def test_model_mapper_with_dropdown_exceptions():
     """Test ui_model_mapper when dropdowns raise exceptions."""
-    from core.models.core_grub_ui_model import GrubUiModel
-    
+    from core.models.core_models_grub_ui import GrubUiModel
+
     window = MagicMock()
     window.get_default_choice.return_value = "0"
     window.get_timeout_value.return_value = 5
@@ -124,19 +132,17 @@ def test_model_mapper_with_dropdown_exceptions():
     # Theme controller with no combos
     window.theme_config_controller = None
     window.state_manager = MagicMock()
-    window.state_manager.state_data = SimpleNamespace(
-        model=GrubUiModel(theme_management_enabled=False)
-    )
+    window.state_manager.state_data = SimpleNamespace(model=GrubUiModel(theme_management_enabled=False))
 
-    with patch("ui.ui_model_mapper.GtkHelper.dropdown_get_value", return_value=""):
+    with patch("ui.helpers.ui_helpers_model_mapper.GtkHelper.dropdown_get_value", return_value=""):
         model = ModelWidgetMapper.read_model_from_ui(window)
         assert model.timeout == 5
 
 
 def test_read_model_with_exception_in_color_parsing():
     """Test color parsing with out-of-range combo values."""
-    from core.models.core_grub_ui_model import GrubUiModel
-    
+    from core.models.core_models_grub_ui import GrubUiModel
+
     window = MagicMock()
     window.get_default_choice.return_value = "0"
     window.get_timeout_value.return_value = 5
@@ -188,12 +194,11 @@ def test_read_model_from_ui_uses_dropdown_values_and_active_theme(monkeypatch):
     window.disable_os_prober_check.get_active.return_value = True
 
     # Dropdown getters
-    monkeypatch.setattr("ui.ui_model_mapper.GtkHelper.dropdown_get_value", lambda _w: " 1024x768 ")
+    monkeypatch.setattr("ui.helpers.ui_helpers_model_mapper.GtkHelper.dropdown_get_value", lambda _w: " 1024x768 ")
 
     # Set theme in model since read_model_from_ui takes it from there
     window.state_manager.state_data.model = GrubUiModel(
-        grub_theme="/themes/MyTheme/theme.txt",
-        theme_management_enabled=True
+        grub_theme="/themes/MyTheme/theme.txt", theme_management_enabled=True
     )
 
     model = ModelWidgetMapper.read_model_from_ui(window)
@@ -212,7 +217,7 @@ def test_read_model_from_ui_uses_dropdown_values_and_active_theme(monkeypatch):
 def test_get_active_theme_path_returns_empty_on_error(monkeypatch):
     theme_manager = MagicMock()
     theme_manager.get_active_theme.side_effect = OSError("boom")
-    monkeypatch.setattr("ui.ui_model_mapper.ActiveThemeManager", lambda: theme_manager)
+    monkeypatch.setattr("ui.helpers.ui_helpers_model_mapper.ActiveThemeManager", lambda: theme_manager)
 
     assert ModelWidgetMapper._get_active_theme_path() == ""
 
@@ -228,11 +233,12 @@ def test_apply_model_to_ui_without_cmdline_dropdown(monkeypatch):
         splash=True,
         gfxmode="1024x768",
         gfxpayload_linux="keep",
+        grub_terminal="gfxterm",
         disable_os_prober=False,
         default="0",
     )
 
-    monkeypatch.setattr("ui.ui_model_mapper.GtkHelper.dropdown_set_value", MagicMock())
+    monkeypatch.setattr("ui.helpers.ui_helpers_model_mapper.GtkHelper.dropdown_set_value", MagicMock())
     ModelWidgetMapper.apply_model_to_ui(window, model, entries=[])
 
 
@@ -248,11 +254,12 @@ def test_apply_model_to_ui_without_theme_config_controller(monkeypatch):
         splash=False,
         gfxmode="1024x768",
         gfxpayload_linux="keep",
+        grub_terminal="gfxterm",
         disable_os_prober=False,
         default="0",
     )
 
-    monkeypatch.setattr("ui.ui_model_mapper.GtkHelper.dropdown_set_value", MagicMock())
+    monkeypatch.setattr("ui.helpers.ui_helpers_model_mapper.GtkHelper.dropdown_set_value", MagicMock())
 
     ModelWidgetMapper.apply_model_to_ui(window, model, entries=[])
 
@@ -260,9 +267,10 @@ def test_apply_model_to_ui_without_theme_config_controller(monkeypatch):
 def test_get_active_theme_path_empty_name_returns_empty(monkeypatch):
     theme_manager = MagicMock()
     theme_manager.get_active_theme.return_value = SimpleNamespace(name="")
-    monkeypatch.setattr("ui.ui_model_mapper.ActiveThemeManager", lambda: theme_manager)
+    monkeypatch.setattr("ui.helpers.ui_helpers_model_mapper.ActiveThemeManager", lambda: theme_manager)
 
     assert ModelWidgetMapper._get_active_theme_path() == ""
+
 
 def test_read_model_from_ui_color_bounds_checking():
     """Test les vérifications de bornes pour les index de couleur."""
@@ -278,8 +286,8 @@ def test_read_model_from_ui_color_bounds_checking():
     model = ModelWidgetMapper.read_model_from_ui(window)
     assert model is not None
     # Verify color normal was set (not empty)
-    assert hasattr(model, 'grub_color_normal')
-    assert hasattr(model, 'grub_color_highlight')
+    assert hasattr(model, "grub_color_normal")
+    assert hasattr(model, "grub_color_highlight")
 
 
 def test_read_model_from_ui_invalid_bg_index():
@@ -302,12 +310,10 @@ def test_read_model_from_ui_invalid_bg_index():
 
 def test_read_model_from_ui_bg_index_out_of_range_executes_bg_check():
     """Ensure the bg bounds-check line is executed (fg valid, bg invalid)."""
-    from ui.ui_constants import GRUB_COLORS
+    from ui.config.ui_config_constants import GRUB_COLORS
 
     window = _make_window()
     ctrl = window.theme_config_controller
-    ctrl.theme_switch.get_active.return_value = True
-
     panel = ctrl.widgets.panels.simple_config_panel
     panel.widgets.normal_fg_combo.get_selected.return_value = 0
     panel.widgets.normal_bg_combo.get_selected.return_value = len(GRUB_COLORS)  # out of range
@@ -362,21 +368,19 @@ def test_read_model_from_ui_calls_bg_combo_get_selected():
 
 
 def test_read_model_from_ui_theme_switch_disabled():
-    """Test reading model when theme_switch is disabled."""
+    """Le switch n'existe plus: theme_management_enabled vient du modèle courant."""
     window = _make_window()
-    window.state_manager.state_data = None
+    window.state_manager.state_data.model.theme_management_enabled = False
 
     ctrl = window.theme_config_controller
-    ctrl.widgets.panels.theme_switch.get_active.return_value = False
-
     panel = ctrl.widgets.panels.simple_config_panel
     panel.widgets.bg_image_entry.get_text.return_value = ""
     panel.widgets.normal_fg_combo = None
     panel.widgets.normal_bg_combo = None
     panel.widgets.highlight_fg_combo = None
     panel.widgets.highlight_bg_combo = None
-    
-    # Should work even with theme disabled
+
+    # Doit fonctionner même si theme_management_enabled=False
     model = ModelWidgetMapper.read_model_from_ui(window)
     assert model is not None
     assert model.theme_management_enabled is False
@@ -395,7 +399,7 @@ def test_read_model_from_ui_missing_color_widgets():
     panel.widgets.normal_bg_combo = None
     panel.widgets.highlight_fg_combo = None
     panel.widgets.highlight_bg_combo = None
-    
+
     model = ModelWidgetMapper.read_model_from_ui(window)
     assert model is not None
 

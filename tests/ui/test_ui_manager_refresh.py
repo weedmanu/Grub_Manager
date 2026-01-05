@@ -1,25 +1,29 @@
 from unittest.mock import MagicMock, patch
+
 import pytest
-from core.system.core_sync_checker import SyncStatus
-from core.system.core_grub_system_commands import GrubUiState, GrubUiModel, GrubDefaultChoice
-from ui.ui_manager import GrubConfigManager
-from ui.ui_state import AppState
+
+from core.system.core_system_grub_commands import GrubDefaultChoice, GrubUiModel, GrubUiState
+from core.system.core_system_sync_checker import SyncStatus
+from ui.controllers.ui_controllers_manager import GrubConfigManager
+from ui.models.ui_models_state import AppState
 
 WARNING = "warning"
+
 
 # Copied from test_ui_manager.py to avoid circular imports or complex refactoring
 class GrubConfigManagerFull(GrubConfigManager):
     """Sous-classe pour mocker les composants UI sans charger GTK."""
+
     def __init__(self, app):
         self.app = app
         self.window = MagicMock()
         self.builder = MagicMock()
-        
+
         # Mock state manager
         self.state_manager = MagicMock()
         self.state_manager.state = AppState.CLEAN
         self.state_manager.modified = False
-        
+
         def _mark_dirty(*_args, **_kwargs):
             self.state_manager.modified = True
             self.state_manager.state = AppState.DIRTY
@@ -46,7 +50,7 @@ class GrubConfigManagerFull(GrubConfigManager):
         self.state_manager.update_state.side_effect = lambda app_state: setattr(
             self.state_manager, "state_data", app_state.grub_state
         )
-        
+
         self.state_manager.hidden_entry_ids = []
 
         # Mock UI components
@@ -68,7 +72,7 @@ class GrubConfigManagerFull(GrubConfigManager):
         self.entries_renderer = MagicMock()
         self.workflow = MagicMock()
         self.infobar = None
-        
+
         # theme_config_controller with proper mocks
         self.theme_config_controller = MagicMock()
         self.theme_config_controller.widgets = MagicMock()
@@ -89,10 +93,10 @@ class GrubConfigManagerFull(GrubConfigManager):
         widgets.highlight_fg_combo.get_selected.return_value = -1
         widgets.highlight_bg_combo = MagicMock()
         widgets.highlight_bg_combo.get_selected.return_value = -1
-        
+
         # Mock PermissionController
         self.perm_ctrl = MagicMock()
-        
+
         # Mock show_info
         self.show_info = MagicMock()
 
@@ -100,17 +104,20 @@ class GrubConfigManagerFull(GrubConfigManager):
         self.cmdline_dropdown.get_selected.return_value = 0
         self.default_dropdown.get_selected.return_value = 0
 
+
 @pytest.fixture
 def mock_app():
     return MagicMock()
+
 
 @pytest.fixture
 def manager(mock_app):
     mgr = GrubConfigManagerFull(mock_app)
     return mgr
 
+
 def test_load_config_refresh_grub_success(manager):
-    """Test que update-grub est appelé si refresh_grub=True et root."""
+    """Test que load_config n'appelle jamais update-grub (même si root)."""
     sync_status = SyncStatus(
         in_sync=True,
         grub_default_exists=True,
@@ -124,22 +131,18 @@ def test_load_config_refresh_grub_success(manager):
 
     with (
         patch("os.geteuid", return_value=0),
-        patch("ui.ui_manager.run_update_grub") as mock_run_update,
-        patch("ui.ui_manager.check_grub_sync", return_value=sync_status),
-        patch("ui.ui_manager.load_grub_ui_state", return_value=state),
-        patch("ui.ui_manager.render_entries_view"),
+        patch("ui.controllers.ui_controllers_manager.check_grub_sync", return_value=sync_status),
+        patch("ui.controllers.ui_controllers_manager.load_grub_ui_state", return_value=state),
+        patch("ui.controllers.ui_controllers_manager.render_entries_view"),
     ):
-        mock_run_update.return_value.returncode = 0
-        
         manager.load_config(refresh_grub=True)
-        
-        mock_run_update.assert_called_once()
-        # Verify success log or absence of warning/error
+
+        # Verify absence of warning/error
         manager.show_info.assert_not_called()
 
 
 def test_load_config_refresh_grub_failure(manager):
-    """Test que l'échec de update-grub affiche un warning."""
+    """Test que load_config n'appelle jamais update-grub (donc pas de warning associé)."""
     sync_status = SyncStatus(
         in_sync=True,
         grub_default_exists=True,
@@ -152,18 +155,16 @@ def test_load_config_refresh_grub_failure(manager):
 
     with (
         patch("os.geteuid", return_value=0),
-        patch("ui.ui_manager.run_update_grub") as mock_run_update,
-        patch("ui.ui_manager.check_grub_sync", return_value=sync_status),
-        patch("ui.ui_manager.load_grub_ui_state", return_value=state),
-        patch("ui.ui_manager.render_entries_view"),
+        patch("ui.controllers.ui_controllers_manager.check_grub_sync", return_value=sync_status),
+        patch("ui.controllers.ui_controllers_manager.load_grub_ui_state", return_value=state),
+        patch("ui.controllers.ui_controllers_manager.render_entries_view"),
     ):
-        mock_run_update.return_value.returncode = 1
-        mock_run_update.return_value.stderr = "Error message"
-        
         manager.load_config(refresh_grub=True)
-        
-        mock_run_update.assert_called_once()
-        manager.show_info.assert_any_call("Erreur lors de la mise à jour GRUB: Error message", WARNING)
+        # Avec 0 entrée et root, l'UI peut afficher un warning "Aucune entrée".
+        assert manager.show_info.called
+        args = manager.show_info.call_args[0]
+        assert "Aucune entrée" in args[0]
+        assert "update-grub" not in args[0]
 
 
 def test_load_config_refresh_grub_not_root(manager):
@@ -180,14 +181,11 @@ def test_load_config_refresh_grub_not_root(manager):
 
     with (
         patch("os.geteuid", return_value=1000),
-        patch("ui.ui_manager.run_update_grub") as mock_run_update,
-        patch("ui.ui_manager.check_grub_sync", return_value=sync_status),
-        patch("ui.ui_manager.load_grub_ui_state", return_value=state),
-        patch("ui.ui_manager.render_entries_view"),
+        patch("ui.controllers.ui_controllers_manager.check_grub_sync", return_value=sync_status),
+        patch("ui.controllers.ui_controllers_manager.load_grub_ui_state", return_value=state),
+        patch("ui.controllers.ui_controllers_manager.render_entries_view"),
     ):
         manager.load_config(refresh_grub=True)
-        
-        mock_run_update.assert_not_called()
 
 
 def test_load_config_no_refresh(manager):
@@ -204,11 +202,8 @@ def test_load_config_no_refresh(manager):
 
     with (
         patch("os.geteuid", return_value=0),
-        patch("ui.ui_manager.run_update_grub") as mock_run_update,
-        patch("ui.ui_manager.check_grub_sync", return_value=sync_status),
-        patch("ui.ui_manager.load_grub_ui_state", return_value=state),
-        patch("ui.ui_manager.render_entries_view"),
+        patch("ui.controllers.ui_controllers_manager.check_grub_sync", return_value=sync_status),
+        patch("ui.controllers.ui_controllers_manager.load_grub_ui_state", return_value=state),
+        patch("ui.controllers.ui_controllers_manager.render_entries_view"),
     ):
         manager.load_config(refresh_grub=False)
-        
-        mock_run_update.assert_not_called()

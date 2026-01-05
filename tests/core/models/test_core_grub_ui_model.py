@@ -6,8 +6,8 @@ import dataclasses
 from pathlib import Path
 from unittest.mock import patch
 
-import core.io.core_grub_menu_parser as grub_menu
-from core.models.core_grub_ui_model import (
+import core.io.core_io_grub_menu_parser as grub_menu
+from core.models.core_models_grub_ui import (
     GrubUiModel,
     GrubUiState,
     load_grub_ui_state,
@@ -230,9 +230,9 @@ def test_disable_recovery_is_preserved_when_present() -> None:
 def test_load_grub_ui_state():
     """Test load_grub_ui_state."""
     with (
-        patch("core.models.core_grub_ui_model.read_grub_default", return_value={"GRUB_TIMEOUT": "10"}),
+        patch("core.models.core_models_grub_ui.read_grub_default", return_value={"GRUB_TIMEOUT": "10"}),
         patch(
-            "core.models.core_grub_ui_model.read_grub_default_choices_with_source",
+            "core.models.core_models_grub_ui.read_grub_default_choices_with_source",
             return_value=([], "/boot/grub/grub.cfg"),
         ),
     ):
@@ -247,7 +247,7 @@ def test_save_grub_ui_state():
     model = GrubUiModel(timeout=15)
     state = GrubUiState(model=model, entries=[], raw_config={"GRUB_TIMEOUT": "10"})
 
-    with patch("core.models.core_grub_ui_model.write_grub_default", return_value="/path/to/backup") as mock_write:
+    with patch("core.models.core_models_grub_ui.write_grub_default", return_value="/path/to/backup") as mock_write:
         result = save_grub_ui_state(state, model)
         assert result == "/path/to/backup"
         mock_write.assert_called_once()
@@ -300,9 +300,7 @@ def test_load_save_grub_ui_state_roundtrip(tmp_path, monkeypatch) -> None:
 def test_merged_config_from_model_simple_theme() -> None:
     """Couvre les lignes 179, 182, 185."""
     model = GrubUiModel(
-        grub_background="/path/to/bg.png",
-        grub_color_normal="white/black",
-        grub_color_highlight="yellow/black"
+        grub_background="/path/to/bg.png", grub_color_normal="white/black", grub_color_highlight="yellow/black"
     )
     config = {}
     merged = merged_config_from_model(config, model)
@@ -313,17 +311,20 @@ def test_merged_config_from_model_simple_theme() -> None:
 
 def test_load_grub_ui_state_simple_no_theme() -> None:
     """Couvre les lignes 237-238."""
-    config = {
-        "GRUB_BACKGROUND": "/path/to/bg.png"
-    }
+    config = {"GRUB_BACKGROUND": "/path/to/bg.png"}
     # On mock les dépendances de load_grub_ui_state
-    with patch("core.models.core_grub_ui_model.read_grub_default", return_value=config), \
-         patch("core.models.core_grub_ui_model.read_grub_default_choices_with_source", return_value=([], "/boot/grub/grub.cfg")), \
-         patch("core.models.core_grub_ui_model.GrubScriptService", create=True) as mock_service_class:
-        
+    with (
+        patch("core.models.core_models_grub_ui.read_grub_default", return_value=config),
+        patch(
+            "core.models.core_models_grub_ui.read_grub_default_choices_with_source",
+            return_value=([], "/boot/grub/grub.cfg"),
+        ),
+        patch("core.models.core_models_grub_ui.GrubScriptService", create=True) as mock_service_class,
+    ):
+
         mock_service = mock_service_class.return_value
         mock_service.scan_theme_scripts.return_value = []
-        
+
         state = load_grub_ui_state()
         # theme_management_enabled devrait être False car has_simple_config=True et has_theme_config=False
         assert state.model.theme_management_enabled is False

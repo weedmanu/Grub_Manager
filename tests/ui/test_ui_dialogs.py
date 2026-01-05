@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from gi.repository import Gio
 
-from ui.ui_dialogs import confirm_action, run_command_popup
-from ui.ui_manager import GrubConfigManager
+from ui.controllers.ui_controllers_manager import GrubConfigManager
+from ui.dialogs.ui_dialogs_index import confirm_action, run_command_popup
 
 
 @pytest.fixture
@@ -27,8 +27,8 @@ def test_run_command_popup_root_creation(mock_controller):
     """Test that the dialog is created when root."""
     with (
         patch("os.geteuid", return_value=0),
-        patch("ui.ui_dialogs.Gtk") as mock_gtk,
-        patch("ui.ui_dialogs.threading.Thread") as mock_thread,
+        patch("ui.dialogs.ui_dialogs_index.Gtk") as mock_gtk,
+        patch("ui.dialogs.ui_dialogs_index.threading.Thread") as mock_thread,
     ):
 
         mock_window = MagicMock()
@@ -51,8 +51,8 @@ def test_run_command_popup_thread_execution_success(mock_controller):
     """Test the execution logic inside the thread (success case)."""
     with (
         patch("os.geteuid", return_value=0),
-        patch("ui.ui_dialogs.Gtk"),
-        patch("ui.ui_dialogs.GLib.idle_add") as mock_idle_add,
+        patch("ui.dialogs.ui_dialogs_index.Gtk"),
+        patch("ui.dialogs.ui_dialogs_index.GLib.idle_add") as mock_idle_add,
         patch("subprocess.Popen") as mock_popen,
     ):
 
@@ -64,7 +64,7 @@ def test_run_command_popup_thread_execution_success(mock_controller):
         mock_popen.return_value.__enter__.return_value = mock_process
 
         # Capture the thread target
-        with patch("ui.ui_dialogs.threading.Thread") as mock_thread:
+        with patch("ui.dialogs.ui_dialogs_index.threading.Thread") as mock_thread:
             run_command_popup(mock_controller, ["ls"], "Title")
 
             # Get the target function passed to Thread
@@ -121,8 +121,8 @@ def test_confirm_action_glib_error_does_not_call_callback(monkeypatch, mock_cont
         def choose(self, _controller, _cancellable, callback):
             callback(self, object())
 
-    monkeypatch.setattr("ui.ui_dialogs.GLib.Error", FakeGLibError)
-    monkeypatch.setattr("ui.ui_dialogs.Gtk.AlertDialog", FakeDialog)
+    monkeypatch.setattr("ui.dialogs.ui_dialogs_index.GLib.Error", FakeGLibError)
+    monkeypatch.setattr("ui.dialogs.ui_dialogs_index.Gtk.AlertDialog", FakeDialog)
 
     confirm_action(cb, "msg", mock_controller)
     assert called["v"] is False
@@ -132,8 +132,8 @@ def test_run_command_popup_thread_execution_failure(mock_controller):
     """Test the execution logic inside the thread (failure case)."""
     with (
         patch("os.geteuid", return_value=0),
-        patch("ui.ui_dialogs.Gtk"),
-        patch("ui.ui_dialogs.GLib.idle_add") as mock_idle_add,
+        patch("ui.dialogs.ui_dialogs_index.Gtk"),
+        patch("ui.dialogs.ui_dialogs_index.GLib.idle_add") as mock_idle_add,
         patch("subprocess.Popen") as mock_popen,
     ):
 
@@ -144,7 +144,7 @@ def test_run_command_popup_thread_execution_failure(mock_controller):
         mock_popen.return_value.__enter__.return_value = mock_process
 
         # Capture the thread target
-        with patch("ui.ui_dialogs.threading.Thread") as mock_thread:
+        with patch("ui.dialogs.ui_dialogs_index.threading.Thread") as mock_thread:
             run_command_popup(mock_controller, ["ls"], "Title")
             target = mock_thread.call_args[1]["target"]
             target()
@@ -160,9 +160,9 @@ def test_run_command_popup_grub_emu(mock_controller):
     """Test the special case for grub-emu."""
     with (
         patch("os.geteuid", return_value=0),
-        patch("ui.ui_dialogs.Gtk"),
-        patch("ui.ui_dialogs.GLib.idle_add"),
-        patch("ui.ui_dialogs.shutil.which", return_value="/usr/bin/grub-emu"),
+        patch("ui.dialogs.ui_dialogs_index.Gtk"),
+        patch("ui.dialogs.ui_dialogs_index.GLib.idle_add"),
+        patch("ui.dialogs.ui_dialogs_index.shutil.which", return_value="/usr/bin/grub-emu"),
         patch("subprocess.Popen") as mock_popen,
     ):
 
@@ -170,7 +170,7 @@ def test_run_command_popup_grub_emu(mock_controller):
         mock_process.wait.return_value = None
         mock_popen.return_value.__enter__.return_value = mock_process
 
-        with patch("ui.ui_dialogs.threading.Thread") as mock_thread:
+        with patch("ui.dialogs.ui_dialogs_index.threading.Thread") as mock_thread:
             run_command_popup(mock_controller, ["grub-emu"], "Title")
             target = mock_thread.call_args[1]["target"]
             target()
@@ -182,12 +182,12 @@ def test_run_command_popup_grub_emu_missing(mock_controller):
     """Test grub-emu missing."""
     with (
         patch("os.geteuid", return_value=0),
-        patch("ui.ui_dialogs.Gtk"),
-        patch("ui.ui_dialogs.GLib.idle_add"),
-        patch("ui.ui_dialogs.shutil.which", return_value=None),
+        patch("ui.dialogs.ui_dialogs_index.Gtk"),
+        patch("ui.dialogs.ui_dialogs_index.GLib.idle_add"),
+        patch("ui.dialogs.ui_dialogs_index.shutil.which", return_value=None),
     ):
 
-        with patch("ui.ui_dialogs.threading.Thread") as mock_thread:
+        with patch("ui.dialogs.ui_dialogs_index.threading.Thread") as mock_thread:
             run_command_popup(mock_controller, ["grub-emu"], "Title")
             target = mock_thread.call_args[1]["target"]
             target()
@@ -201,12 +201,12 @@ def test_run_command_popup_exception(mock_controller):
     """Test exception handling during execution."""
     with (
         patch("os.geteuid", return_value=0),
-        patch("ui.ui_dialogs.Gtk"),
-        patch("ui.ui_dialogs.GLib.idle_add") as mock_idle_add,
+        patch("ui.dialogs.ui_dialogs_index.Gtk"),
+        patch("ui.dialogs.ui_dialogs_index.GLib.idle_add") as mock_idle_add,
         patch("subprocess.Popen", side_effect=OSError("Exec failed")),
     ):
 
-        with patch("ui.ui_dialogs.threading.Thread") as mock_thread:
+        with patch("ui.dialogs.ui_dialogs_index.threading.Thread") as mock_thread:
             run_command_popup(mock_controller, ["ls"], "Title")
             target = mock_thread.call_args[1]["target"]
             target()
@@ -219,9 +219,9 @@ def test_append_text_helper(mock_controller):
     """Test the append_text helper function."""
     with (
         patch("os.geteuid", return_value=0),
-        patch("ui.ui_dialogs.Gtk") as mock_gtk,
-        patch("ui.ui_dialogs.GLib.idle_add") as mock_idle_add,
-        patch("ui.ui_dialogs.threading.Thread"),
+        patch("ui.dialogs.ui_dialogs_index.Gtk") as mock_gtk,
+        patch("ui.dialogs.ui_dialogs_index.GLib.idle_add") as mock_idle_add,
+        patch("ui.dialogs.ui_dialogs_index.threading.Thread"),
     ):
 
         # Setup mocks for TextView and Buffer
@@ -245,7 +245,7 @@ def test_append_text_helper(mock_controller):
             mock_popen.return_value.__enter__.return_value = mock_process
 
             # Capture thread target
-            with patch("ui.ui_dialogs.threading.Thread") as mock_thread:
+            with patch("ui.dialogs.ui_dialogs_index.threading.Thread") as mock_thread:
                 run_command_popup(mock_controller, ["ls"], "Title")
                 target = mock_thread.call_args[1]["target"]
 

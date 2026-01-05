@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ui.ui_infobar_controller import ERROR, INFO, WARNING, InfoBarController
+from ui.controllers.ui_controllers_infobar import ERROR, INFO, WARNING, InfoBarController
 
 
 @pytest.fixture

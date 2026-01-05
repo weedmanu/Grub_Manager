@@ -4,7 +4,7 @@ from pathlib import Path
 from time import sleep
 from unittest.mock import patch
 
-from core.system.core_sync_checker import check_grub_sync
+from core.system.core_system_sync_checker import check_grub_sync
 
 
 def test_sync_checker_detects_desync(tmp_path: Path, monkeypatch) -> None:
@@ -24,8 +24,8 @@ def test_sync_checker_detects_desync(tmp_path: Path, monkeypatch) -> None:
     grub_default.write_text("GRUB_TIMEOUT=10\n", encoding="utf-8")
 
     # Patcher les chemins
-    monkeypatch.setattr("core.system.core_sync_checker.GRUB_DEFAULT_PATH", str(grub_default))
-    monkeypatch.setattr("core.system.core_sync_checker.GRUB_CFG_PATH", str(grub_cfg))
+    monkeypatch.setattr("core.system.core_system_sync_checker.GRUB_DEFAULT_PATH", str(grub_default))
+    monkeypatch.setattr("core.system.core_system_sync_checker.GRUB_CFG_PATH", str(grub_cfg))
 
     status = check_grub_sync()
 
@@ -48,8 +48,8 @@ def test_sync_checker_detects_sync(tmp_path: Path, monkeypatch) -> None:
     grub_cfg.write_text("menuentry 'Test' {}\n", encoding="utf-8")
 
     # Patcher les chemins
-    monkeypatch.setattr("core.system.core_sync_checker.GRUB_DEFAULT_PATH", str(grub_default))
-    monkeypatch.setattr("core.system.core_sync_checker.GRUB_CFG_PATH", str(grub_cfg))
+    monkeypatch.setattr("core.system.core_system_sync_checker.GRUB_DEFAULT_PATH", str(grub_default))
+    monkeypatch.setattr("core.system.core_system_sync_checker.GRUB_CFG_PATH", str(grub_cfg))
 
     status = check_grub_sync()
 
@@ -68,8 +68,8 @@ def test_sync_checker_missing_grub_default(tmp_path: Path, monkeypatch) -> None:
     grub_cfg.write_text("menuentry 'Test' {}\n", encoding="utf-8")
 
     # Patcher les chemins
-    monkeypatch.setattr("core.system.core_sync_checker.GRUB_DEFAULT_PATH", str(grub_default))
-    monkeypatch.setattr("core.system.core_sync_checker.GRUB_CFG_PATH", str(grub_cfg))
+    monkeypatch.setattr("core.system.core_system_sync_checker.GRUB_DEFAULT_PATH", str(grub_default))
+    monkeypatch.setattr("core.system.core_system_sync_checker.GRUB_CFG_PATH", str(grub_cfg))
 
     status = check_grub_sync()
 
@@ -88,8 +88,8 @@ def test_sync_checker_missing_grub_cfg(tmp_path: Path, monkeypatch) -> None:
     grub_default.write_text("GRUB_TIMEOUT=5\n", encoding="utf-8")
 
     # Patcher les chemins
-    monkeypatch.setattr("core.system.core_sync_checker.GRUB_DEFAULT_PATH", str(grub_default))
-    monkeypatch.setattr("core.system.core_sync_checker.GRUB_CFG_PATH", str(grub_cfg))
+    monkeypatch.setattr("core.system.core_system_sync_checker.GRUB_DEFAULT_PATH", str(grub_default))
+    monkeypatch.setattr("core.system.core_system_sync_checker.GRUB_CFG_PATH", str(grub_cfg))
 
     status = check_grub_sync()
 
@@ -108,8 +108,8 @@ def test_sync_checker_os_error(tmp_path: Path, monkeypatch) -> None:
     grub_cfg.write_text("test")
 
     # Patcher les chemins
-    monkeypatch.setattr("core.system.core_sync_checker.GRUB_DEFAULT_PATH", str(grub_default))
-    monkeypatch.setattr("core.system.core_sync_checker.GRUB_CFG_PATH", str(grub_cfg))
+    monkeypatch.setattr("core.system.core_system_sync_checker.GRUB_DEFAULT_PATH", str(grub_default))
+    monkeypatch.setattr("core.system.core_system_sync_checker.GRUB_CFG_PATH", str(grub_cfg))
 
     from unittest.mock import MagicMock
 

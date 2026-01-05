@@ -1,6 +1,6 @@
 """Tests pour core/io/grub_parsing_utils.py."""
 
-from core.io.grub_parsing_utils import extract_menuentry_id, extract_menuentry_title
+from core.io.core_io_grub_parsing_utils import extract_menuentry_id, extract_menuentry_title
 
 
 class TestExtractMenuentryId:

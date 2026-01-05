@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from core.models.core_grub_ui_model import GrubUiModel
-from core.system.core_grub_system_commands import GrubDefaultChoice
-from ui.ui_protocols import (
+from core.models.core_models_grub_ui import GrubUiModel
+from core.system.core_system_grub_commands import GrubDefaultChoice
+from ui.models.ui_models_protocols import (
     ConfigModelMapper,
     DefaultChoiceWidget,
     InfoDisplay,
@@ -137,7 +137,7 @@ class TestProtocolInheritance:
 
     def test_grub_config_manager_implements_timeout_widget(self):
         """GrubConfigManager implémente TimeoutWidget."""
-        from ui.ui_manager import GrubConfigManager
+        from ui.controllers.ui_controllers_manager import GrubConfigManager
 
         required_methods = ["get_timeout_value", "set_timeout_value", "sync_timeout_choices"]
         for method in required_methods:
@@ -145,7 +145,7 @@ class TestProtocolInheritance:
 
     def test_grub_config_manager_implements_default_choice_widget(self):
         """GrubConfigManager implémente DefaultChoiceWidget."""
-        from ui.ui_manager import GrubConfigManager
+        from ui.controllers.ui_controllers_manager import GrubConfigManager
 
         required_methods = [
             "get_default_choice",
@@ -157,7 +157,7 @@ class TestProtocolInheritance:
 
     def test_grub_config_manager_implements_config_model_mapper(self):
         """GrubConfigManager implémente ConfigModelMapper."""
-        from ui.ui_manager import GrubConfigManager
+        from ui.controllers.ui_controllers_manager import GrubConfigManager
 
         required_methods = ["apply_model_to_ui", "read_model_from_ui"]
         for method in required_methods:
@@ -177,7 +177,7 @@ class TestProtocolInheritance:
 
     def test_grub_config_manager_implements_info_display(self):
         """GrubConfigManager implémente InfoDisplay."""
-        from ui.ui_manager import GrubConfigManager
+        from ui.controllers.ui_controllers_manager import GrubConfigManager
 
         required_methods = ["show_info", "hide_info_callback"]
         for method in required_methods:

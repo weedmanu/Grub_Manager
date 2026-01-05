@@ -11,10 +11,10 @@ from core.core_exceptions import (
     GrubRollbackError,
     GrubValidationError,
 )
-from core.managers.apply_states import (
+from core.managers.core_managers_apply_states import (
     ApplyContext,
-    ApplyPaths,
     ApplyFinalState,
+    ApplyPaths,
     BackupState,
     CleanupState,
     GenerateTestState,
@@ -47,7 +47,7 @@ class TestApplyStates:
         """Test BackupState avec succès."""
         state = BackupState(context)
 
-        with patch("core.managers.apply_states.validate_grub_file") as mock_val:
+        with patch("core.managers.core_managers_apply_states.validate_grub_file") as mock_val:
             mock_val.return_value.is_valid = True
 
             next_state = state.execute()
@@ -68,7 +68,7 @@ class TestApplyStates:
         """Test BackupState avec source invalide."""
         state = BackupState(context)
 
-        with patch("core.managers.apply_states.validate_grub_file") as mock_val:
+        with patch("core.managers.core_managers_apply_states.validate_grub_file") as mock_val:
             mock_val.return_value.is_valid = False
             mock_val.return_value.error_message = "Invalid"
 
@@ -79,7 +79,7 @@ class TestApplyStates:
         """Test BackupState avec erreur OS durant validation."""
         state = BackupState(context)
 
-        with patch("core.managers.apply_states.validate_grub_file", side_effect=OSError("Disk error")):
+        with patch("core.managers.core_managers_apply_states.validate_grub_file", side_effect=OSError("Disk error")):
             with pytest.raises(GrubBackupError, match=r"Impossible de vérifier le fichier source: Disk error"):
                 state.execute()
 
@@ -87,7 +87,7 @@ class TestApplyStates:
         """Test BackupState avec échec de copie."""
         state = BackupState(context)
 
-        with patch("core.managers.apply_states.validate_grub_file") as mock_val:
+        with patch("core.managers.core_managers_apply_states.validate_grub_file") as mock_val:
             mock_val.return_value.is_valid = True
             with patch("shutil.copy2", side_effect=OSError("Copy failed")):
                 with pytest.raises(GrubBackupError, match="Impossible de créer le backup"):
@@ -97,7 +97,7 @@ class TestApplyStates:
         """Test BackupState avec copie incomplète."""
         state = BackupState(context)
 
-        with patch("core.managers.apply_states.validate_grub_file") as mock_val:
+        with patch("core.managers.core_managers_apply_states.validate_grub_file") as mock_val:
             mock_val.return_value.is_valid = True
             # Mock stat to return different sizes
             # We provide enough values to avoid StopIteration if called multiple times
@@ -118,7 +118,7 @@ class TestApplyStates:
         """Test WriteState avec succès."""
         state = WriteState(context)
 
-        with patch("core.managers.apply_states.write_grub_default") as mock_write:
+        with patch("core.managers.core_managers_apply_states.write_grub_default") as mock_write:
             # Mock read_text to return valid content after write
             with patch.object(Path, "read_text", return_value="GRUB_TIMEOUT=10\n"):
                 next_state = state.execute()
@@ -130,7 +130,7 @@ class TestApplyStates:
         """Test WriteState avec résultat vide."""
         state = WriteState(context)
 
-        with patch("core.managers.apply_states.write_grub_default"):
+        with patch("core.managers.core_managers_apply_states.write_grub_default"):
             with patch.object(Path, "read_text", return_value=""):
                 with pytest.raises(GrubValidationError, match="ne contient pas de configuration valide"):
                     state.execute()
@@ -280,13 +280,13 @@ class TestApplyStates:
                     result = MagicMock()
                     result.returncode = 0
                     return result
-                
+
                 mock_run.side_effect = mock_run_side_effect
 
-                with patch("core.managers.apply_states.GRUB_CFG_PATH", str(context.temp_cfg_path)):
+                with patch("core.managers.core_managers_apply_states.GRUB_CFG_PATH", str(context.temp_cfg_path)):
                     next_state = state.execute()
                     assert next_state == CleanupState
-                    assert "✓" in str(context.verification_details)
+                    assert "régénéré" in str(context.verification_details)
 
     def test_apply_final_state_skip(self, context):
         """Test ApplyFinalState ignoré."""
@@ -325,11 +325,11 @@ class TestApplyStates:
         mock_service.scan_theme_scripts.return_value = [mock_script]
 
         with (
-            patch("core.managers.apply_states.GrubScriptService", return_value=mock_service),
+            patch("core.managers.core_managers_apply_states.GrubScriptService", return_value=mock_service),
             patch("subprocess.run") as mock_run,
             patch("shutil.which", return_value="/usr/sbin/update-grub"),
-            patch("core.managers.apply_states.Path.exists", return_value=True),
-            patch("core.managers.apply_states.Path.stat") as mock_stat,
+            patch("core.managers.core_managers_apply_states.Path.exists", return_value=True),
+            patch("core.managers.core_managers_apply_states.Path.stat") as mock_stat,
         ):
             # La commande d'application échoue
             mock_run.return_value = MagicMock(returncode=1, stderr="Update failed")
@@ -349,9 +349,9 @@ class TestApplyStates:
 
         # Mock script_service pour lever une exception
         with (
-            patch("core.managers.apply_states.GrubScriptService") as mock_svc_class,
-            patch("core.managers.apply_states.shutil.which", return_value="/usr/sbin/update-grub"),
-            patch("core.managers.apply_states.subprocess.run") as mock_run,
+            patch("core.managers.core_managers_apply_states.GrubScriptService") as mock_svc_class,
+            patch("core.managers.core_managers_apply_states.shutil.which", return_value="/usr/sbin/update-grub"),
+            patch("core.managers.core_managers_apply_states.subprocess.run") as mock_run,
         ):
             mock_svc = MagicMock()
             mock_svc_class.return_value = mock_svc

@@ -1,7 +1,7 @@
-"""Configuration pytest: harnais de tests GTK/Adw headless avec sécurité.
+"""Configuration pytest: harnais de tests GTK/Adw avec sécurité.
 
 Active:
-- Backend GTK headless (pas d'affichage)
+- Détection GTK (skip UI si indisponible)
 - Mocks GLib timers/idle
 - Blocage subprocess (sécurité)
 - Limites CPU/RAM Linux (protection machine)
@@ -11,11 +11,18 @@ Active:
 import os
 import subprocess
 import sys
+from pathlib import Path
 from unittest.mock import MagicMock
+
+# Ajouter le dossier racine du projet au PYTHONPATH
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 # Désactiver les avertissements de version GTK
 import gi
 import pytest
+from loguru import logger
 
 try:
     gi.require_version("Gtk", "4.0")
@@ -23,7 +30,29 @@ try:
 except (ValueError, ImportError):
     pass
 
-from gi.repository import Adw, GLib, Gtk
+from gi.repository import GLib, Gtk
+
+
+def _can_init_gtk() -> bool:
+    """Retourne True si Gtk peut s'initialiser dans l'environnement courant.
+
+    Important: ne pas mocker Gtk.init() dans les tests. Créer des widgets sans
+    vraie initialisation peut provoquer un SIGSEGV côté C.
+    """
+    try:
+        init_check = getattr(Gtk, "init_check", None)
+        if callable(init_check):
+            result = init_check()
+            # Gtk.init_check() peut retourner bool ou (bool, argv)
+            if isinstance(result, tuple):
+                return bool(result[0])
+            return bool(result)
+
+        # Fallback
+        Gtk.init()
+        return True
+    except Exception:
+        return False
 
 
 def _env_int(name: str, default: int) -> int:
@@ -90,17 +119,18 @@ def pytest_configure(config):
     _apply_resource_limits()
     _enable_faulthandler()
 
-    # Forcer un backend headless pour GDK si possible
-    os.environ["GDK_BACKEND"] = "headless"
-
-    # Mocker Gtk.init pour éviter les plantages sans display
-    Gtk.init = MagicMock(return_value=True)
-
-    # Mocker Adw.init
+    # Stabiliser Loguru pendant les tests: pas d'enqueue (thread/queue) pour éviter
+    # des crashes lors du shutdown Python/GC.
     try:
-        Adw.init = MagicMock(return_value=True)
+        logger.remove()
+        logger.add(sys.stderr, enqueue=False)
     except Exception:
         pass
+
+    # Détecter si GTK est réellement utilisable (display/backends dispo).
+    # On ne force pas de backend GDK ici: si nécessaire, l'environnement de CI
+    # doit fournir un DISPLAY (ex: xvfb) ou configurer GDK_BACKEND.
+    config._gtk_available = _can_init_gtk()  # type: ignore[attr-defined]
 
     # Mocker GLib.timeout_add et timeout_add_seconds pour éviter les timers réels
     GLib.timeout_add = MagicMock(return_value=1)
@@ -118,10 +148,26 @@ def pytest_configure(config):
     except Exception:
         pass
 
-    print(
-        "\n[Conftest] Tests sécurisés: GTK/Adw headless, subprocess bloqués, "
-        "limites CPU/RAM actives (env override possible)"
-    )
+    status = "OK" if getattr(config, "_gtk_available", False) else "INDISPONIBLE"
+    print("\n[Conftest] Tests sécurisés: subprocess bloqués, limites CPU/RAM actives " f"(GTK: {status})")
+
+
+def pytest_runtest_setup(item):
+    """Skip les tests UI si GTK n'est pas initialisable.
+
+    Cela évite des crashes natifs quand l'environnement n'a pas de display.
+    """
+    try:
+        gtk_available = bool(getattr(item.config, "_gtk_available", False))
+    except Exception:
+        gtk_available = False
+
+    if gtk_available:
+        return
+
+    path = str(getattr(item, "fspath", ""))
+    if "/tests/ui/" in path.replace("\\", "/"):
+        pytest.skip("GTK indisponible (pas de display/backend): tests UI ignorés")
 
 
 @pytest.fixture(autouse=True)
@@ -145,7 +191,21 @@ def secure_subprocess(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def headless_gdk():
-    """S'assure que GDK est en mode headless pour chaque test."""
-    os.environ["GDK_BACKEND"] = "headless"
+def keep_gdk_backend_stable():
+    """Évite de modifier GDK_BACKEND implicitement pendant les tests."""
     yield
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Nettoie les ressources globales.
+
+    Important pour Loguru: arrêter proprement les handlers en fin de session.
+    """
+    try:
+        logger.complete()
+    except Exception:
+        pass
+    try:
+        logger.remove()
+    except Exception:
+        pass

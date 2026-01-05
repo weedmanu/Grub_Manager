@@ -7,7 +7,7 @@ from gi.repository import Gio, Gtk
 # Set headless backend for GTK
 os.environ["GDK_BACKEND"] = "headless"
 
-from ui.tabs.ui_tab_maintenance import (
+from ui.tabs.ui_tabs_maintenance import (
     _get_config_files,
     _get_diagnostic_commands,
     _get_restore_commands,
@@ -44,7 +44,7 @@ def service():
 def test_build_maintenance_tab(controller, service):
     notebook = Gtk.Notebook()
     with (
-        patch("ui.tabs.ui_tab_maintenance.MaintenanceService", return_value=service),
+        patch("ui.tabs.ui_tabs_maintenance.MaintenanceService", return_value=service),
         patch("os.path.exists", return_value=True),
         patch("os.listdir", return_value=["00_header", "05_debian_theme"]),
         patch("os.path.isfile", return_value=True),
@@ -101,7 +101,7 @@ def test_on_view_config(controller):
     dropdown.get_selected.return_value = 0
     with (
         patch("os.path.exists", return_value=True),
-        patch("ui.tabs.ui_tab_maintenance.run_command_popup") as mock_popup,
+        patch("ui.tabs.ui_tabs_maintenance.run_command_popup") as mock_popup,
     ):
         _on_view_config(controller, dropdown, config_files)
         mock_popup.assert_called_with(controller, ["cat", "/path/1"], "Contenu de File1")
@@ -122,7 +122,7 @@ def test_on_exec_diag(controller):
     dropdown = MagicMock(spec=Gtk.DropDown)
 
     dropdown.get_selected.return_value = 1
-    with patch("ui.tabs.ui_tab_maintenance.run_command_popup") as mock_popup:
+    with patch("ui.tabs.ui_tabs_maintenance.run_command_popup") as mock_popup:
         _on_exec_diag(controller, dropdown, diag_commands)
         mock_popup.assert_called_with(controller, ["cmd2"], "Diag2")
 
@@ -136,7 +136,7 @@ def test_on_exec_restore(controller, service):
     dropdown = MagicMock(spec=Gtk.DropDown)
 
     dropdown.get_selected.return_value = 0
-    with patch("ui.tabs.ui_tab_maintenance._run_restore_command_direct") as mock_run:
+    with patch("ui.tabs.ui_tabs_maintenance._run_restore_command_direct") as mock_run:
         _on_exec_restore(controller, dropdown, restore_commands, service)
         mock_run.assert_called_with(controller, "Restore1", "reinstall-05-debian", service)
 
@@ -158,7 +158,7 @@ def test_get_config_files_with_non_file():
 
 
 def test_run_restore_command_direct(controller, service):
-    with patch("ui.tabs.ui_tab_maintenance.run_command_popup") as mock_popup:
+    with patch("ui.tabs.ui_tabs_maintenance.run_command_popup") as mock_popup:
         # reinstall-05-debian
         _run_restore_command_direct(controller, "Name", "reinstall-05-debian", service)
         mock_popup.assert_called()
@@ -183,8 +183,8 @@ def test_run_restore_command_direct(controller, service):
 
 def test_run_restore_command_direct_reinstall_calls(controller, service):
     with (
-        patch("ui.tabs.ui_tab_maintenance._reinstall_grub_uefi") as mock_uefi,
-        patch("ui.tabs.ui_tab_maintenance._reinstall_grub_bios") as mock_bios,
+        patch("ui.tabs.ui_tabs_maintenance._reinstall_grub_uefi") as mock_uefi,
+        patch("ui.tabs.ui_tabs_maintenance._reinstall_grub_bios") as mock_bios,
     ):
 
         _run_restore_command_direct(controller, "Name", "reinstall-grub-uefi", service)
@@ -218,13 +218,13 @@ def test_reinstall_grub_uefi_root(mock_dialog_class, controller):
 
         # Simulate "Reinstall" (index 1)
         mock_dialog.choose_finish.return_value = 1
-        with patch("ui.tabs.ui_tab_maintenance.run_command_popup") as mock_popup:
+        with patch("ui.tabs.ui_tabs_maintenance.run_command_popup") as mock_popup:
             callback(mock_dialog, MagicMock(spec=Gio.AsyncResult))
             mock_popup.assert_called()
 
         # Simulate "Cancel" (index 0)
         mock_dialog.choose_finish.return_value = 0
-        with patch("ui.tabs.ui_tab_maintenance.run_command_popup") as mock_popup:
+        with patch("ui.tabs.ui_tabs_maintenance.run_command_popup") as mock_popup:
             callback(mock_dialog, MagicMock(spec=Gio.AsyncResult))
             mock_popup.assert_not_called()
 
@@ -241,13 +241,13 @@ def test_reinstall_grub_bios_root(mock_dialog_class, controller):
 
         # Simulate "Reinstall" (index 1)
         mock_dialog.choose_finish.return_value = 1
-        with patch("ui.tabs.ui_tab_maintenance.run_command_popup") as mock_popup:
+        with patch("ui.tabs.ui_tabs_maintenance.run_command_popup") as mock_popup:
             callback(mock_dialog, MagicMock(spec=Gio.AsyncResult))
             mock_popup.assert_called()
 
         # Simulate "Cancel" (index 0)
         mock_dialog.choose_finish.return_value = 0
-        with patch("ui.tabs.ui_tab_maintenance.run_command_popup") as mock_popup:
+        with patch("ui.tabs.ui_tabs_maintenance.run_command_popup") as mock_popup:
             callback(mock_dialog, MagicMock(spec=Gio.AsyncResult))
             mock_popup.assert_not_called()
 

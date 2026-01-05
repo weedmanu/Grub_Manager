@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.config.core_paths import discover_grub_cfg_paths
-from core.io.core_grub_menu_parser import (
+from core.config.core_config_paths import discover_grub_cfg_paths
+from core.io.core_io_grub_menu_parser import (
     GrubDefaultChoice,
     _candidate_grub_cfg_paths,
     _iter_readable_grub_cfg_lines,
@@ -18,7 +18,7 @@ from core.io.core_grub_menu_parser import (
     read_grub_default_choices,
     read_grub_default_choices_with_source,
 )
-from core.io.grub_parsing_utils import extract_menuentry_id
+from core.io.core_io_grub_parsing_utils import extract_menuentry_id
 
 
 class TestGrubDefaultChoice:
@@ -375,15 +375,15 @@ class TestGrubCfgDiscovery:
 
     def test_discover_efi_grub_cfg_paths(self):
         """Test la découverte des chemins EFI."""
-        with patch("core.config.core_paths.glob", return_value=["/boot/efi/EFI/ubuntu/grub.cfg"]):
+        with patch("core.config.core_config_paths.glob", return_value=["/boot/efi/EFI/ubuntu/grub.cfg"]):
             paths = discover_grub_cfg_paths()
             assert "/boot/efi/EFI/ubuntu/grub.cfg" in paths
 
     def test_candidate_grub_cfg_paths_default(self):
         """Test les candidats par défaut avec doublons."""
-        with patch("core.io.core_grub_menu_parser.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg", "/boot/grub/grub.cfg"]):
+        with patch("core.io.core_io_grub_menu_parser.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg", "/boot/grub/grub.cfg"]):
             with patch(
-                "core.io.core_grub_menu_parser.discover_grub_cfg_paths",
+                "core.io.core_io_grub_menu_parser.discover_grub_cfg_paths",
                 return_value=["/boot/grub/grub.cfg", "/efi/grub.cfg"],
             ):
                 paths = _candidate_grub_cfg_paths("/boot/grub/grub.cfg")
@@ -453,7 +453,7 @@ class TestReadGrubDefaultChoicesWithSource:
         f_actual.write_text("menuentry 'OS' { }")
 
         with patch(
-            "core.io.core_grub_menu_parser._candidate_grub_cfg_paths", return_value=[str(f_requested), str(f_actual)]
+            "core.io.core_io_grub_menu_parser._candidate_grub_cfg_paths", return_value=[str(f_requested), str(f_actual)]
         ):
             choices, used_path = read_grub_default_choices_with_source(str(f_requested))
             assert len(choices) == 1
@@ -466,7 +466,7 @@ class TestReadGrubDefaultChoicesWithSource:
         f_actual.write_text("# Empty")
 
         with patch(
-            "core.io.core_grub_menu_parser._candidate_grub_cfg_paths", return_value=[str(f_requested), str(f_actual)]
+            "core.io.core_io_grub_menu_parser._candidate_grub_cfg_paths", return_value=[str(f_requested), str(f_actual)]
         ):
             choices, used_path = read_grub_default_choices_with_source(str(f_requested))
             assert choices == []
@@ -479,14 +479,14 @@ class TestReadGrubDefaultChoicesWithSource:
         f2 = tmp_path / "empty2.cfg"
         f2.write_text("# Empty 2")
 
-        with patch("core.io.core_grub_menu_parser._candidate_grub_cfg_paths", return_value=[str(f1), str(f2)]):
+        with patch("core.io.core_io_grub_menu_parser._candidate_grub_cfg_paths", return_value=[str(f1), str(f2)]):
             choices, used_path = read_grub_default_choices_with_source(str(f1))
             assert choices == []
             assert used_path == str(f1)
 
     def test_read_failure_all_candidates(self):
         """Test échec total."""
-        with patch("core.io.core_grub_menu_parser._iter_readable_grub_cfg_lines", return_value=[]):
+        with patch("core.io.core_io_grub_menu_parser._iter_readable_grub_cfg_lines", return_value=[]):
             choices, used_path = read_grub_default_choices_with_source("/none")
             assert choices == []
             assert used_path is None

@@ -89,7 +89,7 @@ class TestMainCoverage:
         mock_app_instance.connect.side_effect = mock_connect
 
         # Patch GrubConfigManager where it's imported (inside main)
-        with patch("ui.ui_manager.GrubConfigManager") as mock_gcm:
+        with patch("ui.controllers.ui_controllers_manager.GrubConfigManager") as mock_gcm:
             with pytest.raises(SystemExit) as excinfo:
                 main_func()
             assert excinfo.value.code == 0

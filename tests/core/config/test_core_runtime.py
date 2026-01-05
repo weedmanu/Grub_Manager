@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from io import StringIO
 
-from core.config.core_runtime import configure_logging, parse_debug_flag
+from core.config.core_config_runtime import configure_logging, parse_debug_flag
 
 
 class TestParseDebugFlag:

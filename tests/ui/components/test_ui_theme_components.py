@@ -7,7 +7,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 import pytest
 
-from ui.components.ui_theme_components import ImageScaleSelector, ResolutionSelector, TextEntry
+from ui.components.ui_components_theme import ImageScaleSelector, ResolutionSelector, TextEntry
 
 
 class TestResolutionSelector:
@@ -16,7 +16,7 @@ class TestResolutionSelector:
     @pytest.fixture
     def mock_gtk(self):
         """Mock pour les composants GTK."""
-        with patch("ui.components.ui_theme_components.Gtk") as mock_gtk:
+        with patch("ui.components.ui_components_theme.Gtk") as mock_gtk:
             # Mock Label
             mock_label = MagicMock()
             mock_gtk.Label.return_value = mock_label
@@ -109,7 +109,7 @@ class TestImageScaleSelector:
     @pytest.fixture
     def mock_gtk(self):
         """Mock pour les composants GTK."""
-        with patch("ui.components.ui_theme_components.Gtk") as mock_gtk:
+        with patch("ui.components.ui_components_theme.Gtk") as mock_gtk:
             # Mock Label
             mock_label = MagicMock()
             mock_gtk.Label.return_value = mock_label
@@ -202,7 +202,7 @@ class TestTextEntry:
     @pytest.fixture
     def mock_gtk(self):
         """Mock pour les composants GTK."""
-        with patch("ui.components.ui_theme_components.Gtk") as mock_gtk:
+        with patch("ui.components.ui_components_theme.Gtk") as mock_gtk:
             # Mock Label
             mock_label = MagicMock()
             mock_gtk.Label.return_value = mock_label

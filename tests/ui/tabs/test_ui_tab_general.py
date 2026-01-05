@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 from gi.repository import Gtk
 
-from ui.tabs.ui_tab_general import build_general_tab
+from ui.tabs.ui_tabs_general import build_general_tab
 
 
 def test_build_general_tab():

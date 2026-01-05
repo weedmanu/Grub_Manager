@@ -11,8 +11,8 @@ from pathlib import Path
 
 from loguru import logger
 
-from core.config.core_runtime import configure_logging, parse_debug_flag
-from core.io.core_grub_default_io import ensure_initial_grub_default_backup
+from core.config.core_config_runtime import configure_logging, parse_debug_flag
+from core.io.core_io_grub_default import ensure_initial_grub_default_backup
 
 
 def _reexec_as_root_once() -> None:
@@ -147,9 +147,12 @@ def main() -> None:
 
         gi.require_version("Gtk", "4.0")
         gi.require_version("Gdk", "4.0")
-        from gi.repository import Gdk, Gtk  # pylint: disable=import-outside-toplevel
+        from gi.repository import (  # pylint: disable=import-outside-toplevel
+            Gdk,
+            Gtk,
+        )
 
-        from ui.ui_manager import GrubConfigManager  # pylint: disable=import-outside-toplevel
+        from ui.controllers.ui_controllers_manager import GrubConfigManager  # pylint: disable=import-outside-toplevel
 
         # Charger le CSS personnalisé
         logger.debug("[main] Loading custom CSS stylesheet")

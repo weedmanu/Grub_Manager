@@ -9,7 +9,7 @@ gi.require_version("Gdk", "4.0")
 import pytest
 from gi.repository import Gdk, Gtk
 
-from ui.components.ui_color_picker import ColorPicker, create_color_grid_row
+from ui.components.ui_components_color_picker import ColorPicker, create_color_grid_row
 
 
 class TestColorPicker:
@@ -19,8 +19,8 @@ class TestColorPicker:
     def mock_gtk(self):
         """Mock pour les composants GTK."""
         with (
-            patch("ui.components.ui_color_picker.Gtk") as mock_gtk,
-            patch("ui.components.ui_color_picker.Gdk") as mock_gdk,
+            patch("ui.components.ui_components_color_picker.Gtk") as mock_gtk,
+            patch("ui.components.ui_components_color_picker.Gdk") as mock_gdk,
         ):
             # Mock Label
             mock_label = MagicMock()
@@ -160,7 +160,7 @@ class TestColorPicker:
 class TestCreateColorGridRow:
     """Tests pour la fonction helper create_color_grid_row."""
 
-    @patch("ui.components.ui_color_picker.ColorPicker")
+    @patch("ui.components.ui_components_color_picker.ColorPicker")
     def test_create_color_grid_row(self, mock_color_picker_class):
         """Test la création d'une ligne pour Grid."""
         mock_picker = MagicMock()

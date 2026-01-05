@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from core.core_exceptions import GrubCommandError, GrubScriptNotFoundError
-from core.services.core_grub_script_service import EXECUTABLE_PERMISSION, GrubScript, GrubScriptService
+from core.services.core_services_grub_script import EXECUTABLE_PERMISSION, GrubScript, GrubScriptService
 
 
 class TestGrubScript:

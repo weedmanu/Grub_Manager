@@ -8,10 +8,10 @@ import pytest
 
 gi.require_version("Gtk", "4.0")
 
-from core.system.core_grub_system_commands import GrubDefaultChoice, GrubUiModel, GrubUiState
-from core.system.core_sync_checker import SyncStatus
-from ui.ui_manager import GrubConfigManager
-from ui.ui_state import AppState
+from core.system.core_system_grub_commands import GrubDefaultChoice, GrubUiModel, GrubUiState
+from core.system.core_system_sync_checker import SyncStatus
+from ui.controllers.ui_controllers_manager import GrubConfigManager
+from ui.models.ui_models_state import AppState
 
 INFO = "info"
 WARNING = "warning"
@@ -74,8 +74,8 @@ class GrubConfigManagerFull(GrubConfigManager):
         self.state_manager.is_loading = MagicMock(return_value=False)
 
         def _set_loading(value: bool):
-            
-            self.state_manager.is_loading.return_value = bool(value)  
+
+            self.state_manager.is_loading.return_value = bool(value)
 
         def _mark_dirty(*_args, **_kwargs):
             self.state_manager.modified = True
@@ -124,7 +124,7 @@ class GrubConfigManagerFull(GrubConfigManager):
 
         self.workflow = MagicMock()
         self.infobar = None
-        
+
         # theme_config_controller with proper color combo mocks
         self.theme_config_controller = MagicMock()
         self.theme_config_controller.widgets = MagicMock()
@@ -137,13 +137,13 @@ class GrubConfigManagerFull(GrubConfigManager):
         widgets = panels.simple_config_panel.widgets
         widgets.bg_image_entry = MagicMock()
         widgets.bg_image_entry.get_text.return_value = ""
-        
+
         # Color combos - must return integers for get_selected()
         widgets.normal_fg_combo = MagicMock()
         widgets.normal_fg_combo.get_selected.return_value = -1  # No selection
         widgets.normal_bg_combo = MagicMock()
         widgets.normal_bg_combo.get_selected.return_value = -1
-        
+
         widgets.highlight_fg_combo = MagicMock()
         widgets.highlight_fg_combo.get_selected.return_value = -1
         widgets.highlight_bg_combo = MagicMock()
@@ -176,7 +176,7 @@ def manager(mock_app):
 
 
 def test_create_ui(mock_app):
-    with patch("ui.ui_manager.UIBuilder") as mock_builder:
+    with patch("ui.controllers.ui_controllers_manager.UIBuilder") as mock_builder:
         manager = GrubConfigManagerFull(mock_app)
         manager.create_ui()
 
@@ -185,7 +185,7 @@ def test_create_ui(mock_app):
 
 
 def test_apply_state_wrapper(manager):
-    manager._apply_state(AppState.DIRTY)
+    manager.apply_state(AppState.DIRTY)
     manager.state_manager.apply_state.assert_called_with(AppState.DIRTY, manager.save_btn, manager.reload_btn)
 
 
@@ -237,7 +237,7 @@ def test_real_init_calls_create_ui_load_config_and_check_permissions():
         win = GrubConfigManager(app)
 
     mock_create_ui.assert_called_once_with(win)
-    mock_load_config.assert_called_once_with(win, refresh_grub=True)
+    mock_load_config.assert_called_once_with(win, refresh_grub=False)
     mock_check_permissions.assert_called_once_with(win)
 
 
@@ -259,10 +259,10 @@ def test_load_config_success(manager):
     state = GrubUiState(model=model, entries=entries, raw_config={})
 
     with (
-        patch("ui.ui_manager.check_grub_sync", return_value=sync_status),
-        patch("ui.ui_manager.load_grub_ui_state", return_value=state),
-        patch("ui.ui_manager.render_entries_view") as mock_render,
-        patch("ui.ui_gtk_helpers.GtkHelper.dropdown_set_value"),
+        patch("ui.controllers.ui_controllers_manager.check_grub_sync", return_value=sync_status),
+        patch("ui.controllers.ui_controllers_manager.load_grub_ui_state", return_value=state),
+        patch("ui.controllers.ui_controllers_manager.render_entries_view") as mock_render,
+        patch("ui.helpers.ui_helpers_gtk.GtkHelper.dropdown_set_value"),
     ):
 
         manager.load_config()
@@ -284,14 +284,14 @@ def test_load_config_desync(manager):
     state = GrubUiState(model=GrubUiModel(), entries=[], raw_config={})
 
     with (
-        patch("ui.ui_manager.check_grub_sync", return_value=sync_status),
-        patch("ui.ui_manager.load_grub_ui_state", return_value=state),
-        patch("ui.ui_manager.render_entries_view"),
+        patch("ui.controllers.ui_controllers_manager.check_grub_sync", return_value=sync_status),
+        patch("ui.controllers.ui_controllers_manager.load_grub_ui_state", return_value=state),
+        patch("ui.controllers.ui_controllers_manager.render_entries_view"),
     ):
 
         manager.load_config()
 
-        manager.show_info.assert_any_call("⚠ Desync", "warning")
+        manager.show_info.assert_any_call("Desync", "warning")
 
 
 def test_load_config_hidden_timeout(manager):
@@ -307,9 +307,9 @@ def test_load_config_hidden_timeout(manager):
     state = GrubUiState(model=model, entries=[], raw_config={})
 
     with (
-        patch("ui.ui_manager.check_grub_sync", return_value=sync_status),
-        patch("ui.ui_manager.load_grub_ui_state", return_value=state),
-        patch("ui.ui_manager.render_entries_view"),
+        patch("ui.controllers.ui_controllers_manager.check_grub_sync", return_value=sync_status),
+        patch("ui.controllers.ui_controllers_manager.load_grub_ui_state", return_value=state),
+        patch("ui.controllers.ui_controllers_manager.render_entries_view"),
     ):
 
         manager.load_config()
@@ -339,9 +339,9 @@ def test_load_config_hidden_entries(manager):
     manager.state_manager.hidden_entry_ids = {"entry1"}
 
     with (
-        patch("ui.ui_manager.check_grub_sync", return_value=sync_status),
-        patch("ui.ui_manager.load_grub_ui_state", return_value=state),
-        patch("ui.ui_manager.render_entries_view"),
+        patch("ui.controllers.ui_controllers_manager.check_grub_sync", return_value=sync_status),
+        patch("ui.controllers.ui_controllers_manager.load_grub_ui_state", return_value=state),
+        patch("ui.controllers.ui_controllers_manager.render_entries_view"),
     ):
 
         manager.load_config()
@@ -362,10 +362,10 @@ def test_load_config_no_entries(manager):
         grub_cfg_mtime=0,
     )
     with (
-        patch("ui.ui_manager.os.geteuid", return_value=0),
-        patch("ui.ui_manager.check_grub_sync", return_value=sync_status),
-        patch("ui.ui_manager.load_grub_ui_state") as mock_load_state,
-        patch("ui.ui_manager.render_entries_view"),
+        patch("ui.controllers.ui_controllers_manager.os.geteuid", return_value=0),
+        patch("ui.controllers.ui_controllers_manager.check_grub_sync", return_value=sync_status),
+        patch("ui.controllers.ui_controllers_manager.load_grub_ui_state") as mock_load_state,
+        patch("ui.controllers.ui_controllers_manager.render_entries_view"),
     ):
 
         # Mock state (utiliser de vrais objets pour éviter des comparaisons MagicMock/int)
@@ -391,9 +391,9 @@ def test_load_config_no_entries_non_root(manager):
     manager.info_label = MagicMock()
 
     with (
-        patch("ui.ui_manager.check_grub_sync") as mock_sync,
-        patch("ui.ui_manager.load_grub_ui_state") as mock_load_state,
-        patch("ui.ui_manager.render_entries_view"),
+        patch("ui.controllers.ui_controllers_manager.check_grub_sync") as mock_sync,
+        patch("ui.controllers.ui_controllers_manager.load_grub_ui_state") as mock_load_state,
+        patch("ui.controllers.ui_controllers_manager.render_entries_view"),
         patch("os.geteuid", return_value=1000),
     ):
 
@@ -415,8 +415,8 @@ def test_load_config_no_entries_non_root(manager):
 
 def test_load_config_file_not_found(manager):
     with (
-        patch("ui.ui_manager.check_grub_sync", side_effect=FileNotFoundError("Missing")),
-        patch("ui.ui_manager.render_entries_view"),
+        patch("ui.controllers.ui_controllers_manager.check_grub_sync", side_effect=FileNotFoundError("Missing")),
+        patch("ui.controllers.ui_controllers_manager.render_entries_view"),
     ):
         manager.load_config()
 
@@ -433,9 +433,9 @@ def test_load_config_exceptions(manager):
         grub_cfg_mtime=0,
     )
     with (
-        patch("ui.ui_manager.check_grub_sync", return_value=sync_status),
-        patch("ui.ui_manager.load_grub_ui_state", side_effect=OSError("Permission denied")),
-        patch("ui.ui_manager.render_entries_view"),
+        patch("ui.controllers.ui_controllers_manager.check_grub_sync", return_value=sync_status),
+        patch("ui.controllers.ui_controllers_manager.load_grub_ui_state", side_effect=OSError("Permission denied")),
+        patch("ui.controllers.ui_controllers_manager.render_entries_view"),
     ):
         manager.load_config()
         # Should show error info
@@ -451,7 +451,7 @@ def test_read_model_from_ui(manager):
     manager.timeout_dropdown.get_model.return_value = MagicMock()
 
     with (
-        patch("ui.ui_gtk_helpers.GtkHelper.dropdown_get_value", return_value="10"),
+        patch("ui.helpers.ui_helpers_gtk.GtkHelper.dropdown_get_value", return_value="10"),
         patch.object(manager, "get_timeout_value", return_value=10),
         patch.object(manager, "get_default_choice", return_value="saved"),
     ):
@@ -482,7 +482,7 @@ def test_apply_model_to_ui(manager):
     entries = [GrubDefaultChoice(id="id1", title="Title 1")]
 
     with (
-        patch("ui.ui_gtk_helpers.GtkHelper.dropdown_set_value") as mock_set_val,
+        patch("ui.helpers.ui_helpers_gtk.GtkHelper.dropdown_set_value") as mock_set_val,
         patch.object(manager, "sync_timeout_choices") as mock_sync_timeout,
         patch.object(manager, "refresh_default_choices") as mock_refresh_defaults,
         patch.object(manager, "set_default_choice") as mock_set_default,
@@ -518,11 +518,11 @@ def test_apply_model_to_ui_none_widgets(manager):
 
 
 def test_get_timeout_value(manager):
-    with patch("ui.ui_gtk_helpers.GtkHelper.dropdown_get_value", return_value="5"):
+    with patch("ui.helpers.ui_helpers_gtk.GtkHelper.dropdown_get_value", return_value="5"):
         assert manager.get_timeout_value() == 5
 
     # Valeur invalide -> fallback 5
-    with patch("ui.ui_gtk_helpers.GtkHelper.dropdown_get_value", return_value="Hidden"):
+    with patch("ui.helpers.ui_helpers_gtk.GtkHelper.dropdown_get_value", return_value="Hidden"):
         assert manager.get_timeout_value() == 5
 
 
@@ -534,7 +534,7 @@ def test_get_timeout_value_none(manager):
 
 def test_get_timeout_value_exception(manager):
     """Test _get_timeout_value handles exceptions."""
-    with patch("ui.ui_gtk_helpers.GtkHelper.dropdown_get_value", return_value="invalid"):
+    with patch("ui.helpers.ui_helpers_gtk.GtkHelper.dropdown_get_value", return_value="invalid"):
         assert manager.get_timeout_value() == 5
 
 
@@ -634,10 +634,10 @@ def test_ensure_timeout_choice_loop_completion(manager):
     model.get_n_items.return_value = 2
     model.get_string.side_effect = ["10", "20"]
 
-    with patch("ui.ui_gtk_helpers.GtkHelper.stringlist_find", side_effect=[None, 2]):
+    with patch("ui.helpers.ui_helpers_gtk.GtkHelper.stringlist_find", side_effect=[None, 2]):
         # Wanted "100" > "10" and "20", so loop finishes without break
         # insert_at should remain 2 (initial value)
-        with patch("ui.ui_gtk_helpers.GtkHelper.stringlist_insert") as mock_insert:
+        with patch("ui.helpers.ui_helpers_gtk.GtkHelper.stringlist_insert") as mock_insert:
             manager._ensure_timeout_choice("100")
             mock_insert.assert_called_with(model, 2, "100")
 
@@ -823,7 +823,7 @@ def test_on_hidden_timeout_toggled_loading(manager):
 def test_on_menu_options_toggled(manager):
     """Cover lines 458-460: on_menu_options_toggled."""
     widget = MagicMock()
-    with patch("ui.ui_manager.render_entries_view") as mock_render:
+    with patch("ui.controllers.ui_controllers_manager.render_entries_view") as mock_render:
         manager.on_menu_options_toggled(widget)
 
         manager.state_manager.mark_dirty.assert_called()
@@ -868,8 +868,8 @@ def test_on_hide_category_toggled_loading_returns(manager):
     manager.state_manager.is_loading.return_value = True
 
     with (
-        patch("ui.ui_manager.render_entries_view") as mock_render,
-        patch("ui.ui_manager.save_hidden_entry_ids") as mock_save,
+        patch("ui.controllers.ui_controllers_manager.render_entries_view") as mock_render,
+        patch("ui.controllers.ui_controllers_manager.save_hidden_entry_ids") as mock_save,
     ):
         manager.on_hide_category_toggled(widget)
         assert not mock_render.called
@@ -884,8 +884,8 @@ def test_on_hide_category_toggled_unknown_category_returns(manager):
     manager.state_manager.is_loading.return_value = False
 
     with (
-        patch("ui.ui_manager.render_entries_view") as mock_render,
-        patch("ui.ui_manager.save_hidden_entry_ids") as mock_save,
+        patch("ui.controllers.ui_controllers_manager.render_entries_view") as mock_render,
+        patch("ui.controllers.ui_controllers_manager.save_hidden_entry_ids") as mock_save,
     ):
         manager.on_hide_category_toggled(widget)
         assert not mock_render.called
@@ -901,8 +901,8 @@ def test_on_hide_category_toggled_no_matching_ids_returns(manager):
     manager.state_manager.state_data = GrubUiState(model=GrubUiModel(), entries=[], raw_config={})
 
     with (
-        patch("ui.ui_manager.render_entries_view") as mock_render,
-        patch("ui.ui_manager.save_hidden_entry_ids") as mock_save,
+        patch("ui.controllers.ui_controllers_manager.render_entries_view") as mock_render,
+        patch("ui.controllers.ui_controllers_manager.save_hidden_entry_ids") as mock_save,
     ):
         manager.on_hide_category_toggled(widget)
         assert not mock_render.called
@@ -922,15 +922,15 @@ def test_on_hide_category_toggled_advanced_adds_ids_and_marks_dirty(manager):
     manager.state_manager.hidden_entry_ids = set()
 
     with (
-        patch("ui.ui_manager.render_entries_view") as mock_render,
-        patch("ui.ui_manager.save_hidden_entry_ids") as mock_save,
+        patch("ui.controllers.ui_controllers_manager.render_entries_view") as mock_render,
+        patch("ui.controllers.ui_controllers_manager.save_hidden_entry_ids") as mock_save,
         patch.object(manager, "_apply_state") as mock_apply_state,
     ):
         manager.on_hide_category_toggled(widget)
 
     assert "id-adv" in manager.state_manager.hidden_entry_ids
     assert manager.state_manager.entries_visibility_dirty is True
-    assert mock_save.called
+    mock_save.assert_called_once_with(manager.state_manager.hidden_entry_ids)
     assert mock_apply_state.called
     assert mock_render.called
 
@@ -951,8 +951,8 @@ def test_on_hide_category_toggled_advanced_skips_invalid_and_non_matching_entrie
     manager.state_manager.hidden_entry_ids = set()
 
     with (
-        patch("ui.ui_manager.render_entries_view"),
-        patch("ui.ui_manager.save_hidden_entry_ids"),
+        patch("ui.controllers.ui_controllers_manager.render_entries_view"),
+        patch("ui.controllers.ui_controllers_manager.save_hidden_entry_ids"),
         patch.object(manager, "_apply_state"),
     ):
         manager.on_hide_category_toggled(widget)
@@ -973,8 +973,8 @@ def test_on_hide_category_toggled_memtest_removes_ids(manager):
     manager.state_manager.hidden_entry_ids = {"id-mem"}
 
     with (
-        patch("ui.ui_manager.render_entries_view"),
-        patch("ui.ui_manager.save_hidden_entry_ids"),
+        patch("ui.controllers.ui_controllers_manager.render_entries_view"),
+        patch("ui.controllers.ui_controllers_manager.save_hidden_entry_ids"),
         patch.object(manager, "_apply_state"),
     ):
         manager.on_hide_category_toggled(widget)
@@ -997,8 +997,8 @@ def test_on_hide_category_toggled_memtest_adds_ids(manager):
     manager.state_manager.hidden_entry_ids = set()
 
     with (
-        patch("ui.ui_manager.render_entries_view"),
-        patch("ui.ui_manager.save_hidden_entry_ids"),
+        patch("ui.controllers.ui_controllers_manager.render_entries_view"),
+        patch("ui.controllers.ui_controllers_manager.save_hidden_entry_ids"),
         patch.object(manager, "_apply_state"),
     ):
         manager.on_hide_category_toggled(widget)
@@ -1072,8 +1072,8 @@ def test_load_config_parsing_error(manager):
     from core.core_exceptions import GrubParsingError
 
     with (
-        patch("ui.ui_manager.check_grub_sync", return_value=sync_status),
-        patch("ui.ui_manager.load_grub_ui_state", side_effect=GrubParsingError("Invalid config")),
+        patch("ui.controllers.ui_controllers_manager.check_grub_sync", return_value=sync_status),
+        patch("ui.controllers.ui_controllers_manager.load_grub_ui_state", side_effect=GrubParsingError("Invalid config")),
     ):
         manager.load_config()
         # Should show error info

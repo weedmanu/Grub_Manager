@@ -7,13 +7,13 @@ from unittest.mock import patch
 import pytest
 
 from core.core_exceptions import GrubRollbackError
-from core.managers.apply_states import (
+from core.managers.core_managers_apply_states import (
     ApplyContext,
     ApplyPaths,
     BackupState,
     WriteState,
 )
-from core.managers.core_apply_manager import ApplyResult, ApplyState, GrubApplyManager
+from core.managers.core_managers_apply import ApplyResult, ApplyState, GrubApplyManager
 
 
 class TestApplyState:
@@ -66,12 +66,12 @@ class TestGrubApplyManager:
         assert manager.grub_default_path == tmp_path / "grub"
         assert manager.backup_path == tmp_path / "grub.bak.apply"
 
-    @patch("core.managers.core_apply_manager.BackupState")
-    @patch("core.managers.core_apply_manager.WriteState")
-    @patch("core.managers.core_apply_manager.GenerateTestState")
-    @patch("core.managers.core_apply_manager.ValidateState")
-    @patch("core.managers.core_apply_manager.ApplyFinalState")
-    @patch("core.managers.core_apply_manager.CleanupState")
+    @patch("core.managers.core_managers_apply.BackupState")
+    @patch("core.managers.core_managers_apply.WriteState")
+    @patch("core.managers.core_managers_apply.GenerateTestState")
+    @patch("core.managers.core_managers_apply.ValidateState")
+    @patch("core.managers.core_managers_apply.ApplyFinalState")
+    @patch("core.managers.core_managers_apply.CleanupState")
     def test_apply_configuration_success(
         self, MockCleanup, MockApplyFinal, MockValidate, MockGenerate, MockWrite, MockBackup, manager
     ):
@@ -106,7 +106,7 @@ class TestGrubApplyManager:
         MockApplyFinal.assert_called()
         MockCleanup.assert_called()
 
-    @patch("core.managers.core_apply_manager.BackupState")
+    @patch("core.managers.core_managers_apply.BackupState")
     def test_apply_configuration_failure_at_backup(self, MockBackup, manager):
         """Vérifie l'échec au backup."""
         MockBackup.__name__ = "BackupState"
@@ -118,8 +118,8 @@ class TestGrubApplyManager:
         assert result.state == ApplyState.ERROR
         assert "Backup failed" in result.message
 
-    @patch("core.managers.core_apply_manager.BackupState")
-    @patch("core.managers.core_apply_manager.WriteState")
+    @patch("core.managers.core_managers_apply.BackupState")
+    @patch("core.managers.core_managers_apply.WriteState")
     def test_apply_configuration_failure_with_rollback(self, MockWrite, MockBackup, manager):
         """Vérifie l'échec avec rollback."""
         MockBackup.__name__ = "BackupState"
@@ -142,8 +142,8 @@ class TestGrubApplyManager:
         # We need to check if rollback() was called on any instance
         assert MockWrite.return_value.rollback.called or MockWrite.return_value.execute.side_effect
 
-    @patch("core.managers.core_apply_manager.BackupState")
-    @patch("core.managers.core_apply_manager.WriteState")
+    @patch("core.managers.core_managers_apply.BackupState")
+    @patch("core.managers.core_managers_apply.WriteState")
     def test_apply_configuration_rollback_critical_failure(self, MockWrite, MockBackup, manager):
         """Vérifie l'échec critique du rollback."""
         MockBackup.__name__ = "BackupState"
@@ -172,7 +172,7 @@ class TestGrubApplyManager:
         context.temp_cfg_path.write_text("temp")
 
         with patch("os.remove", side_effect=OSError("Delete failed")):
-            with patch("core.managers.core_apply_manager.WriteState") as MockWrite:
+            with patch("core.managers.core_managers_apply.WriteState") as MockWrite:
                 manager._perform_rollback(context)
                 # Should not raise, just log warning
                 MockWrite.assert_called()
@@ -186,7 +186,7 @@ class TestGrubApplyManager:
             apply_changes=True,
         )
 
-        with patch("core.managers.core_apply_manager.WriteState") as MockWrite:
+        with patch("core.managers.core_managers_apply.WriteState") as MockWrite:
             # Case 1: GrubRollbackError (re-raised)
             MockWrite.return_value.rollback.side_effect = GrubRollbackError("Rollback error")
             with pytest.raises(GrubRollbackError):
@@ -208,7 +208,7 @@ class TestGrubApplyManager:
         manager._update_internal_state(WriteState)
         assert manager._state == ApplyState.WRITE_TEMP
 
-    @patch("core.managers.core_apply_manager.WriteState")
+    @patch("core.managers.core_managers_apply.WriteState")
     def test_perform_rollback(self, MockWrite, manager, tmp_path):
         """Vérifie le rollback global."""
         context = ApplyContext(

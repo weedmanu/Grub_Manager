@@ -3,7 +3,7 @@
 import tarfile
 from unittest.mock import patch
 
-from core.io.core_grub_default_io import _tar_filter_initial, _tar_filter_manual
+from core.io.core_io_grub_default import _tar_filter_initial, _tar_filter_manual
 
 
 class TestTarFilters:

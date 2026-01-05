@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 
 from gi.repository import Gtk
 
-from core.io.core_grub_menu_parser import GrubDefaultChoice
-from ui.tabs.ui_entries_renderer import _entry_display_title, _entry_is_os_prober, _entry_is_recovery, render_entries
+from core.io.core_io_grub_menu_parser import GrubDefaultChoice
+from ui.tabs.ui_tabs_entries_renderer import _entry_display_title, _entry_is_os_prober, _entry_is_recovery, render_entries
 
 
 def test_entry_helpers():
@@ -142,16 +142,14 @@ def test_render_entries_toggle_signal():
     assert switch is not None
 
     # Trigger switch ON
-    with patch("ui.tabs.ui_entries_renderer.save_hidden_entry_ids") as mock_save:
-        switch.set_active(True)
-        assert "ubuntu-id" in controller.state_manager.hidden_entry_ids
-        mock_save.assert_called_once()
+    switch.set_active(True)
+    assert "ubuntu-id" in controller.state_manager.hidden_entry_ids
+    assert controller.state_manager.entries_visibility_dirty is True
 
     # Trigger switch OFF
-    with patch("ui.tabs.ui_entries_renderer.save_hidden_entry_ids") as mock_save:
-        switch.set_active(False)
-        assert "ubuntu-id" not in controller.state_manager.hidden_entry_ids
-        mock_save.assert_called()
+    switch.set_active(False)
+    assert "ubuntu-id" not in controller.state_manager.hidden_entry_ids
+    assert controller.state_manager.entries_visibility_dirty is True
 
 
 def test_render_entries_edge_cases():
@@ -171,7 +169,7 @@ def test_render_entries_edge_cases():
 
     controller.state_manager.hidden_entry_ids = set()
 
-    with patch("ui.tabs.ui_entries_renderer.get_simulated_os_prober_entries") as mock_sim:
+    with patch("ui.tabs.ui_tabs_entries_renderer.get_simulated_os_prober_entries") as mock_sim:
         mock_sim.return_value = [
             GrubDefaultChoice(id="3", title="Simulated OS", menu_id="osprober-simulated-2", source="30_os-prober")
         ]
@@ -267,7 +265,7 @@ def test_render_entries_basic(controller):
 
     controller.state_manager.state_data.entries = [e1]
 
-    with patch("ui.tabs.ui_entries_renderer.clear_listbox"):
+    with patch("ui.tabs.ui_tabs_entries_renderer.clear_listbox"):
         render_entries(controller)
 
     assert controller.entries_listbox.append.called
@@ -284,8 +282,8 @@ def test_render_entries_simulated_os_prober(controller):
     simulated.id = "sim1"
 
     with (
-        patch("ui.tabs.ui_entries_renderer.get_simulated_os_prober_entries", return_value=[simulated]),
-        patch("ui.tabs.ui_entries_renderer.clear_listbox"),
+        patch("ui.tabs.ui_tabs_entries_renderer.get_simulated_os_prober_entries", return_value=[simulated]),
+        patch("ui.tabs.ui_tabs_entries_renderer.clear_listbox"),
     ):
         render_entries(controller)
 
@@ -307,7 +305,7 @@ def test_render_entries_no_id_and_simulated_masking(controller):
 
     controller.state_manager.state_data.entries = [e_no_id, e_sim]
 
-    with patch("ui.tabs.ui_entries_renderer.clear_listbox"):
+    with patch("ui.tabs.ui_tabs_entries_renderer.clear_listbox"):
         render_entries(controller)
 
     assert controller.entries_listbox.append.called
@@ -324,7 +322,7 @@ def test_render_entries_switch_toggle(controller):
     controller.state_manager.hidden_entry_ids = set()
 
     # We'll use a real switch but mock the controller methods it calls
-    with patch("ui.tabs.ui_entries_renderer.save_hidden_entry_ids"), patch("ui.tabs.ui_entries_renderer.clear_listbox"):
+    with patch("ui.tabs.ui_tabs_entries_renderer.save_hidden_entry_ids"), patch("ui.tabs.ui_tabs_entries_renderer.clear_listbox"):
 
         render_entries(controller)
 

@@ -4,7 +4,7 @@ from unittest.mock import mock_open, patch
 
 import pytest
 
-from core.services.core_maintenance_service import MaintenanceService
+from core.services.core_services_maintenance import MaintenanceService
 
 
 @pytest.fixture
@@ -54,7 +54,7 @@ def test_get_enable_05_debian_theme_command(service):
 def test_find_theme_script_path_in_config(service):
     with (
         patch(
-            "core.services.core_maintenance_service.read_grub_default", return_value={"GRUB_THEME": "/tmp/theme.txt"}
+            "core.services.core_services_maintenance.read_grub_default", return_value={"GRUB_THEME": "/tmp/theme.txt"}
         ),
         patch("os.path.exists", side_effect=lambda p: p == "/tmp/theme.txt"),
     ):
@@ -63,7 +63,7 @@ def test_find_theme_script_path_in_config(service):
 
 def test_find_theme_script_path_common_paths(service):
     with (
-        patch("core.services.core_maintenance_service.read_grub_default", return_value={}),
+        patch("core.services.core_services_maintenance.read_grub_default", return_value={}),
         patch("glob.glob", return_value=["/boot/grub/themes/starfield/theme.txt"]),
     ):
         assert service.find_theme_script_path() == "/boot/grub/themes/starfield/theme.txt"
@@ -71,7 +71,7 @@ def test_find_theme_script_path_common_paths(service):
 
 def test_find_theme_script_path_grub_d(service):
     with (
-        patch("core.services.core_maintenance_service.read_grub_default", return_value={}),
+        patch("core.services.core_services_maintenance.read_grub_default", return_value={}),
         patch("glob.glob", return_value=[]),
         patch("os.path.exists", side_effect=lambda p: p == "/etc/grub.d"),
         patch("os.listdir", return_value=["05_debian_theme"]),
@@ -82,7 +82,7 @@ def test_find_theme_script_path_grub_d(service):
 
 def test_find_theme_script_path_custom_cfg(service):
     with (
-        patch("core.services.core_maintenance_service.read_grub_default", return_value={}),
+        patch("core.services.core_services_maintenance.read_grub_default", return_value={}),
         patch("glob.glob", side_effect=lambda p: ["/boot/grub/custom.cfg"] if "custom.cfg" in p else []),
         patch("os.path.exists", return_value=False),
         patch("builtins.open", mock_open(read_data="set theme=/boot/grub/themes/dark/theme.txt")),
@@ -92,7 +92,7 @@ def test_find_theme_script_path_custom_cfg(service):
 
 def test_find_theme_script_path_none(service):
     with (
-        patch("core.services.core_maintenance_service.read_grub_default", return_value={}),
+        patch("core.services.core_services_maintenance.read_grub_default", return_value={}),
         patch("glob.glob", return_value=[]),
         patch("os.path.exists", return_value=False),
     ):
@@ -101,7 +101,7 @@ def test_find_theme_script_path_none(service):
 
 def test_find_theme_script_path_oserror_read_default(service):
     with (
-        patch("core.services.core_maintenance_service.read_grub_default", side_effect=OSError("Read error")),
+        patch("core.services.core_services_maintenance.read_grub_default", side_effect=OSError("Read error")),
         patch("glob.glob", return_value=[]),
         patch("os.path.exists", return_value=False),
     ):
@@ -110,7 +110,7 @@ def test_find_theme_script_path_oserror_read_default(service):
 
 def test_find_theme_script_path_oserror_custom_cfg(service):
     with (
-        patch("core.services.core_maintenance_service.read_grub_default", return_value={}),
+        patch("core.services.core_services_maintenance.read_grub_default", return_value={}),
         patch("glob.glob", side_effect=lambda p: ["/boot/grub/custom.cfg"] if "custom.cfg" in p else []),
         patch("os.path.exists", return_value=False),
         patch("builtins.open", side_effect=OSError("Read error")),
@@ -122,7 +122,7 @@ def test_find_theme_script_path_in_config_not_exists(service):
     """Test when GRUB_THEME is set but file does not exist."""
     with (
         patch(
-            "core.services.core_maintenance_service.read_grub_default", return_value={"GRUB_THEME": "/tmp/missing.txt"}
+            "core.services.core_services_maintenance.read_grub_default", return_value={"GRUB_THEME": "/tmp/missing.txt"}
         ),
         patch("os.path.exists", return_value=False),
         patch("glob.glob", return_value=[]),
@@ -133,7 +133,7 @@ def test_find_theme_script_path_in_config_not_exists(service):
 def test_find_theme_script_path_grub_d_not_exists(service):
     """Test when /etc/grub.d does not exist."""
     with (
-        patch("core.services.core_maintenance_service.read_grub_default", return_value={}),
+        patch("core.services.core_services_maintenance.read_grub_default", return_value={}),
         patch("glob.glob", return_value=[]),
         patch("os.path.exists", return_value=False),
     ):
@@ -143,7 +143,7 @@ def test_find_theme_script_path_grub_d_not_exists(service):
 def test_find_theme_script_path_grub_d_empty(service):
     """Test when /etc/grub.d exists but is empty."""
     with (
-        patch("core.services.core_maintenance_service.read_grub_default", return_value={}),
+        patch("core.services.core_services_maintenance.read_grub_default", return_value={}),
         patch("glob.glob", return_value=[]),
         patch("os.path.exists", side_effect=lambda p: p == "/etc/grub.d"),
         patch("os.listdir", return_value=[]),
@@ -154,7 +154,7 @@ def test_find_theme_script_path_grub_d_empty(service):
 def test_find_theme_script_path_grub_d_no_match(service):
     """Test when /etc/grub.d exists but files don't match 'theme'."""
     with (
-        patch("core.services.core_maintenance_service.read_grub_default", return_value={}),
+        patch("core.services.core_services_maintenance.read_grub_default", return_value={}),
         patch("glob.glob", return_value=[]),
         patch("os.path.exists", side_effect=lambda p: p == "/etc/grub.d"),
         patch("os.listdir", return_value=["00_header", "10_linux"]),
@@ -166,7 +166,7 @@ def test_find_theme_script_path_grub_d_no_match(service):
 def test_find_theme_script_path_custom_cfg_no_theme_keyword(service):
     """Test when custom.cfg exists but doesn't contain 'theme'."""
     with (
-        patch("core.services.core_maintenance_service.read_grub_default", return_value={}),
+        patch("core.services.core_services_maintenance.read_grub_default", return_value={}),
         patch("glob.glob", side_effect=lambda p: ["/boot/grub/custom.cfg"] if "custom.cfg" in p else []),
         patch("os.path.exists", return_value=False),
         patch("builtins.open", mock_open(read_data="menuentry 'My OS' { ... }")),

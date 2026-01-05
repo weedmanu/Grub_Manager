@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from core.core_exceptions import GrubBackupError, GrubConfigError
-from core.io.core_grub_default_io import (
+from core.io.core_io_grub_default import (
     GRUB_DEFAULT_PATH,
     _best_fallback_for_missing_config,
     _prune_manual_backups,
@@ -130,7 +130,7 @@ class TestEnsureInitialGrubDefaultBackup:
         """Test quand le fichier original n'existe pas."""
         config_path = tmp_path / "grub"
 
-        with patch("core.io.core_grub_default_io.read_grub_default") as mock_read:
+        with patch("core.io.core_io_grub_default.read_grub_default") as mock_read:
             mock_read.side_effect = OSError("Fichier manquant")
             result = ensure_initial_grub_default_backup(str(config_path))
             assert result is None
@@ -158,10 +158,10 @@ class TestEnsureInitialGrubDefaultBackup:
         (fake_boot_grub / "grub.cfg").write_text("menuentry 'Linux' {}")
 
         with (
-            patch("core.io.core_grub_default_io.GRUB_DEFAULT_PATH", str(fake_grub_default)),
-            patch("core.io.core_grub_default_io.GRUB_CFG_PATHS", [str(fake_boot_grub / "grub.cfg")]),
+            patch("core.io.core_io_grub_default.GRUB_DEFAULT_PATH", str(fake_grub_default)),
+            patch("core.io.core_io_grub_default.GRUB_CFG_PATHS", [str(fake_boot_grub / "grub.cfg")]),
             patch("os.path.abspath", side_effect=lambda x: x),
-            patch("core.io.core_grub_default_io.Path") as mock_path_cls,
+            patch("core.io.core_io_grub_default.Path") as mock_path_cls,
         ):
 
             mock_grub_d = MagicMock(spec=Path)
@@ -206,7 +206,7 @@ class TestEnsureInitialGrubDefaultBackup:
         """Test quand le chemin n'est pas un fichier."""
         with (
             patch("os.path.isfile", return_value=False),
-            patch("core.io.core_grub_default_io.read_grub_default", side_effect=OSError("Missing")),
+            patch("core.io.core_io_grub_default.read_grub_default", side_effect=OSError("Missing")),
         ):
             res = ensure_initial_grub_default_backup(str(tmp_path / "not_a_file"))
             assert res is None
@@ -343,10 +343,10 @@ class TestEnsureInitialGrubDefaultBackup:
             return Path(p)
 
         with (
-            patch("core.io.core_grub_default_io.GRUB_DEFAULT_PATH", str(fake_grub_default)),
-            patch("core.io.core_grub_default_io.GRUB_CFG_PATHS", []),
+            patch("core.io.core_io_grub_default.GRUB_DEFAULT_PATH", str(fake_grub_default)),
+            patch("core.io.core_io_grub_default.GRUB_CFG_PATHS", []),
             patch("os.path.abspath", side_effect=lambda x: x),
-            patch("core.io.core_grub_default_io.Path") as mock_path_cls,
+            patch("core.io.core_io_grub_default.Path") as mock_path_cls,
             patch("tarfile.open", return_value=DummyTar()),
         ):
             mock_path_cls.side_effect = path_side_effect
@@ -402,7 +402,7 @@ class TestCreateGrubDefaultBackup:
         fallback_path = tmp_path / "grub.backup.current"
         fallback_path.write_text("GRUB_TIMEOUT=10")
 
-        with patch("core.io.core_grub_default_io._best_fallback_for_missing_config") as mock_fallback:
+        with patch("core.io.core_io_grub_default._best_fallback_for_missing_config") as mock_fallback:
             mock_fallback.return_value = str(fallback_path)
             result = create_grub_default_backup(str(config_path))
 
@@ -414,7 +414,7 @@ class TestCreateGrubDefaultBackup:
         """Test quand aucune source n'est trouvée."""
         config_path = tmp_path / "grub"
 
-        with patch("core.io.core_grub_default_io._best_fallback_for_missing_config") as mock_fallback:
+        with patch("core.io.core_io_grub_default._best_fallback_for_missing_config") as mock_fallback:
             mock_fallback.return_value = None
             with pytest.raises(GrubConfigError):
                 create_grub_default_backup(str(config_path))
@@ -450,10 +450,10 @@ class TestCreateGrubDefaultBackup:
         (fake_boot_grub / "grub.cfg").write_text("menuentry 'Linux' {}")
 
         with (
-            patch("core.io.core_grub_default_io.GRUB_DEFAULT_PATH", str(fake_grub_default)),
-            patch("core.io.core_grub_default_io.GRUB_CFG_PATHS", [str(fake_boot_grub / "grub.cfg")]),
+            patch("core.io.core_io_grub_default.GRUB_DEFAULT_PATH", str(fake_grub_default)),
+            patch("core.io.core_io_grub_default.GRUB_CFG_PATHS", [str(fake_boot_grub / "grub.cfg")]),
             patch("os.path.abspath", side_effect=lambda x: x),
-            patch("core.io.core_grub_default_io.Path") as mock_path_cls,
+            patch("core.io.core_io_grub_default.Path") as mock_path_cls,
         ):
 
             mock_grub_d = MagicMock(spec=Path)
@@ -772,7 +772,7 @@ class TestReadGrubDefault:
         fallback_path = tmp_path / "grub.backup.current"
         fallback_path.write_text("GRUB_TIMEOUT=10\n")
 
-        with patch("core.io.core_grub_default_io._best_fallback_for_missing_config") as mock_fallback:
+        with patch("core.io.core_io_grub_default._best_fallback_for_missing_config") as mock_fallback:
             mock_fallback.return_value = str(fallback_path)
             result = read_grub_default(str(config_path))
 
@@ -787,7 +787,7 @@ class TestReadGrubDefault:
         fallback_path.write_text("GRUB_TIMEOUT=10\n")
 
         with (
-            patch("core.io.core_grub_default_io._best_fallback_for_missing_config") as mock_fallback,
+            patch("core.io.core_io_grub_default._best_fallback_for_missing_config") as mock_fallback,
             patch("shutil.copy2", side_effect=OSError),
         ):
             mock_fallback.return_value = str(fallback_path)
@@ -799,7 +799,7 @@ class TestReadGrubDefault:
         """Test quand aucun fallback n'existe."""
         config_path = tmp_path / "grub"
 
-        with patch("core.io.core_grub_default_io._best_fallback_for_missing_config") as mock_fallback:
+        with patch("core.io.core_io_grub_default._best_fallback_for_missing_config") as mock_fallback:
             mock_fallback.return_value = None
             with pytest.raises(GrubConfigError):
                 read_grub_default(str(config_path))
@@ -878,22 +878,22 @@ class TestTarFilters:
 
     def test_tar_filter_manual_exception(self):
         """Test le filtre tar manuel quand une exception survient."""
-        from core.io.core_grub_default_io import _tar_filter_manual
-        
+        from core.io.core_io_grub_default import _tar_filter_manual
+
         tarinfo = MagicMock()
         tarinfo.name = "/some/path"
-        
+
         with patch("os.path.exists", side_effect=OSError("Disk error")):
             result = _tar_filter_manual(tarinfo)
             assert result is None
 
     def test_tar_filter_initial_exception(self):
         """Test le filtre tar initial quand une exception survient."""
-        from core.io.core_grub_default_io import _tar_filter_initial
-        
+        from core.io.core_io_grub_default import _tar_filter_initial
+
         tarinfo = MagicMock()
         tarinfo.name = "/some/path"
-        
+
         with patch("os.path.exists", side_effect=OSError("Disk error")):
             result = _tar_filter_initial(tarinfo)
             assert result is None
@@ -993,7 +993,7 @@ class TestEdgeCases:
         initial = tmp_path / "grub_backup.initial.tar.gz"
         initial.write_text("i")
 
-        with patch("core.io.core_grub_default_io.GRUB_DEFAULT_PATH", str(config_path)):
+        with patch("core.io.core_io_grub_default.GRUB_DEFAULT_PATH", str(config_path)):
             backups = list_grub_default_backups(str(config_path))
             assert any("initial" in b for b in backups)
 
@@ -1020,7 +1020,7 @@ class TestEdgeCases:
     def test_create_backup_no_source_found(self, tmp_path):
         """Test create_grub_default_backup quand aucune source n'est trouvée."""
         config_path = tmp_path / "nonexistent_grub"
-        with patch("core.io.core_grub_default_io._best_fallback_for_missing_config", return_value=None):
+        with patch("core.io.core_io_grub_default._best_fallback_for_missing_config", return_value=None):
             with pytest.raises(GrubConfigError):
                 create_grub_default_backup(str(config_path))
 
@@ -1030,15 +1030,15 @@ class TestEdgeCases:
         p = tmp_path / "grub.backup.manual.1"
         p.write_text("old")
 
-        # On doit patcher os.remove dans le module core.io.core_grub_default_io
-        with patch("core.io.core_grub_default_io.os.remove", side_effect=OSError("Delete failed")):
+        # On doit patcher os.remove dans le module core.io.core_io_grub_default
+        with patch("core.io.core_io_grub_default.os.remove", side_effect=OSError("Delete failed")):
             deleted = _prune_manual_backups(str(base_path), keep=0)
             assert not deleted
 
     def test_ensure_initial_backup_safe_is_file_oserror(self, tmp_path):
         """Test OSError dans _safe_is_file de ensure_initial_backup."""
         config_path = tmp_path / "grub"
-        with patch("core.io.core_grub_default_io.os.path.isfile", side_effect=OSError):
+        with patch("core.io.core_io_grub_default.os.path.isfile", side_effect=OSError):
             res = ensure_initial_grub_default_backup(str(config_path))
             assert res is None
 
@@ -1061,9 +1061,9 @@ class TestEdgeCases:
 
         # Simuler que le backup n'existe pas encore et qu'on est sur GRUB_DEFAULT_PATH
         with (
-            patch("core.io.core_grub_default_io.os.path.abspath", return_value=str(GRUB_DEFAULT_PATH)),
-            patch("core.io.core_grub_default_io.Path") as mock_path_class,
-            patch("core.io.core_grub_default_io.tarfile.open") as mock_tar_open,
+            patch("core.io.core_io_grub_default.os.path.abspath", return_value=str(GRUB_DEFAULT_PATH)),
+            patch("core.io.core_io_grub_default.Path") as mock_path_class,
+            patch("core.io.core_io_grub_default.tarfile.open") as mock_tar_open,
         ):
             # Configuration des mocks
             mock_path = MagicMock()
@@ -1082,7 +1082,7 @@ class TestEdgeCases:
         """Test OSError dans _safe_exists de create_backup."""
         config_path = tmp_path / "grub"
         config_path.write_text("c")
-        with patch("core.io.core_grub_default_io.os.path.exists", side_effect=OSError):
+        with patch("core.io.core_io_grub_default.os.path.exists", side_effect=OSError):
             res = create_grub_default_backup(str(config_path))
             assert res is not None
 
@@ -1090,8 +1090,8 @@ class TestEdgeCases:
         """Test OSError dans _safe_is_file de create_backup."""
         config_path = tmp_path / "grub"
         config_path.write_text("c")
-        # On doit patcher os.path.isfile dans le module core.io.core_grub_default_io
-        with patch("core.io.core_grub_default_io.os.path.isfile", side_effect=OSError):
+        # On doit patcher os.path.isfile dans le module core.io.core_io_grub_default
+        with patch("core.io.core_io_grub_default.os.path.isfile", side_effect=OSError):
             with pytest.raises(OSError):
                 create_grub_default_backup(str(config_path))
 
@@ -1099,7 +1099,7 @@ class TestEdgeCases:
         """Test OSError lors du check d'existence dans le loop grub.cfg de create_backup."""
         config_path = tmp_path / "grub"
         config_path.write_text("c")
-        with patch("core.io.core_grub_default_io.os.path.abspath", return_value=str(GRUB_DEFAULT_PATH)):
+        with patch("core.io.core_io_grub_default.os.path.abspath", return_value=str(GRUB_DEFAULT_PATH)):
             # On fournit assez de valeurs pour éviter StopIteration
             # 1. backup_path exists check (False)
             # 2. source_path is_file check (True)
@@ -1107,7 +1107,7 @@ class TestEdgeCases:
             # 4. script is_file check (True)
             # 5. grub_cfg exists check (OSError)
             side_effects = [False, True, True, True, OSError] + [False] * 100
-            with patch("core.io.core_grub_default_io.os.path.exists", side_effect=side_effects):
+            with patch("core.io.core_io_grub_default.os.path.exists", side_effect=side_effects):
                 res = create_grub_default_backup(str(config_path))
                 assert res is not None
 
@@ -1115,7 +1115,7 @@ class TestEdgeCases:
         """Test OSError lors de tarfile.open dans ensure_initial_backup."""
         config_path = tmp_path / "grub"
         config_path.write_text("c")
-        with patch("core.io.core_grub_default_io.tarfile.open", side_effect=OSError("Open failed")):
+        with patch("core.io.core_io_grub_default.tarfile.open", side_effect=OSError("Open failed")):
             res = ensure_initial_grub_default_backup(str(config_path))
             assert res is None
 
@@ -1125,7 +1125,7 @@ class TestEdgeCases:
         config_path.write_text("c")
         mock_tar = MagicMock()
         mock_tar.add.side_effect = OSError("Add failed")
-        with patch("core.io.core_grub_default_io.tarfile.open", return_value=mock_tar):
+        with patch("core.io.core_io_grub_default.tarfile.open", return_value=mock_tar):
             mock_tar.__enter__.return_value = mock_tar
             res = ensure_initial_grub_default_backup(str(config_path))
             assert res is not None
@@ -1135,9 +1135,9 @@ class TestEdgeCases:
         config_path = tmp_path / "grub"
         config_path.write_text("c")
         # On patche os.path.exists pour qu'il lève une erreur lors du check de grub.cfg
-        with patch("core.io.core_grub_default_io.os.path.abspath", return_value=str(GRUB_DEFAULT_PATH)):
+        with patch("core.io.core_io_grub_default.os.path.abspath", return_value=str(GRUB_DEFAULT_PATH)):
             side_effects = [False, True, True, True, OSError] + [False] * 100
-            with patch("core.io.core_grub_default_io.os.path.exists", side_effect=side_effects):
+            with patch("core.io.core_io_grub_default.os.path.exists", side_effect=side_effects):
                 res = ensure_initial_grub_default_backup(str(config_path))
                 assert res is not None
 
@@ -1145,7 +1145,7 @@ class TestEdgeCases:
         """Test OSError lors de la fermeture du tar dans create_backup."""
         config_path = tmp_path / "grub"
         config_path.write_text("c")
-        with patch("core.io.core_grub_default_io.tarfile.open") as mock_open:
+        with patch("core.io.core_io_grub_default.tarfile.open") as mock_open:
             mock_open.return_value.__exit__.side_effect = OSError("Close failed")
             with pytest.raises(GrubBackupError, match="Close failed"):
                 create_grub_default_backup(str(config_path))
@@ -1159,8 +1159,8 @@ class TestEdgeCases:
         """Test ensure_initial_backup quand /etc/grub.d n'existe pas."""
         config_path = tmp_path / "grub"
         config_path.write_text("c")
-        with patch("core.io.core_grub_default_io.os.path.abspath", return_value=str(GRUB_DEFAULT_PATH)):
-            with patch("core.io.core_grub_default_io.Path.exists", side_effect=[False, False]):
+        with patch("core.io.core_io_grub_default.os.path.abspath", return_value=str(GRUB_DEFAULT_PATH)):
+            with patch("core.io.core_io_grub_default.Path.exists", side_effect=[False, False]):
                 res = ensure_initial_grub_default_backup(str(config_path))
                 assert res is not None
 
@@ -1168,8 +1168,8 @@ class TestEdgeCases:
         """Test create_backup quand /etc/grub.d n'existe pas."""
         config_path = tmp_path / "grub"
         config_path.write_text("c")
-        with patch("core.io.core_grub_default_io.os.path.abspath", return_value=str(GRUB_DEFAULT_PATH)):
-            with patch("core.io.core_grub_default_io.Path.exists", side_effect=[False, False]):
+        with patch("core.io.core_io_grub_default.os.path.abspath", return_value=str(GRUB_DEFAULT_PATH)):
+            with patch("core.io.core_io_grub_default.Path.exists", side_effect=[False, False]):
                 res = create_grub_default_backup(str(config_path))
                 assert res is not None
 
@@ -1210,10 +1210,10 @@ class TestFinalCoverage:
 
     def test_prune_manual_backups_oserror_on_remove(self):
         """Test l'erreur OSError lors de la suppression d'un backup manuel."""
-        from core.io.core_grub_default_io import _prune_manual_backups
+        from core.io.core_io_grub_default import _prune_manual_backups
 
         with (
-            patch("core.io.core_grub_default_io.glob", return_value=["grub.backup.manual.old"]),
+            patch("core.io.core_io_grub_default.glob", return_value=["grub.backup.manual.old"]),
             patch("os.path.isfile", return_value=True),
             patch("os.path.getmtime", return_value=100),
             patch("os.remove", side_effect=OSError("Permission denied")),
@@ -1223,15 +1223,15 @@ class TestFinalCoverage:
     def test_ensure_initial_backup_coverage_boost(self):
         """Boost de couverture pour la sauvegarde initiale (cas où elle existe déjà)."""
         # Branche 166->170: initial backup exists
-        from core.io.core_grub_default_io import ensure_initial_grub_default_backup
+        from core.io.core_io_grub_default import ensure_initial_grub_default_backup
 
-        with patch("core.io.core_grub_default_io.Path.exists", return_value=True):
+        with patch("core.io.core_io_grub_default.Path.exists", return_value=True):
             ensure_initial_grub_default_backup()
 
     def test_ensure_initial_backup_empty_iterdir(self):
         """Test la sauvegarde initiale avec un dossier grub.d vide."""
         # Branche 119->118: empty iterdir
-        from core.io.core_grub_default_io import ensure_initial_grub_default_backup
+        from core.io.core_io_grub_default import ensure_initial_grub_default_backup
 
         mock_path = MagicMock()
         mock_path.exists.return_value = False
@@ -1248,46 +1248,46 @@ class TestFinalCoverage:
             return mock_path
 
         with (
-            patch("core.io.core_grub_default_io.Path", side_effect=path_side_effect),
-            patch("core.io.core_grub_default_io.tarfile.open"),
+            patch("core.io.core_io_grub_default.Path", side_effect=path_side_effect),
+            patch("core.io.core_io_grub_default.tarfile.open"),
         ):
             ensure_initial_grub_default_backup()
 
     def test_create_backup_coverage_boost(self):
         """Boost de couverture pour la création de sauvegarde."""
         # Branche 260->259: grub.d loop
-        from core.io.core_grub_default_io import create_grub_default_backup
+        from core.io.core_io_grub_default import create_grub_default_backup
 
         with (
-            patch("core.io.core_grub_default_io.Path.exists", return_value=True),
-            patch("core.io.core_grub_default_io.Path.is_file", return_value=True),
+            patch("core.io.core_io_grub_default.Path.exists", return_value=True),
+            patch("core.io.core_io_grub_default.Path.is_file", return_value=True),
             patch("os.listdir", side_effect=[["10_linux"], []]),
-            patch("core.io.core_grub_default_io.tarfile.open"),
+            patch("core.io.core_io_grub_default.tarfile.open"),
         ):
             create_grub_default_backup()
 
     def test_create_backup_tar_add_oserror_path(self):
         """Test l'erreur OSError lors de l'ajout d'un fichier au tar."""
         # Branche 252-253: OSError in tar.add
-        from core.io.core_grub_default_io import create_grub_default_backup
+        from core.io.core_io_grub_default import create_grub_default_backup
 
         mock_tar_obj = MagicMock()
         mock_tar_obj.add.side_effect = OSError("Add failed")
         with (
-            patch("core.io.core_grub_default_io.Path.exists", return_value=True),
-            patch("core.io.core_grub_default_io.Path.is_file", return_value=True),
-            patch("core.io.core_grub_default_io.tarfile.open", return_value=mock_tar_obj),
+            patch("core.io.core_io_grub_default.Path.exists", return_value=True),
+            patch("core.io.core_io_grub_default.Path.is_file", return_value=True),
+            patch("core.io.core_io_grub_default.tarfile.open", return_value=mock_tar_obj),
         ):
             create_grub_default_backup()
 
     def test_best_fallback_no_valid_candidate(self):
         """Test le cas où aucun candidat de secours n'est trouvé."""
         # Branche 422->411
-        from core.io.core_grub_default_io import _best_fallback_for_missing_config
+        from core.io.core_io_grub_default import _best_fallback_for_missing_config
 
         with (
             patch("os.listdir", return_value=[]),
-            patch("core.io.core_grub_default_io.glob", return_value=[]),
+            patch("core.io.core_io_grub_default.glob", return_value=[]),
             patch("os.path.isfile", return_value=False),
         ):
             res = _best_fallback_for_missing_config("/etc/default/grub")
@@ -1295,10 +1295,10 @@ class TestFinalCoverage:
 
     def test_best_fallback_with_mtime_error(self):
         """Test le cas où getmtime échoue sur un candidat de secours."""
-        from core.io.core_grub_default_io import _best_fallback_for_missing_config
+        from core.io.core_io_grub_default import _best_fallback_for_missing_config
 
         with (
-            patch("core.io.core_grub_default_io.glob", return_value=["/etc/default/grub.backup.1"]),
+            patch("core.io.core_io_grub_default.glob", return_value=["/etc/default/grub.backup.1"]),
             patch("os.path.isfile", return_value=True),
             patch("os.path.getmtime", side_effect=FileNotFoundError),
         ):
@@ -1310,7 +1310,7 @@ class TestFinalCoverage:
     def test_restore_backup_success_check_files(self, tmp_path):
         """Test la réussite de la restauration et vérifie les fichiers."""
         # Branche 358->341: restore loop
-        from core.io.core_grub_default_io import restore_grub_default_backup
+        from core.io.core_io_grub_default import restore_grub_default_backup
 
         backup_path = tmp_path / "backup.tar.gz"
         grub_default = tmp_path / "grub"
@@ -1319,12 +1319,12 @@ class TestFinalCoverage:
             info = tarfile.TarInfo(name="other_file")
             info.size = 0
             tar.addfile(info)
-        with patch("core.io.core_grub_default_io.GRUB_DEFAULT_PATH", str(grub_default)):
+        with patch("core.io.core_io_grub_default.GRUB_DEFAULT_PATH", str(grub_default)):
             restore_grub_default_backup(str(backup_path))
 
     def test_restore_backup_with_members(self, tmp_path):
         """Test la restauration avec des membres spécifiques dans l'archive."""
-        from core.io.core_grub_default_io import restore_grub_default_backup
+        from core.io.core_io_grub_default import restore_grub_default_backup
 
         backup_path = tmp_path / "backup.tar.gz"
         grub_default = tmp_path / "grub"
@@ -1341,7 +1341,7 @@ class TestFinalCoverage:
             f2.write_text("TEST2")
             tar.add(str(f2), arcname="etc/grub.d/10_linux")
         with (
-            patch("core.io.core_grub_default_io.GRUB_DEFAULT_PATH", str(grub_default)),
+            patch("core.io.core_io_grub_default.GRUB_DEFAULT_PATH", str(grub_default)),
             patch("os.remove"),
             patch("shutil.copy2"),
         ):
@@ -1567,7 +1567,7 @@ def test_touch_now_os_error() -> None:
     """Test _touch_now avec erreur (ne doit pas lever)."""
     from unittest.mock import patch
 
-    from core.io.core_grub_default_io import _touch_now
+    from core.io.core_io_grub_default import _touch_now
 
     with patch("os.utime", side_effect=OSError):
         _touch_now("/nonexistent")  # Ne doit pas lever
@@ -1575,7 +1575,7 @@ def test_touch_now_os_error() -> None:
 
 def test_prune_manual_backups_os_error(tmp_path: Path) -> None:
     """Test _prune_manual_backups avec erreur de suppression."""
-    from core.io.core_grub_default_io import _prune_manual_backups
+    from core.io.core_io_grub_default import _prune_manual_backups
 
     base = tmp_path / "grub"
     b1 = tmp_path / "grub.backup.manual.1"
@@ -1692,9 +1692,9 @@ def test_create_grub_default_backup_unique_name_collision(tmp_path: Path) -> Non
     tar_cm.__exit__.return_value = False
 
     with (
-        patch("core.io.core_grub_default_io.datetime") as mock_datetime,
-        patch("core.io.core_grub_default_io.os.path.exists", side_effect=exists_side_effect),
-        patch("core.io.core_grub_default_io.tarfile.open", return_value=tar_cm) as mock_tar_open,
+        patch("core.io.core_io_grub_default.datetime") as mock_datetime,
+        patch("core.io.core_io_grub_default.os.path.exists", side_effect=exists_side_effect),
+        patch("core.io.core_io_grub_default.tarfile.open", return_value=tar_cm) as mock_tar_open,
     ):
         mock_datetime.now.return_value.strftime.return_value = fake_ts
         created = create_grub_default_backup(str(base))
@@ -1723,19 +1723,19 @@ def test_ensure_initial_grub_default_backup_filter_handles_unreadable(tmp_path: 
     tar_obj.add.side_effect = add_side_effect
 
     with (
-        patch("core.io.core_grub_default_io.tarfile.open", return_value=tar_cm),
-        patch("core.io.core_grub_default_io.Path.exists", return_value=False),
-        patch("core.io.core_grub_default_io.os.path.exists", return_value=True),
-        patch("core.io.core_grub_default_io.os.access", return_value=False),
+        patch("core.io.core_io_grub_default.tarfile.open", return_value=tar_cm),
+        patch("core.io.core_io_grub_default.Path.exists", return_value=False),
+        patch("core.io.core_io_grub_default.os.path.exists", return_value=True),
+        patch("core.io.core_io_grub_default.os.access", return_value=False),
     ):
         out = ensure_initial_grub_default_backup(str(base))
         assert out is not None
 
     # Branche exception dans le filter
     with (
-        patch("core.io.core_grub_default_io.tarfile.open", return_value=tar_cm),
-        patch("core.io.core_grub_default_io.Path.exists", return_value=False),
-        patch("core.io.core_grub_default_io.os.path.exists", side_effect=OSError("boom")),
+        patch("core.io.core_io_grub_default.tarfile.open", return_value=tar_cm),
+        patch("core.io.core_io_grub_default.Path.exists", return_value=False),
+        patch("core.io.core_io_grub_default.os.path.exists", side_effect=OSError("boom")),
     ):
         out2 = ensure_initial_grub_default_backup(str(base))
         assert out2 is not None
@@ -1760,15 +1760,15 @@ def test_create_grub_default_backup_filter_handles_unreadable(tmp_path: Path) ->
     tar_obj.add.side_effect = add_side_effect
 
     with (
-        patch("core.io.core_grub_default_io.tarfile.open", return_value=tar_cm),
-        patch("core.io.core_grub_default_io.os.path.exists", return_value=True),
-        patch("core.io.core_grub_default_io.os.access", return_value=False),
+        patch("core.io.core_io_grub_default.tarfile.open", return_value=tar_cm),
+        patch("core.io.core_io_grub_default.os.path.exists", return_value=True),
+        patch("core.io.core_io_grub_default.os.access", return_value=False),
     ):
         _ = create_grub_default_backup(str(base))
 
     with (
-        patch("core.io.core_grub_default_io.tarfile.open", return_value=tar_cm),
-        patch("core.io.core_grub_default_io.os.path.exists", side_effect=OSError("boom")),
+        patch("core.io.core_io_grub_default.tarfile.open", return_value=tar_cm),
+        patch("core.io.core_io_grub_default.os.path.exists", side_effect=OSError("boom")),
     ):
         _ = create_grub_default_backup(str(base))
 
@@ -1802,13 +1802,13 @@ def test_restore_grub_default_backup_restores_all_members(tmp_path: Path) -> Non
         return False
 
     with (
-        patch("core.io.core_grub_default_io.os.path.exists", side_effect=exists_side_effect),
-        patch("core.io.core_grub_default_io.tarfile.open", return_value=tar_cm),
-        patch("core.io.core_grub_default_io.shutil.copy2") as mock_copy2,
-        patch("core.io.core_grub_default_io.os.remove") as mock_remove,
-        patch("core.io.core_grub_default_io.shutil.rmtree") as mock_rmtree,
+        patch("core.io.core_io_grub_default.os.path.exists", side_effect=exists_side_effect),
+        patch("core.io.core_io_grub_default.tarfile.open", return_value=tar_cm),
+        patch("core.io.core_io_grub_default.shutil.copy2") as mock_copy2,
+        patch("core.io.core_io_grub_default.os.remove") as mock_remove,
+        patch("core.io.core_io_grub_default.shutil.rmtree") as mock_rmtree,
     ):
-        from core.io.core_grub_default_io import restore_grub_default_backup
+        from core.io.core_io_grub_default import restore_grub_default_backup
 
         restore_grub_default_backup(backup_path, target_path=str(tmp_path / "grub"))
 
@@ -1824,10 +1824,10 @@ def test_restore_grub_default_backup_wraps_tar_errors(tmp_path: Path) -> None:
     backup_path = str(tmp_path / "missing_or_bad.tar.gz")
 
     with (
-        patch("core.io.core_grub_default_io.os.path.exists", return_value=True),
-        patch("core.io.core_grub_default_io.tarfile.open", side_effect=tarfile.ReadError("bad")),
+        patch("core.io.core_io_grub_default.os.path.exists", return_value=True),
+        patch("core.io.core_io_grub_default.tarfile.open", side_effect=tarfile.ReadError("bad")),
     ):
-        from core.io.core_grub_default_io import restore_grub_default_backup
+        from core.io.core_io_grub_default import restore_grub_default_backup
 
         with pytest.raises(GrubBackupError, match="Échec de la restauration"):
             restore_grub_default_backup(backup_path, target_path=str(tmp_path / "grub"))
@@ -1836,10 +1836,10 @@ def test_restore_grub_default_backup_wraps_tar_errors(tmp_path: Path) -> None:
 class TestGrubDefaultIOCoverage:
     """Tests de couverture supplémentaires pour core_grub_default_io."""
 
-    @patch("core.io.core_grub_default_io.tarfile.open")
-    @patch("core.io.core_grub_default_io.os.path.isfile", return_value=True)
-    @patch("core.io.core_grub_default_io.os.path.exists", return_value=True)
-    @patch("core.io.core_grub_default_io.Path")
+    @patch("core.io.core_io_grub_default.tarfile.open")
+    @patch("core.io.core_io_grub_default.os.path.isfile", return_value=True)
+    @patch("core.io.core_io_grub_default.os.path.exists", return_value=True)
+    @patch("core.io.core_io_grub_default.Path")
     def test_ensure_initial_backup_add_default_exception(self, mock_path_cls, mock_exists, mock_isfile, mock_tar_open):
         """Test exception when adding default_grub to initial backup."""
         mock_tar = MagicMock()
@@ -1862,10 +1862,10 @@ class TestGrubDefaultIOCoverage:
         # Verify add was called
         assert mock_tar.add.called
 
-    @patch("core.io.core_grub_default_io.tarfile.open")
-    @patch("core.io.core_grub_default_io.os.path.isfile", return_value=True)
-    @patch("core.io.core_grub_default_io.os.path.exists", return_value=True)
-    @patch("core.io.core_grub_default_io.os.access", return_value=True)
+    @patch("core.io.core_io_grub_default.tarfile.open")
+    @patch("core.io.core_io_grub_default.os.path.isfile", return_value=True)
+    @patch("core.io.core_io_grub_default.os.path.exists", return_value=True)
+    @patch("core.io.core_io_grub_default.os.access", return_value=True)
     def test_create_backup_add_default_exception(self, _mock_access, mock_exists, mock_isfile, mock_tar_open):
         """Test exception when adding default_grub to manual backup."""
         mock_tar = MagicMock()
@@ -1883,11 +1883,11 @@ class TestGrubDefaultIOCoverage:
         create_grub_default_backup(GRUB_DEFAULT_PATH)
         assert mock_tar.add.called
 
-    @patch("core.io.core_grub_default_io.tarfile.open")
-    @patch("core.io.core_grub_default_io.os.path.isfile", return_value=True)
-    @patch("core.io.core_grub_default_io.os.path.exists", return_value=True)
-    @patch("core.io.core_grub_default_io.os.access", return_value=True)
-    @patch("core.io.core_grub_default_io.Path")
+    @patch("core.io.core_io_grub_default.tarfile.open")
+    @patch("core.io.core_io_grub_default.os.path.isfile", return_value=True)
+    @patch("core.io.core_io_grub_default.os.path.exists", return_value=True)
+    @patch("core.io.core_io_grub_default.os.access", return_value=True)
+    @patch("core.io.core_io_grub_default.Path")
     def test_create_backup_add_script_exception(
         self, mock_path_cls, _mock_access, mock_exists, mock_isfile, mock_tar_open
     ):
@@ -1922,12 +1922,12 @@ class TestGrubDefaultIOCoverage:
         create_grub_default_backup(GRUB_DEFAULT_PATH)
         assert mock_tar.add.call_count >= 2
 
-    @patch("core.io.core_grub_default_io.tarfile.open")
-    @patch("core.io.core_grub_default_io.os.path.isfile", return_value=True)
-    @patch("core.io.core_grub_default_io.os.path.exists", return_value=True)
-    @patch("core.io.core_grub_default_io.os.access", return_value=True)
-    @patch("core.io.core_grub_default_io.Path")
-    @patch("core.io.core_grub_default_io.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg"])
+    @patch("core.io.core_io_grub_default.tarfile.open")
+    @patch("core.io.core_io_grub_default.os.path.isfile", return_value=True)
+    @patch("core.io.core_io_grub_default.os.path.exists", return_value=True)
+    @patch("core.io.core_io_grub_default.os.access", return_value=True)
+    @patch("core.io.core_io_grub_default.Path")
+    @patch("core.io.core_io_grub_default.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg"])
     def test_create_backup_add_cfg_exception(
         self, mock_path_cls, _mock_access, mock_exists, mock_isfile, mock_tar_open
     ):
@@ -1962,10 +1962,10 @@ class TestGrubDefaultIOCoverage:
         create_grub_default_backup(GRUB_DEFAULT_PATH)
         assert mock_tar.add.call_count >= 2
 
-    @patch("core.io.core_grub_default_io.tarfile.open")
-    @patch("core.io.core_grub_default_io.os.path.isfile", return_value=True)
-    @patch("core.io.core_grub_default_io.os.path.exists", return_value=True)
-    @patch("core.io.core_grub_default_io.Path")
+    @patch("core.io.core_io_grub_default.tarfile.open")
+    @patch("core.io.core_io_grub_default.os.path.isfile", return_value=True)
+    @patch("core.io.core_io_grub_default.os.path.exists", return_value=True)
+    @patch("core.io.core_io_grub_default.Path")
     def test_create_backup_grub_d_not_exists(self, mock_path_cls, mock_exists, mock_isfile, mock_tar_open):
         """Test manual backup when /etc/grub.d does not exist."""
         mock_tar = MagicMock()
@@ -1991,10 +1991,10 @@ class TestGrubDefaultIOCoverage:
         create_grub_default_backup(GRUB_DEFAULT_PATH)
         # Should not try to iterate grub.d
 
-    @patch("core.io.core_grub_default_io.tarfile.open")
-    @patch("core.io.core_grub_default_io.os.path.isfile", return_value=True)
-    @patch("core.io.core_grub_default_io.os.path.exists")
-    @patch("core.io.core_grub_default_io.Path")
+    @patch("core.io.core_io_grub_default.tarfile.open")
+    @patch("core.io.core_io_grub_default.os.path.isfile", return_value=True)
+    @patch("core.io.core_io_grub_default.os.path.exists")
+    @patch("core.io.core_io_grub_default.Path")
     def test_ensure_initial_backup_os_exists_exception(self, mock_path_cls, mock_exists, mock_isfile, mock_tar_open):
         """Test OSError during os.path.exists in initial backup."""
         mock_tar = MagicMock()
@@ -2023,10 +2023,10 @@ class TestGrubDefaultIOCoverage:
         ensure_initial_grub_default_backup(GRUB_DEFAULT_PATH)
         # Should handle exception and continue (exists=False)
 
-    @patch("core.io.core_grub_default_io.tarfile.open")
-    @patch("core.io.core_grub_default_io.os.path.isfile", return_value=True)
-    @patch("core.io.core_grub_default_io.os.path.exists")
-    @patch("core.io.core_grub_default_io.Path")
+    @patch("core.io.core_io_grub_default.tarfile.open")
+    @patch("core.io.core_io_grub_default.os.path.isfile", return_value=True)
+    @patch("core.io.core_io_grub_default.os.path.exists")
+    @patch("core.io.core_io_grub_default.Path")
     def test_create_backup_os_exists_exception(self, mock_path_cls, mock_exists, mock_isfile, mock_tar_open):
         """Test OSError during os.path.exists in manual backup."""
         mock_tar = MagicMock()
@@ -2048,10 +2048,10 @@ class TestGrubDefaultIOCoverage:
         create_grub_default_backup(GRUB_DEFAULT_PATH)
         # Should handle exception
 
-    @patch("core.io.core_grub_default_io.tarfile.open")
-    @patch("core.io.core_grub_default_io.os.path.isfile")
-    @patch("core.io.core_grub_default_io.read_grub_default")
-    @patch("core.io.core_grub_default_io.Path")
+    @patch("core.io.core_io_grub_default.tarfile.open")
+    @patch("core.io.core_io_grub_default.os.path.isfile")
+    @patch("core.io.core_io_grub_default.read_grub_default")
+    @patch("core.io.core_io_grub_default.Path")
     def test_ensure_initial_backup_restore_success(self, mock_path_cls, mock_read_default, mock_isfile, mock_tar_open):
         """Test initial backup when source is missing but restore succeeds."""
         mock_isfile.return_value = False
@@ -2066,10 +2066,10 @@ class TestGrubDefaultIOCoverage:
         ensure_initial_grub_default_backup(GRUB_DEFAULT_PATH)
         assert mock_read_default.called
 
-    @patch("core.io.core_grub_default_io.tarfile.open")
-    @patch("core.io.core_grub_default_io.os.path.getmtime", return_value=1000)
-    @patch("core.io.core_grub_default_io.os.path.isfile")
-    @patch("core.io.core_grub_default_io.read_grub_default")
+    @patch("core.io.core_io_grub_default.tarfile.open")
+    @patch("core.io.core_io_grub_default.os.path.getmtime", return_value=1000)
+    @patch("core.io.core_io_grub_default.os.path.isfile")
+    @patch("core.io.core_io_grub_default.read_grub_default")
     def test_create_backup_restore_success(self, mock_read_default, mock_isfile, _mock_mtime, mock_tar_open):
         """Test manual backup when source is missing but restore succeeds."""
 
@@ -2090,14 +2090,14 @@ class TestGrubDefaultIOCoverage:
         assert "manual" in result
         assert mock_tar.add.called
 
-    @patch("core.io.core_grub_default_io.tarfile.open")
-    @patch("core.io.core_grub_default_io.os.path.exists")
-    @patch("core.io.core_grub_default_io.os.path.isfile", return_value=True)
-    @patch("core.io.core_grub_default_io.read_grub_default")
+    @patch("core.io.core_io_grub_default.tarfile.open")
+    @patch("core.io.core_io_grub_default.os.path.exists")
+    @patch("core.io.core_io_grub_default.os.path.isfile", return_value=True)
+    @patch("core.io.core_io_grub_default.read_grub_default")
     def test_ensure_initial_backup_grub_d_not_exists(self, mock_read_default, mock_isfile, mock_exists, mock_tar_open):
         """Test ensure_initial_grub_default_backup when /etc/grub.d does not exist."""
         # Mock Path.exists globally for this test
-        with patch("core.io.core_grub_default_io.Path.exists", return_value=False):
+        with patch("core.io.core_io_grub_default.Path.exists", return_value=False):
             # os.path.exists returns False for /etc/grub.d but True for grub.cfg
             def exists_side_effect(p):
                 if "/etc/grub.d" in str(p):
@@ -2113,19 +2113,19 @@ class TestGrubDefaultIOCoverage:
             # Should add /etc/default/grub and one of GRUB_CFG_PATHS
             assert mock_tar.add.call_count == 2
 
-    @patch("core.io.core_grub_default_io.tarfile.open")
-    @patch("core.io.core_grub_default_io.os.path.exists", return_value=True)
-    @patch("core.io.core_grub_default_io.os.path.isfile", return_value=True)
-    @patch("core.io.core_grub_default_io.read_grub_default")
+    @patch("core.io.core_io_grub_default.tarfile.open")
+    @patch("core.io.core_io_grub_default.os.path.exists", return_value=True)
+    @patch("core.io.core_io_grub_default.os.path.isfile", return_value=True)
+    @patch("core.io.core_io_grub_default.read_grub_default")
     def test_ensure_initial_backup_add_script_exception(
         self, mock_read_default, mock_isfile, mock_exists, mock_tar_open
     ):
         """Test ensure_initial_grub_default_backup handles exception during script addition."""
         # Mock Path.exists and Path.iterdir
         with (
-            patch("core.io.core_grub_default_io.Path.exists", return_value=False) as mock_p_exists,
-            patch("core.io.core_grub_default_io.Path.iterdir") as mock_iter,
-            patch("core.io.core_grub_default_io.Path.is_file", return_value=True),
+            patch("core.io.core_io_grub_default.Path.exists", return_value=False) as mock_p_exists,
+            patch("core.io.core_io_grub_default.Path.iterdir") as mock_iter,
+            patch("core.io.core_io_grub_default.Path.is_file", return_value=True),
         ):
 
             # backup_path.exists() -> False (to trigger backup)
@@ -2151,14 +2151,14 @@ class TestGrubDefaultIOCoverage:
             ensure_initial_grub_default_backup(GRUB_DEFAULT_PATH)
             assert mock_tar.add.called
 
-    @patch("core.io.core_grub_default_io.tarfile.open")
-    @patch("core.io.core_grub_default_io.os.path.exists", return_value=True)
-    @patch("core.io.core_grub_default_io.os.path.isfile", return_value=True)
+    @patch("core.io.core_io_grub_default.tarfile.open")
+    @patch("core.io.core_io_grub_default.os.path.exists", return_value=True)
+    @patch("core.io.core_io_grub_default.os.path.isfile", return_value=True)
     def test_ensure_initial_backup_skips_non_file_grub_d_entry(self, mock_isfile, mock_exists, mock_tar_open):
         """Couvre la branche où un élément de /etc/grub.d n'est pas un fichier (119->118)."""
         with (
-            patch("core.io.core_grub_default_io.Path.exists", return_value=False) as mock_p_exists,
-            patch("core.io.core_grub_default_io.Path.iterdir") as mock_iter,
+            patch("core.io.core_io_grub_default.Path.exists", return_value=False) as mock_p_exists,
+            patch("core.io.core_io_grub_default.Path.iterdir") as mock_iter,
         ):
             # backup_path.exists() -> False (déclenche la création)
             # grub_d_dir.exists() -> True (entre dans la boucle grub.d)
@@ -2175,16 +2175,16 @@ class TestGrubDefaultIOCoverage:
             # On a ajouté /etc/default/grub, donc au moins 1 appel
             assert mock_tar.add.call_count >= 1
 
-    @patch("core.io.core_grub_default_io.tarfile.open")
-    @patch("core.io.core_grub_default_io.os.path.isfile", return_value=True)
+    @patch("core.io.core_io_grub_default.tarfile.open")
+    @patch("core.io.core_io_grub_default.os.path.isfile", return_value=True)
     def test_ensure_initial_backup_add_grub_cfg_exception_is_handled(self, mock_isfile, mock_tar_open):
         """Couvre l'exception lors de l'ajout de grub.cfg (141-142)."""
         grub_cfg_path = "/boot/grub/grub.cfg"
 
         with (
-            patch("core.io.core_grub_default_io.GRUB_CFG_PATHS", [grub_cfg_path]),
-            patch("core.io.core_grub_default_io.os.path.exists", return_value=True),
-            patch("core.io.core_grub_default_io.Path.exists", return_value=False),
+            patch("core.io.core_io_grub_default.GRUB_CFG_PATHS", [grub_cfg_path]),
+            patch("core.io.core_io_grub_default.os.path.exists", return_value=True),
+            patch("core.io.core_io_grub_default.Path.exists", return_value=False),
         ):
             mock_tar = MagicMock()
             mock_tar_open.return_value.__enter__.return_value = mock_tar
@@ -2200,10 +2200,10 @@ class TestGrubDefaultIOCoverage:
             ensure_initial_grub_default_backup(GRUB_DEFAULT_PATH)
             assert mock_tar.add.called
 
-    @patch("core.io.core_grub_default_io.tarfile.open")
-    @patch("core.io.core_grub_default_io.os.path.isfile", return_value=True)
-    @patch("core.io.core_grub_default_io.os.path.exists", return_value=True)
-    @patch("core.io.core_grub_default_io.Path")
+    @patch("core.io.core_io_grub_default.tarfile.open")
+    @patch("core.io.core_io_grub_default.os.path.isfile", return_value=True)
+    @patch("core.io.core_io_grub_default.os.path.exists", return_value=True)
+    @patch("core.io.core_io_grub_default.Path")
     def test_create_backup_script_not_file(self, mock_path_cls, mock_exists, mock_isfile, mock_tar_open):
         """Test manual backup skips non-file items in /etc/grub.d."""
         mock_tar = MagicMock()
@@ -2242,7 +2242,7 @@ class TestCreateLastModifBackup:
         grub_default = tmp_path / "grub"
         grub_default.write_text("GRUB_TIMEOUT=5")
 
-        with patch("core.io.core_grub_default_io.tarfile.open") as mock_tar:
+        with patch("core.io.core_io_grub_default.tarfile.open") as mock_tar:
             mock_tar.side_effect = tarfile.TarError("Tar error")
 
             with pytest.raises(GrubBackupError, match="Échec création backup"):
@@ -2253,7 +2253,7 @@ class TestCreateLastModifBackup:
         grub_default = tmp_path / "grub"
         grub_default.write_text("GRUB_TIMEOUT=5")
 
-        with patch("core.io.core_grub_default_io.tarfile.open") as mock_tar:
+        with patch("core.io.core_io_grub_default.tarfile.open") as mock_tar:
             mock_tar.side_effect = OSError("Permission denied")
 
             with pytest.raises(GrubBackupError, match="Échec création backup"):
@@ -2266,13 +2266,13 @@ class TestCreateLastModifBackup:
 
         # On simule que le chemin passé est le chemin système par défaut
         with (
-            patch("core.io.core_grub_default_io.GRUB_DEFAULT_PATH", str(grub_default)),
-            patch("core.io.core_grub_default_io.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg"]),
-            patch("core.io.core_grub_default_io.Path") as mock_path_class,
-            patch("core.io.core_grub_default_io.tarfile.open"),
-            patch("core.io.core_grub_default_io._touch_now"),
-            patch("core.io.core_grub_default_io._add_to_tar", return_value=True),
-            patch("core.io.core_grub_default_io.os.path.abspath", side_effect=lambda x: x),
+            patch("core.io.core_io_grub_default.GRUB_DEFAULT_PATH", str(grub_default)),
+            patch("core.io.core_io_grub_default.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg"]),
+            patch("core.io.core_io_grub_default.Path") as mock_path_class,
+            patch("core.io.core_io_grub_default.tarfile.open"),
+            patch("core.io.core_io_grub_default._touch_now"),
+            patch("core.io.core_io_grub_default._add_to_tar", return_value=True),
+            patch("core.io.core_io_grub_default.os.path.abspath", side_effect=lambda x: x),
         ):
             # Setup mock pour Path("/etc/grub.d")
             mock_grub_d = MagicMock()
@@ -2307,11 +2307,11 @@ class TestCreateLastModifBackup:
 
         # On simule que le chemin passé n'est PAS le chemin système par défaut
         with (
-            patch("core.io.core_grub_default_io.GRUB_DEFAULT_PATH", "/etc/default/grub"),
-            patch("core.io.core_grub_default_io.tarfile.open"),
-            patch("core.io.core_grub_default_io._touch_now"),
-            patch("core.io.core_grub_default_io._add_to_tar", return_value=True),
-            patch("core.io.core_grub_default_io.os.path.abspath", side_effect=lambda x: x),
+            patch("core.io.core_io_grub_default.GRUB_DEFAULT_PATH", "/etc/default/grub"),
+            patch("core.io.core_io_grub_default.tarfile.open"),
+            patch("core.io.core_io_grub_default._touch_now"),
+            patch("core.io.core_io_grub_default._add_to_tar", return_value=True),
+            patch("core.io.core_io_grub_default.os.path.abspath", side_effect=lambda x: x),
         ):
             result = create_last_modif_backup(str(grub_default))
             assert "grub_backup.last_modif.tar.gz" in result
@@ -2322,12 +2322,12 @@ class TestCreateLastModifBackup:
         grub_default.write_text("GRUB_TIMEOUT=5")
 
         with (
-            patch("core.io.core_grub_default_io.GRUB_DEFAULT_PATH", str(grub_default)),
-            patch("core.io.core_grub_default_io.Path") as mock_path_class,
-            patch("core.io.core_grub_default_io.tarfile.open"),
-            patch("core.io.core_grub_default_io._touch_now"),
-            patch("core.io.core_grub_default_io._add_to_tar", return_value=True),
-            patch("core.io.core_grub_default_io.os.path.abspath", side_effect=lambda x: x),
+            patch("core.io.core_io_grub_default.GRUB_DEFAULT_PATH", str(grub_default)),
+            patch("core.io.core_io_grub_default.Path") as mock_path_class,
+            patch("core.io.core_io_grub_default.tarfile.open"),
+            patch("core.io.core_io_grub_default._touch_now"),
+            patch("core.io.core_io_grub_default._add_to_tar", return_value=True),
+            patch("core.io.core_io_grub_default.os.path.abspath", side_effect=lambda x: x),
         ):
             mock_grub_d = MagicMock()
             mock_grub_d.exists.return_value = False
@@ -2347,16 +2347,16 @@ class TestCreateLastModifBackup:
         grub_default.write_text("GRUB_TIMEOUT=5")
 
         with (
-            patch("core.io.core_grub_default_io.GRUB_DEFAULT_PATH", str(grub_default)),
-            patch("core.io.core_grub_default_io.Path") as mock_path_class,
-            patch("core.io.core_grub_default_io.tarfile.open"),
-            patch("core.io.core_grub_default_io._touch_now"),
-            patch("core.io.core_grub_default_io._add_to_tar", side_effect=[True, False, False]),
-            patch("core.io.core_grub_default_io.os.path.abspath", side_effect=lambda x: x),
+            patch("core.io.core_io_grub_default.GRUB_DEFAULT_PATH", str(grub_default)),
+            patch("core.io.core_io_grub_default.Path") as mock_path_class,
+            patch("core.io.core_io_grub_default.tarfile.open"),
+            patch("core.io.core_io_grub_default._touch_now"),
+            patch("core.io.core_io_grub_default._add_to_tar", side_effect=[True, False, False]),
+            patch("core.io.core_io_grub_default.os.path.abspath", side_effect=lambda x: x),
         ):
             mock_grub_d = MagicMock()
             mock_grub_d.exists.return_value = True
-            mock_grub_d.iterdir.return_value = [] # Vide
+            mock_grub_d.iterdir.return_value = []  # Vide
 
             def path_side_effect(p):
                 if p == "/etc/grub.d":

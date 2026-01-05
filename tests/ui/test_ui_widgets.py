@@ -5,7 +5,7 @@ gi.require_version("Adw", "1")
 import pytest
 from gi.repository import Gtk
 
-from ui.ui_widgets import (
+from ui.builders.ui_builders_widgets import (
     LabelOptions,
     apply_margins,
     box_append_label,
@@ -71,7 +71,7 @@ def test_box_helpers():
     box_append_section_title(box, "Section Title")
 
     switch = Gtk.Switch()
-    from ui.ui_widgets import box_append_switch
+    from ui.builders.ui_builders_widgets import box_append_switch
 
     box_append_switch(box, "Switch Label", switch)
 
@@ -82,7 +82,7 @@ def test_box_helpers():
 def test_grid_add_switch():
     grid = Gtk.Grid()
     switch = Gtk.Switch()
-    from ui.ui_widgets import grid_add_switch
+    from ui.builders.ui_builders_widgets import grid_add_switch
 
     next_row = grid_add_switch(grid, 0, "Switch Label", switch)
     assert next_row == 1
@@ -90,7 +90,7 @@ def test_grid_add_switch():
 
 def test_create_two_column_layout():
     parent = Gtk.Box()
-    from ui.ui_widgets import create_two_column_layout
+    from ui.builders.ui_builders_widgets import create_two_column_layout
 
     columns, left, right = create_two_column_layout(parent, spacing=20)
     assert columns.get_parent() == parent
@@ -100,7 +100,7 @@ def test_create_two_column_layout():
 
 
 def test_create_info_box():
-    from ui.ui_widgets import create_info_box
+    from ui.builders.ui_builders_widgets import create_info_box
 
     box = create_info_box("Title", "Content")
     assert isinstance(box, Gtk.Box)

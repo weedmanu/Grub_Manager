@@ -6,12 +6,12 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import gi
-gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk
 
-from ui.ui_infobar_controller import ERROR, INFO, WARNING
-from ui.ui_state import AppState
-from ui.ui_workflow_controller import WorkflowController, WorkflowDeps
+gi.require_version("Gtk", "4.0")
+
+from ui.controllers.ui_controllers_infobar import ERROR, INFO, WARNING
+from ui.controllers.ui_controllers_workflow import WorkflowController, WorkflowDeps
+from ui.models.ui_models_state import AppState
 
 
 def _make_state_manager() -> MagicMock:
@@ -53,7 +53,7 @@ def test_on_reload_when_not_modified_calls_load_directly():
     controller, load_config_cb, _read_model_cb, show_info_cb, sm = _make_controller()
     sm.modified = False
 
-    with patch("ui.ui_workflow_controller.os.path.exists", return_value=False):
+    with patch("ui.controllers.ui_controllers_workflow.os.path.exists", return_value=False):
         controller.on_reload()
 
     load_config_cb.assert_called_once_with()
@@ -74,8 +74,8 @@ def test_on_reload_when_modified_confirm_triggers_load():
     dialog.choose_finish.return_value = 1
 
     with (
-        patch("ui.ui_workflow_controller.Gtk.AlertDialog", return_value=dialog),
-        patch("ui.ui_workflow_controller.os.path.exists", return_value=False),
+        patch("ui.controllers.ui_controllers_workflow.Gtk.AlertDialog", return_value=dialog),
+        patch("ui.controllers.ui_controllers_workflow.os.path.exists", return_value=False),
     ):
         controller.on_reload()
 
@@ -101,8 +101,8 @@ def test_on_reload_when_modified_cancel_does_nothing():
     dialog.choose_finish.return_value = 0
 
     with (
-        patch("ui.ui_workflow_controller.Gtk.AlertDialog", return_value=dialog),
-        patch("ui.ui_workflow_controller.os.path.exists", return_value=False),
+        patch("ui.controllers.ui_controllers_workflow.Gtk.AlertDialog", return_value=dialog),
+        patch("ui.controllers.ui_controllers_workflow.os.path.exists", return_value=False),
     ):
         controller.on_reload()
 
@@ -126,9 +126,9 @@ def test_on_reload_dialog_exception_is_swallowed():
     dialog.choose.side_effect = _choose
 
     with (
-        patch("ui.ui_workflow_controller.Gtk.AlertDialog", return_value=dialog),
-        patch("ui.ui_workflow_controller.GLib.Error", new=Exception),
-        patch("ui.ui_workflow_controller.os.path.exists", return_value=False),
+        patch("ui.controllers.ui_controllers_workflow.Gtk.AlertDialog", return_value=dialog),
+        patch("ui.controllers.ui_controllers_workflow.GLib.Error", new=Exception),
+        patch("ui.controllers.ui_controllers_workflow.os.path.exists", return_value=False),
     ):
         controller.on_reload()
         dialog.choose_finish.side_effect = Exception("cancel")
@@ -142,7 +142,7 @@ def test_on_reload_dialog_exception_is_swallowed():
 def test_on_save_non_root_shows_error():
     controller, _load_config_cb, _read_model_cb, show_info_cb, _sm = _make_controller()
 
-    with patch("ui.ui_workflow_controller.os.geteuid", return_value=1000):
+    with patch("ui.controllers.ui_controllers_workflow.os.geteuid", return_value=1000):
         controller.on_save()
 
     show_info_cb.assert_called_once_with("Droits administrateur requis pour enregistrer", ERROR)
@@ -161,8 +161,8 @@ def test_on_save_root_confirm_triggers_perform_save():
     dialog.choose_finish.return_value = 1
 
     with (
-        patch("ui.ui_workflow_controller.os.geteuid", return_value=0),
-        patch("ui.ui_workflow_controller.Gtk.AlertDialog", return_value=dialog),
+        patch("ui.controllers.ui_controllers_workflow.os.geteuid", return_value=0),
+        patch("ui.controllers.ui_controllers_workflow.Gtk.AlertDialog", return_value=dialog),
         patch.object(controller, "perform_save") as mock_perform,
     ):
         controller.on_save()
@@ -184,9 +184,9 @@ def test_on_save_root_dialog_exception_is_swallowed():
     dialog.choose.side_effect = _choose
 
     with (
-        patch("ui.ui_workflow_controller.os.geteuid", return_value=0),
-        patch("ui.ui_workflow_controller.Gtk.AlertDialog", return_value=dialog),
-        patch("ui.ui_workflow_controller.GLib.Error", new=Exception),
+        patch("ui.controllers.ui_controllers_workflow.os.geteuid", return_value=0),
+        patch("ui.controllers.ui_controllers_workflow.Gtk.AlertDialog", return_value=dialog),
+        patch("ui.controllers.ui_controllers_workflow.GLib.Error", new=Exception),
         patch.object(controller, "perform_save") as mock_perform,
     ):
         controller.on_save()
@@ -207,17 +207,23 @@ def test_perform_save_success_apply_now_with_hidden_entries_adds_mask_info():
     apply_manager.apply_configuration.return_value = result
 
     with (
-        patch("ui.ui_workflow_controller.merged_config_from_model", return_value={"A": "B"}),
-        patch("ui.ui_workflow_controller.GrubApplyManager", return_value=apply_manager),
-        patch("ui.ui_workflow_controller.apply_hidden_entries_to_grub_cfg", return_value=("/boot/grub/grub.cfg", 2)),
-        patch("ui.ui_workflow_controller.read_grub_default", return_value={"GRUB_TIMEOUT": "999", "GRUB_DEFAULT": "x"}),
-        patch("ui.ui_workflow_controller.create_last_modif_backup"),
+        patch("ui.controllers.ui_controllers_workflow.merged_config_from_model", return_value={"A": "B"}),
+        patch("ui.controllers.ui_controllers_workflow.GrubApplyManager", return_value=apply_manager),
+        patch(
+            "ui.controllers.ui_controllers_workflow.apply_hidden_entries_to_grub_cfg",
+            return_value=("/boot/grub/grub.cfg", 2),
+        ),
+        patch(
+            "ui.controllers.ui_controllers_workflow.read_grub_default",
+            return_value={"GRUB_TIMEOUT": "999", "GRUB_DEFAULT": "x"},
+        ),
+        patch("ui.controllers.ui_controllers_workflow.create_last_modif_backup"),
     ):
         controller.perform_save(apply_now=True)
 
     read_model_cb.assert_called_once()
-    sm.apply_state.assert_any_call(AppState.APPLYING, controller.save_btn, controller.reload_btn)
-    sm.apply_state.assert_any_call(AppState.CLEAN, controller.save_btn, controller.reload_btn)
+    controller.window._apply_state.assert_any_call(AppState.APPLYING)
+    controller.window._apply_state.assert_any_call(AppState.CLEAN)
     assert sm.entries_visibility_dirty is False
 
     # Message final
@@ -237,10 +243,13 @@ def test_perform_save_success_apply_now_without_hidden_entries_stays_info():
     apply_manager.apply_configuration.return_value = result
 
     with (
-        patch("ui.ui_workflow_controller.merged_config_from_model", return_value={"A": "B"}),
-        patch("ui.ui_workflow_controller.GrubApplyManager", return_value=apply_manager),
-        patch("ui.ui_workflow_controller.read_grub_default", return_value={"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "0"}),
-        patch("ui.ui_workflow_controller.create_last_modif_backup"),
+        patch("ui.controllers.ui_controllers_workflow.merged_config_from_model", return_value={"A": "B"}),
+        patch("ui.controllers.ui_controllers_workflow.GrubApplyManager", return_value=apply_manager),
+        patch(
+            "ui.controllers.ui_controllers_workflow.read_grub_default",
+            return_value={"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "0"},
+        ),
+        patch("ui.controllers.ui_controllers_workflow.create_last_modif_backup"),
     ):
         controller.perform_save(apply_now=True)
 
@@ -260,10 +269,13 @@ def test_perform_save_apply_now_true_entries_visibility_dirty_does_not_add_skip_
     apply_manager.apply_configuration.return_value = result
 
     with (
-        patch("ui.ui_workflow_controller.merged_config_from_model", return_value={"A": "B"}),
-        patch("ui.ui_workflow_controller.GrubApplyManager", return_value=apply_manager),
-        patch("ui.ui_workflow_controller.read_grub_default", return_value={"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "0"}),
-        patch("ui.ui_workflow_controller.create_last_modif_backup"),
+        patch("ui.controllers.ui_controllers_workflow.merged_config_from_model", return_value={"A": "B"}),
+        patch("ui.controllers.ui_controllers_workflow.GrubApplyManager", return_value=apply_manager),
+        patch(
+            "ui.controllers.ui_controllers_workflow.read_grub_default",
+            return_value={"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "0"},
+        ),
+        patch("ui.controllers.ui_controllers_workflow.create_last_modif_backup"),
     ):
         controller.perform_save(apply_now=True)
 
@@ -283,11 +295,13 @@ def test_perform_save_success_apply_now_masking_failure_becomes_warning():
     apply_manager.apply_configuration.return_value = result
 
     with (
-        patch("ui.ui_workflow_controller.merged_config_from_model", return_value={"A": "B"}),
-        patch("ui.ui_workflow_controller.GrubApplyManager", return_value=apply_manager),
-        patch("ui.ui_workflow_controller.apply_hidden_entries_to_grub_cfg", side_effect=RuntimeError("boom")),
-        patch("ui.ui_workflow_controller.read_grub_default", side_effect=OSError("nope")),
-        patch("ui.ui_workflow_controller.create_last_modif_backup"),
+        patch("ui.controllers.ui_controllers_workflow.merged_config_from_model", return_value={"A": "B"}),
+        patch("ui.controllers.ui_controllers_workflow.GrubApplyManager", return_value=apply_manager),
+        patch(
+            "ui.controllers.ui_controllers_workflow.apply_hidden_entries_to_grub_cfg", side_effect=RuntimeError("boom")
+        ),
+        patch("ui.controllers.ui_controllers_workflow.read_grub_default", side_effect=OSError("nope")),
+        patch("ui.controllers.ui_controllers_workflow.create_last_modif_backup"),
     ):
         controller.perform_save(apply_now=True)
 
@@ -306,9 +320,12 @@ def test_perform_save_success_no_apply_adds_visibility_note():
     apply_manager.apply_configuration.return_value = result
 
     with (
-        patch("ui.ui_workflow_controller.merged_config_from_model", return_value={"A": "B"}),
-        patch("ui.ui_workflow_controller.GrubApplyManager", return_value=apply_manager),
-        patch("ui.ui_workflow_controller.read_grub_default", return_value={"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "0"}),
+        patch("ui.controllers.ui_controllers_workflow.merged_config_from_model", return_value={"A": "B"}),
+        patch("ui.controllers.ui_controllers_workflow.GrubApplyManager", return_value=apply_manager),
+        patch(
+            "ui.controllers.ui_controllers_workflow.read_grub_default",
+            return_value={"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "0"},
+        ),
     ):
         controller.perform_save(apply_now=False)
 
@@ -327,9 +344,12 @@ def test_perform_save_success_no_apply_and_not_dirty_does_not_add_visibility_not
     apply_manager.apply_configuration.return_value = result
 
     with (
-        patch("ui.ui_workflow_controller.merged_config_from_model", return_value={"A": "B"}),
-        patch("ui.ui_workflow_controller.GrubApplyManager", return_value=apply_manager),
-        patch("ui.ui_workflow_controller.read_grub_default", return_value={"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "0"}),
+        patch("ui.controllers.ui_controllers_workflow.merged_config_from_model", return_value={"A": "B"}),
+        patch("ui.controllers.ui_controllers_workflow.GrubApplyManager", return_value=apply_manager),
+        patch(
+            "ui.controllers.ui_controllers_workflow.read_grub_default",
+            return_value={"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "0"},
+        ),
     ):
         controller.perform_save(apply_now=False)
 
@@ -348,13 +368,13 @@ def test_perform_save_failure_sets_dirty_and_shows_error():
     apply_manager.apply_configuration.return_value = result
 
     with (
-        patch("ui.ui_workflow_controller.merged_config_from_model", return_value={"A": "B"}),
-        patch("ui.ui_workflow_controller.GrubApplyManager", return_value=apply_manager),
-        patch("ui.ui_workflow_controller.create_last_modif_backup"),
+        patch("ui.controllers.ui_controllers_workflow.merged_config_from_model", return_value={"A": "B"}),
+        patch("ui.controllers.ui_controllers_workflow.GrubApplyManager", return_value=apply_manager),
+        patch("ui.controllers.ui_controllers_workflow.create_last_modif_backup"),
     ):
         controller.perform_save(apply_now=True)
 
-    sm.apply_state.assert_any_call(AppState.DIRTY, controller.save_btn, controller.reload_btn)
+    controller.window._apply_state.assert_any_call(AppState.DIRTY)
     msg, msg_type = show_info_cb.call_args[0]
     assert msg.startswith("Erreur: ")
     assert msg_type == ERROR
@@ -374,10 +394,10 @@ def test_on_reload_with_backup_restore_success():
     dialog.choose_finish.return_value = 2  # Restore previous
 
     with (
-        patch("ui.ui_workflow_controller.Gtk.AlertDialog", return_value=dialog),
-        patch("ui.ui_workflow_controller.os.path.exists", return_value=True),
-        patch("ui.ui_workflow_controller.os.geteuid", return_value=0),
-        patch("ui.ui_workflow_controller.restore_grub_default_backup") as mock_restore,
+        patch("ui.controllers.ui_controllers_workflow.Gtk.AlertDialog", return_value=dialog),
+        patch("ui.controllers.ui_controllers_workflow.os.path.exists", return_value=True),
+        patch("ui.controllers.ui_controllers_workflow.os.geteuid", return_value=0),
+        patch("ui.controllers.ui_controllers_workflow.restore_grub_default_backup") as mock_restore,
     ):
         controller.on_reload()
         callback = captured["callback"]
@@ -402,8 +422,8 @@ def test_on_reload_with_backup_reload_current():
     dialog.choose_finish.return_value = 1  # Reload current
 
     with (
-        patch("ui.ui_workflow_controller.Gtk.AlertDialog", return_value=dialog),
-        patch("ui.ui_workflow_controller.os.path.exists", return_value=True),
+        patch("ui.controllers.ui_controllers_workflow.Gtk.AlertDialog", return_value=dialog),
+        patch("ui.controllers.ui_controllers_workflow.os.path.exists", return_value=True),
     ):
         controller.on_reload()
         callback = captured["callback"]
@@ -418,13 +438,14 @@ def test_perform_save_exception_sets_dirty_and_shows_unexpected_error():
 
     read_model_cb.side_effect = RuntimeError("boom")
 
-    with patch("ui.ui_workflow_controller.create_last_modif_backup"):
+    with patch("ui.controllers.ui_controllers_workflow.create_last_modif_backup"):
         controller.perform_save(apply_now=True)
 
-    sm.apply_state.assert_any_call(AppState.DIRTY, controller.save_btn, controller.reload_btn)
+    controller.window._apply_state.assert_any_call(AppState.DIRTY)
     msg, msg_type = show_info_cb.call_args[0]
     assert "Erreur inattendue" in msg
     assert msg_type == ERROR
+
 
 def test_check_restore_last_modif_non_root_blocks_restore():
     """Test que la restauration est bloquée si l'utilisateur n'est pas root."""
@@ -441,9 +462,9 @@ def test_check_restore_last_modif_non_root_blocks_restore():
     dialog.choose_finish.return_value = 2  # Restaurer
 
     with (
-        patch("ui.ui_workflow_controller.Gtk.AlertDialog", return_value=dialog),
-        patch("ui.ui_workflow_controller.os.geteuid", return_value=1000),  # Non-root
-        patch("ui.ui_workflow_controller.restore_grub_default_backup") as mock_restore,
+        patch("ui.controllers.ui_controllers_workflow.Gtk.AlertDialog", return_value=dialog),
+        patch("ui.controllers.ui_controllers_workflow.os.geteuid", return_value=1000),  # Non-root
+        patch("ui.controllers.ui_controllers_workflow.restore_grub_default_backup") as mock_restore,
     ):
         controller._check_restore_last_modif(has_last_modif=True, backup_path=backup_path)
         callback = captured["callback"]
@@ -460,22 +481,26 @@ def test_check_restore_last_modif_restore_failure():
     """Test la gestion d'erreur lors de la restauration."""
     controller, load_config_cb, _, show_info_cb, _ = _make_controller()
     backup_path = "/tmp/fake_backup"
-    
-    with patch("ui.ui_workflow_controller.os.geteuid", return_value=0), \
-         patch("ui.ui_workflow_controller.restore_grub_default_backup", side_effect=OSError("Backup not found")):
-        
+
+    with (
+        patch("ui.controllers.ui_controllers_workflow.os.geteuid", return_value=0),
+        patch(
+            "ui.controllers.ui_controllers_workflow.restore_grub_default_backup", side_effect=OSError("Backup not found")
+        ),
+    ):
+
         def fake_choose(window, parent, callback):
             dlg = MagicMock()
             dlg.choose_finish.return_value = 2  # Restaurer
             callback(dlg, None)
-        
-        with patch("ui.ui_workflow_controller.Gtk.AlertDialog") as MockDialog:
+
+        with patch("ui.controllers.ui_controllers_workflow.Gtk.AlertDialog") as MockDialog:
             mock_dialog = MagicMock()
             mock_dialog.choose = fake_choose
             MockDialog.return_value = mock_dialog
-            
+
             controller._check_restore_last_modif(has_last_modif=True, backup_path=backup_path)
-            
+
             # Doit avoir montré le message d'erreur
             show_info_cb.assert_called()
             calls = show_info_cb.call_args_list
@@ -486,22 +511,24 @@ def test_check_restore_success_restore_path():
     """Test successful restoration of last_modif backup (idx==2)."""
     controller, load_config_cb, _, show_info_cb, _ = _make_controller()
     backup_path = "/tmp/fake_backup"
-    
-    with patch("ui.ui_workflow_controller.os.geteuid", return_value=0), \
-         patch("ui.ui_workflow_controller.restore_grub_default_backup") as mock_restore:
-        
+
+    with (
+        patch("ui.controllers.ui_controllers_workflow.os.geteuid", return_value=0),
+        patch("ui.controllers.ui_controllers_workflow.restore_grub_default_backup") as mock_restore,
+    ):
+
         def fake_choose(window, parent, callback):
             dlg = MagicMock()
             dlg.choose_finish.return_value = 2  # Restaurer
             callback(dlg, None)
-        
-        with patch("ui.ui_workflow_controller.Gtk.AlertDialog") as MockDialog:
+
+        with patch("ui.controllers.ui_controllers_workflow.Gtk.AlertDialog") as MockDialog:
             mock_dialog = MagicMock()
             mock_dialog.choose = fake_choose
             MockDialog.return_value = mock_dialog
-            
+
             controller._check_restore_last_modif(has_last_modif=True, backup_path=backup_path)
-            
+
             # Verify restore was called
             mock_restore.assert_called_once_with(backup_path)
             # Verify load_config was called
@@ -516,19 +543,19 @@ def test_check_restore_reload_current():
     """Test restoration reload current option (idx==1)."""
     controller, load_config_cb, _, show_info_cb, _ = _make_controller()
     backup_path = "/tmp/fake_backup"
-    
+
     def fake_choose(window, parent, callback):
         dlg = MagicMock()
         dlg.choose_finish.return_value = 1  # Recharger actuel
         callback(dlg, None)
-    
-    with patch("ui.ui_workflow_controller.Gtk.AlertDialog") as MockDialog:
+
+    with patch("ui.controllers.ui_controllers_workflow.Gtk.AlertDialog") as MockDialog:
         mock_dialog = MagicMock()
         mock_dialog.choose = fake_choose
         MockDialog.return_value = mock_dialog
-        
+
         controller._check_restore_last_modif(has_last_modif=True, backup_path=backup_path)
-        
+
         # Verify load_config was called
         load_config_cb.assert_called()
         # Verify reload message was shown
@@ -547,9 +574,11 @@ def test_check_restore_restore_requires_root():
         dlg.choose_finish.return_value = 2  # Restaurer précédent
         callback(dlg, None)
 
-    with patch("ui.ui_workflow_controller.os.geteuid", return_value=1000), \
-         patch("ui.ui_workflow_controller.restore_grub_default_backup") as mock_restore, \
-         patch("ui.ui_workflow_controller.Gtk.AlertDialog") as MockDialog:
+    with (
+        patch("ui.controllers.ui_controllers_workflow.os.geteuid", return_value=1000),
+        patch("ui.controllers.ui_controllers_workflow.restore_grub_default_backup") as mock_restore,
+        patch("ui.controllers.ui_controllers_workflow.Gtk.AlertDialog") as MockDialog,
+    ):
         mock_dialog = MagicMock()
         mock_dialog.choose = fake_choose
         MockDialog.return_value = mock_dialog
@@ -566,14 +595,16 @@ def test_check_restore_restore_requires_root():
 def test_perform_save_create_last_modif_backup_fails():
     """Test that perform_save continues even if create_last_modif_backup fails."""
     controller, _, _, _, _ = _make_controller()
-    
-    with patch("ui.ui_workflow_controller.create_last_modif_backup", side_effect=OSError("Backup failed")), \
-         patch.object(controller, "read_model_cb", return_value=MagicMock()), \
-         patch("ui.ui_workflow_controller.GrubApplyManager") as mock_apply:
-        
+
+    with (
+        patch("ui.controllers.ui_controllers_workflow.create_last_modif_backup", side_effect=OSError("Backup failed")),
+        patch.object(controller, "read_model_cb", return_value=MagicMock()),
+        patch("ui.controllers.ui_controllers_workflow.GrubApplyManager") as mock_apply,
+    ):
+
         # Should not raise, just continue
         controller.perform_save(apply_now=True)
-        
+
         # GrubApplyManager should still be called
         assert mock_apply.called
 
@@ -581,12 +612,12 @@ def test_perform_save_create_last_modif_backup_fails():
 def test_handle_restore_choice_reload_current():
     """Test _handle_restore_choice with idx=1 (reload current) - lines 127-128."""
     controller, load_config_cb, _, show_info_cb, _ = _make_controller()
-    
+
     mock_dlg = MagicMock()
     mock_dlg.choose_finish.return_value = 1  # Recharger actuel
-    
+
     controller._handle_restore_choice(mock_dlg, MagicMock(), "/backup/path")
-    
+
     load_config_cb.assert_called_once()
     show_info_cb.assert_called()
     # Verify the message contains "rechargée"
@@ -597,13 +628,13 @@ def test_handle_restore_choice_reload_current():
 def test_handle_restore_choice_glib_error():
     """Test _handle_restore_choice when GLib.Error is raised (line 133->exit)."""
     controller, load_config_cb, _, show_info_cb, _ = _make_controller()
-    
-    with patch("ui.ui_workflow_controller.GLib.Error", new=Exception):
+
+    with patch("ui.controllers.ui_controllers_workflow.GLib.Error", new=Exception):
         mock_dlg = MagicMock()
         mock_dlg.choose_finish.side_effect = Exception("Cancelled")
-        
+
         controller._handle_restore_choice(mock_dlg, MagicMock(), "/backup/path")
-    
+
     # Neither should be called since idx remains None
     load_config_cb.assert_not_called()
     show_info_cb.assert_not_called()

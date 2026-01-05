@@ -3,9 +3,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.io.grub_validation import ValidationResult
-from core.managers.apply_states import (
-    ApplyContext,
+from core.io.core_io_grub_validation import ValidationResult
+from core.managers.core_managers_apply_states import (
     ApplyFinalState,
     BackupState,
     CleanupState,
@@ -16,7 +15,7 @@ from core.managers.apply_states import (
     GrubValidationError,
     ValidateState,
 )
-from core.managers.core_apply_manager import GrubApplyManager
+from core.managers.core_managers_apply import GrubApplyManager
 
 
 class TestApplyStatesCoverage:
@@ -37,7 +36,7 @@ class TestApplyStatesCoverage:
         ctx.verification_details = None
         return ctx
 
-    @patch("core.managers.apply_states.validate_grub_file")
+    @patch("core.managers.core_managers_apply_states.validate_grub_file")
     def test_backup_state_invalid_source_validation(self, mock_validate, context):
         """Test BackupState raises GrubBackupError when validation fails."""
         context.grub_default_path.exists.return_value = True
@@ -105,7 +104,7 @@ class TestApplyStatesCoverage:
         mock_which.return_value = "/usr/sbin/update-grub"
         mock_run.return_value = MagicMock(returncode=0)
 
-    @patch("core.managers.apply_states.validate_grub_file")
+    @patch("core.managers.core_managers_apply_states.validate_grub_file")
     def test_backup_state_oserror_validation(self, mock_validate, context):
         """Couvre les lignes 62-63."""
         context.grub_default_path.exists.return_value = True
@@ -117,8 +116,10 @@ class TestApplyStatesCoverage:
     def test_backup_state_copy_oserror(self, context):
         """Couvre les lignes 72-88."""
         context.grub_default_path.exists.return_value = True
-        with patch("core.managers.apply_states.validate_grub_file") as mock_val, \
-             patch("shutil.copy2", side_effect=OSError("Copy failed")):
+        with (
+            patch("core.managers.core_managers_apply_states.validate_grub_file") as mock_val,
+            patch("shutil.copy2", side_effect=OSError("Copy failed")),
+        ):
             mock_val.return_value = MagicMock(is_valid=True)
             state = BackupState(context)
             with pytest.raises(GrubBackupError, match="Impossible de créer le backup"):
@@ -126,8 +127,9 @@ class TestApplyStatesCoverage:
 
     def test_write_state_execute_success(self, context):
         """Couvre les lignes 96-107."""
-        from core.managers.apply_states import WriteState, GenerateTestState
-        with patch("core.managers.apply_states.write_grub_default") as mock_write:
+        from core.managers.core_managers_apply_states import GenerateTestState, WriteState
+
+        with patch("core.managers.core_managers_apply_states.write_grub_default") as mock_write:
             context.grub_default_path.read_text.return_value = "GRUB_TIMEOUT=5\n"
             state = WriteState(context)
             next_state = state.execute()
@@ -136,8 +138,9 @@ class TestApplyStatesCoverage:
 
     def test_write_state_execute_empty_file(self, context):
         """Couvre les lignes 104-105."""
-        from core.managers.apply_states import WriteState
-        with patch("core.managers.apply_states.write_grub_default"):
+        from core.managers.core_managers_apply_states import WriteState
+
+        with patch("core.managers.core_managers_apply_states.write_grub_default"):
             context.grub_default_path.read_text.return_value = "# Only comments\n"
             state = WriteState(context)
             with pytest.raises(GrubValidationError, match="Le fichier écrit ne contient pas de configuration valide"):
@@ -145,7 +148,8 @@ class TestApplyStatesCoverage:
 
     def test_write_state_rollback_success(self, context):
         """Couvre les lignes 111-132."""
-        from core.managers.apply_states import WriteState
+        from core.managers.core_managers_apply_states import WriteState
+
         context.backup_path.exists.return_value = True
         context.backup_path.stat.return_value.st_size = 100
         context.grub_default_path.read_text.return_value = "GRUB_TIMEOUT=5\n"
@@ -156,7 +160,8 @@ class TestApplyStatesCoverage:
 
     def test_write_state_rollback_no_backup(self, context):
         """Couvre les lignes 114-115."""
-        from core.managers.apply_states import WriteState, GrubRollbackError
+        from core.managers.core_managers_apply_states import GrubRollbackError, WriteState
+
         context.backup_path.exists.return_value = False
         state = WriteState(context)
         with pytest.raises(GrubRollbackError, match="Backup introuvable"):
@@ -164,12 +169,12 @@ class TestApplyStatesCoverage:
 
     def test_validate_state_execute_success(self, context):
         """Couvre les lignes 187-190, 197-199, 210-212."""
-        from core.managers.apply_states import ValidateState, ApplyFinalState
+        from core.managers.core_managers_apply_states import ApplyFinalState, ValidateState
+
         context.temp_cfg_path.exists.return_value = True
         # Il faut au moins 5 lignes non vides/commentées
         context.temp_cfg_path.read_text.return_value = "line1\nline2\nline3\nline4\nline5\n"
-        with patch("shutil.which", return_value="/usr/bin/grub-script-check"), \
-             patch("subprocess.run") as mock_run:
+        with patch("shutil.which", return_value="/usr/bin/grub-script-check"), patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             state = ValidateState(context)
             next_state = state.execute()
@@ -178,24 +183,28 @@ class TestApplyStatesCoverage:
     @patch("subprocess.run")
     def test_apply_final_state_execute_success(self, mock_run, context):
         """Couvre les lignes 237-240, 257, 268."""
-        from core.managers.apply_states import ApplyFinalState, CleanupState
+        from core.managers.core_managers_apply_states import ApplyFinalState, CleanupState
+
         context.apply_changes = True
         # On mock GrubScriptService pour éviter les appels chmod réels
-        with patch("shutil.which", return_value="/usr/sbin/update-grub"), \
-             patch("core.managers.apply_states.Path.exists", return_value=True), \
-             patch("core.managers.apply_states.GrubScriptService", create=True) as mock_service_class:
-            
+        with (
+            patch("shutil.which", return_value="/usr/sbin/update-grub"),
+            patch("core.managers.core_managers_apply_states.Path.exists", return_value=True),
+            patch("core.managers.core_managers_apply_states.GrubScriptService", create=True) as mock_service_class,
+        ):
+
             mock_service = mock_service_class.return_value
             mock_service.scan_theme_scripts.return_value = []
             mock_run.return_value = MagicMock(returncode=0)
-            
+
             state = ApplyFinalState(context)
             next_state = state.execute()
             assert next_state == CleanupState
 
     def test_cleanup_state_execute_success(self, context):
         """Couvre les lignes 282, 284-286."""
-        from core.managers.apply_states import CleanupState
+        from core.managers.core_managers_apply_states import CleanupState
+
         context.backup_path.exists.return_value = True
         context.temp_cfg_path.exists.return_value = True
         with patch("os.remove") as mock_remove:
@@ -211,7 +220,7 @@ class TestApplyStatesCoverage:
         mock_which.return_value = "/usr/sbin/update-grub"
         mock_run.return_value = MagicMock(returncode=0)
 
-        with patch("core.managers.apply_states.Path") as mock_path_cls:
+        with patch("core.managers.core_managers_apply_states.Path") as mock_path_cls:
             mock_path_obj = MagicMock()
             mock_path_cls.return_value = mock_path_obj
             # Exists returns False initially, then False after (simulating failure to create?)
@@ -300,11 +309,13 @@ class TestApplyStatesCoverage:
         mock_script.is_executable = True
         mock_service.scan_theme_scripts.return_value = [mock_script]
 
-        with patch("core.managers.apply_states.GrubScriptService", return_value=mock_service), \
-             patch("core.managers.apply_states.Path.exists", return_value=True), \
-             patch("core.managers.apply_states.Path.stat") as mock_stat, \
-             patch("shutil.which", return_value="/usr/bin/update-grub"), \
-             patch("subprocess.run") as mock_run:
+        with (
+            patch("core.managers.core_managers_apply_states.GrubScriptService", return_value=mock_service),
+            patch("core.managers.core_managers_apply_states.Path.exists", return_value=True),
+            patch("core.managers.core_managers_apply_states.Path.stat") as mock_stat,
+            patch("shutil.which", return_value="/usr/bin/update-grub"),
+            patch("subprocess.run") as mock_run,
+        ):
 
             mock_run.return_value = MagicMock(returncode=0)
             mock_stat.return_value.st_mtime = 100
@@ -320,11 +331,13 @@ class TestApplyStatesCoverage:
         # Le code catch explicitement RuntimeError (et pas Exception générique)
         mock_service.scan_theme_scripts.side_effect = RuntimeError("Scan failed")
 
-        with patch("core.managers.apply_states.GrubScriptService", return_value=mock_service), \
-             patch("core.managers.apply_states.Path.exists", return_value=True), \
-             patch("core.managers.apply_states.Path.stat") as mock_stat, \
-             patch("shutil.which", return_value="/usr/bin/update-grub"), \
-             patch("subprocess.run") as mock_run:
+        with (
+            patch("core.managers.core_managers_apply_states.GrubScriptService", return_value=mock_service),
+            patch("core.managers.core_managers_apply_states.Path.exists", return_value=True),
+            patch("core.managers.core_managers_apply_states.Path.stat") as mock_stat,
+            patch("shutil.which", return_value="/usr/bin/update-grub"),
+            patch("subprocess.run") as mock_run,
+        ):
 
             mock_run.return_value = MagicMock(returncode=0)
             mock_stat.return_value.st_mtime = 100

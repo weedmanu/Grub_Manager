@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from core.config.core_logging_config import (
+from core.config.core_config_logging import (
     DEBUG,
     INFO,
     WARNING,
@@ -22,7 +22,7 @@ class TestLoggingConfig:
     @pytest.fixture(autouse=True)
     def mock_logger(self):
         """Mock logger pour éviter les effets de bord."""
-        with patch("core.config.core_logging_config.logger") as mock:
+        with patch("core.config.core_config_logging.logger") as mock:
             yield mock
 
     def test_constants(self):
@@ -63,7 +63,7 @@ class TestLoggingConfig:
         # Vérifie que add() n'est appelé qu'une fois (pour stderr)
         assert mock_logger.add.call_count == 1
 
-    @patch("core.config.core_logging_config.LOG_DIR")
+    @patch("core.config.core_config_logging.LOG_DIR")
     def test_configure_logging_creates_dir(self, mock_log_dir, mock_logger):
         """Test que le répertoire de logs est créé."""
         configure_logging(enable_file_logging=True)
@@ -72,7 +72,7 @@ class TestLoggingConfig:
 
     def test_set_production_mode(self, mock_logger):
         """Test l'activation du mode production."""
-        with patch("core.config.core_logging_config.configure_logging") as mock_config:
+        with patch("core.config.core_config_logging.configure_logging") as mock_config:
             set_production_mode()
 
             mock_config.assert_called_once_with(level=INFO, enable_file_logging=False)
@@ -80,7 +80,7 @@ class TestLoggingConfig:
 
     def test_set_debug_mode(self, mock_logger):
         """Test l'activation du mode debug."""
-        with patch("core.config.core_logging_config.configure_logging") as mock_config:
+        with patch("core.config.core_config_logging.configure_logging") as mock_config:
             set_debug_mode()
 
             mock_config.assert_called_once_with(level=DEBUG, enable_file_logging=True)
@@ -88,7 +88,7 @@ class TestLoggingConfig:
 
     def test_set_silent_mode(self, mock_logger):
         """Test l'activation du mode silencieux."""
-        with patch("core.config.core_logging_config.configure_logging") as mock_config:
+        with patch("core.config.core_config_logging.configure_logging") as mock_config:
             set_silent_mode()
 
             mock_config.assert_called_once_with(level=WARNING, enable_file_logging=False)

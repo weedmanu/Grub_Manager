@@ -9,7 +9,7 @@ from gi.repository import GObject, Gtk
 # Set headless backend for GTK
 os.environ["GDK_BACKEND"] = "headless"
 
-from ui.ui_gtk_helpers import GtkHelper
+from ui.helpers.ui_helpers_gtk import GtkHelper
 
 
 # Mock Gtk.StringList for testing dropdown models
@@ -194,7 +194,7 @@ def test_dropdown_set_value_insertion_check_failure_fallback_auto():
     dropdown.get_model.return_value = model
 
     # We want stringlist_find to return None even if we insert
-    with patch("ui.ui_gtk_helpers.GtkHelper.stringlist_find", return_value=None):
+    with patch("ui.helpers.ui_helpers_gtk.GtkHelper.stringlist_find", return_value=None):
         GtkHelper.dropdown_set_value(dropdown, "New Value")
 
         # Should have tried to insert
@@ -210,7 +210,7 @@ def test_dropdown_set_value_insertion_check_failure_fallback_zero():
     model = MockStringList(["Option 1", "Option 2"])
     dropdown.get_model.return_value = model
 
-    with patch("ui.ui_gtk_helpers.GtkHelper.stringlist_find", return_value=None):
+    with patch("ui.helpers.ui_helpers_gtk.GtkHelper.stringlist_find", return_value=None):
         GtkHelper.dropdown_set_value(dropdown, "New Value")
 
         # Should have tried to insert

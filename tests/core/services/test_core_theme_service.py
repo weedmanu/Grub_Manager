@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.services.core_theme_service import ThemeService
+from core.services.core_services_theme import ThemeService
 
 
 class TestThemeServiceCoverage:
@@ -11,8 +11,8 @@ class TestThemeServiceCoverage:
     def service(self):
         return ThemeService()
 
-    @patch("core.services.core_theme_service.read_grub_default")
-    @patch("core.services.core_theme_service.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg"])
+    @patch("core.services.core_services_theme.read_grub_default")
+    @patch("core.services.core_services_theme.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg"])
     def test_is_theme_enabled_in_grub_exception_and_cfg_found(self, mock_read_default, service):
         """Test exception in read_grub_default and finding theme in grub.cfg."""
         mock_read_default.side_effect = OSError("Read error")
@@ -23,8 +23,8 @@ class TestThemeServiceCoverage:
         ):
             assert service.is_theme_enabled_in_grub() is True
 
-    @patch("core.services.core_theme_service.read_grub_default")
-    @patch("core.services.core_theme_service.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg"])
+    @patch("core.services.core_services_theme.read_grub_default")
+    @patch("core.services.core_services_theme.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg"])
     def test_is_theme_enabled_in_grub_cfg_not_exists(self, mock_read_default, service):
         """Test grub.cfg does not exist."""
         mock_read_default.return_value = {}
@@ -32,8 +32,8 @@ class TestThemeServiceCoverage:
         with patch("pathlib.Path.exists", return_value=False):
             assert service.is_theme_enabled_in_grub() is False
 
-    @patch("core.services.core_theme_service.read_grub_default")
-    @patch("core.services.core_theme_service.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg"])
+    @patch("core.services.core_services_theme.read_grub_default")
+    @patch("core.services.core_services_theme.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg"])
     def test_is_theme_enabled_in_grub_cfg_permission_error(self, mock_read_default, service):
         """Test permission error when reading grub.cfg."""
         mock_read_default.return_value = {}
@@ -44,8 +44,8 @@ class TestThemeServiceCoverage:
         ):
             assert service.is_theme_enabled_in_grub() is False
 
-    @patch("core.services.core_theme_service.read_grub_default")
-    @patch("core.services.core_theme_service.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg"])
+    @patch("core.services.core_services_theme.read_grub_default")
+    @patch("core.services.core_services_theme.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg"])
     def test_is_theme_enabled_in_grub_cfg_no_theme(self, mock_read_default, service):
         """Test no theme found in grub.cfg."""
         mock_read_default.return_value = {}
@@ -56,15 +56,15 @@ class TestThemeServiceCoverage:
         ):
             assert service.is_theme_enabled_in_grub() is False
 
-    @patch("core.services.core_theme_service.read_grub_default")
-    @patch("core.services.core_theme_service.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg"])
+    @patch("core.services.core_services_theme.read_grub_default")
+    @patch("core.services.core_services_theme.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg"])
     def test_is_theme_enabled_in_grub_found_in_default(self, mock_read_default, service):
         """Test theme found in /etc/default/grub."""
         mock_read_default.return_value = {"GRUB_THEME": "/boot/grub/themes/test/theme.txt"}
         assert service.is_theme_enabled_in_grub() is True
 
-    @patch("core.services.core_theme_service.read_grub_default")
-    @patch("core.services.core_theme_service.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg"])
+    @patch("core.services.core_services_theme.read_grub_default")
+    @patch("core.services.core_services_theme.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg"])
     def test_is_theme_enabled_in_grub_cfg_empty_theme(self, mock_read_default, service):
         """Test empty theme path in grub.cfg."""
         mock_read_default.return_value = {}
@@ -75,7 +75,7 @@ class TestThemeServiceCoverage:
         ):
             assert service.is_theme_enabled_in_grub() is False
 
-    @patch("core.services.core_theme_service.get_all_grub_themes_dirs")
+    @patch("core.services.core_services_theme.get_all_grub_themes_dirs")
     def test_scan_system_themes_dir_not_exists(self, mock_get_dirs, service):
         """Test scan when a theme directory does not exist."""
         mock_dir = MagicMock(spec=Path)
@@ -85,8 +85,8 @@ class TestThemeServiceCoverage:
         themes = service.scan_system_themes()
         assert len(themes) == 0
 
-    @patch("core.services.core_theme_service.get_all_grub_themes_dirs")
-    @patch("core.services.core_theme_service.create_custom_theme")
+    @patch("core.services.core_services_theme.get_all_grub_themes_dirs")
+    @patch("core.services.core_services_theme.create_custom_theme")
     def test_scan_system_themes_success(self, mock_create, mock_get_dirs, service):
         """Test successful theme scan."""
         mock_dir = MagicMock(spec=Path)
@@ -107,8 +107,8 @@ class TestThemeServiceCoverage:
         assert "good_theme" in themes
         assert themes["good_theme"] == (mock_theme, mock_theme_dir)
 
-    @patch("core.services.core_theme_service.get_all_grub_themes_dirs")
-    @patch("core.services.core_theme_service.create_custom_theme")
+    @patch("core.services.core_services_theme.get_all_grub_themes_dirs")
+    @patch("core.services.core_services_theme.create_custom_theme")
     def test_scan_system_themes_mixed_items(self, mock_create, mock_get_dirs, service):
         """Test scan with mixed items (valid theme, file, dir without theme.txt)."""
         mock_dir = MagicMock(spec=Path)
@@ -138,8 +138,8 @@ class TestThemeServiceCoverage:
         assert "good_theme" in themes
         assert len(themes) == 1
 
-    @patch("core.services.core_theme_service.get_all_grub_themes_dirs")
-    @patch("core.services.core_theme_service.create_custom_theme")
+    @patch("core.services.core_services_theme.get_all_grub_themes_dirs")
+    @patch("core.services.core_services_theme.create_custom_theme")
     def test_scan_system_themes_exception(self, mock_create, mock_get_dirs, service):
         """Test exception during theme creation in scan."""
         mock_dir = MagicMock(spec=Path)

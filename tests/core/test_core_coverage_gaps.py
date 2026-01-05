@@ -4,10 +4,10 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from core.io.core_grub_default_io import (
-    create_grub_default_backup, 
+from core.io.core_io_grub_default import (
+    create_grub_default_backup,
+    create_last_modif_backup,
     ensure_initial_grub_default_backup,
-    create_last_modif_backup
 )
 
 
@@ -29,7 +29,7 @@ class TestCoreGrubDefaultIOCoverage:
                     result = filter_func(tarinfo)
                     assert result is None
 
-            with patch("core.io.core_grub_default_io._add_to_tar", side_effect=side_effect_add):
+            with patch("core.io.core_io_grub_default._add_to_tar", side_effect=side_effect_add):
                 ensure_initial_grub_default_backup()
 
     def test_create_backup_tar_filter_manual_exception(self):
@@ -53,7 +53,7 @@ class TestCoreGrubDefaultIOCoverage:
             # Mocker os.path.exists pour que _safe_exists retourne False (pas de conflit de nom)
             with patch("os.path.isfile", return_value=True):
                 with patch("os.path.exists", return_value=False):
-                    with patch("core.io.core_grub_default_io._add_to_tar", side_effect=side_effect_add):
+                    with patch("core.io.core_io_grub_default._add_to_tar", side_effect=side_effect_add):
                         create_grub_default_backup("/tmp/dummy_grub")
 
     def test_create_last_modif_backup_with_directory_in_grub_d(self, tmp_path):
@@ -65,9 +65,14 @@ class TestCoreGrubDefaultIOCoverage:
         grub_d.mkdir()
         (grub_d / "subdir").mkdir()  # Ceci n'est pas un fichier
 
-        with patch("core.io.core_grub_default_io.GRUB_DEFAULT_PATH", str(grub_default)), \
-             patch("core.io.core_grub_default_io.Path", side_effect=lambda p: Path(str(p).replace("/etc/grub.d", str(grub_d)))), \
-             patch("core.io.core_grub_default_io.GRUB_CFG_PATHS", []):
+        with (
+            patch("core.io.core_io_grub_default.GRUB_DEFAULT_PATH", str(grub_default)),
+            patch(
+                "core.io.core_io_grub_default.Path",
+                side_effect=lambda p: Path(str(p).replace("/etc/grub.d", str(grub_d))),
+            ),
+            patch("core.io.core_io_grub_default.GRUB_CFG_PATHS", []),
+        ):
 
             # On force full_system_backup à True en faisant correspondre les chemins
             with patch("os.path.abspath", side_effect=lambda p: str(p)):

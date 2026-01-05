@@ -2,10 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from ui.controllers.permission_controller import PermissionController
-from ui.ui_infobar_controller import WARNING
+from ui.controllers.ui_controllers_permission import PermissionController
+from ui.controllers.ui_controllers_infobar import WARNING
 
 
 class TestPermissionController:
@@ -32,9 +30,9 @@ class TestPermissionController:
         with patch("os.geteuid", return_value=0):
             ctrl = PermissionController()
             callback = MagicMock()
-            
+
             result = ctrl.check_and_warn(callback)
-            
+
             assert result is True
             callback.assert_not_called()
 
@@ -43,9 +41,9 @@ class TestPermissionController:
         with patch("os.geteuid", return_value=1000):
             ctrl = PermissionController()
             callback = MagicMock()
-            
+
             result = ctrl.check_and_warn(callback)
-            
+
             assert result is False
             callback.assert_called_once()
             args = callback.call_args[0]

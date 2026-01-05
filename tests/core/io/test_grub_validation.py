@@ -3,7 +3,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from core.io.grub_validation import validate_grub_file
+from core.io.core_io_grub_validation import validate_grub_file
 
 
 class TestValidateGrubFile:

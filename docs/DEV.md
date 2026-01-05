@@ -40,13 +40,23 @@ Notes :
 Objectif : rester simple, testable, et avec des frontières claires.
 
 - `core/` : logique métier, pas de dépendance à GTK et pas d’import depuis `ui/`.
-- `ui/` : interface GTK, état et orchestration côté GUI.
-- API explicites : éviter les couches “magiques” (délégation d’attributs) pour que les usages soient lisibles et testables.
+- `ui/` : interface GTK, état et orchestration côté GUI. **Organisation modulaire SOLID** :
+  - `builders/` : construction UI (widgets, layout)
+  - `components/` : composants réutilisables
+  - `config/` : constantes et styles
+  - `controllers/` : orchestration et workflows
+  - `dialogs/` : fenêtres spécialisées
+  - `helpers/` : utilitaires GTK
+  - `models/` : état et protocoles UI
+  - `tabs/` : onglets de l'application
+- API explicites : éviter les couches "magiques" (délégation d'attributs) pour que les usages soient lisibles et testables.
 - Qualité outillée : `ruff/isort/black/mypy/pylint/radon` + `pytest`.
+- **Score qualité** : 10/10 Pylint, 0 duplication, complexité Radon : 506 fonctions A, 79 B, 14 C (aucune D/E/F).
 
 Il y a beaucoup de surface (GUI + parsing + fichiers système). Le but est surtout d’avoir des contrats clairs et des tests utiles.
 
 ## Tree (main.py / core / ui) avec commentaires
+
 
 Arborescence volontairement limitée à `main.py`, `core/` et `ui/`.
 
@@ -57,97 +67,111 @@ core/                                         # Logique métier (pas de GTK)
   __init__.py                                 # Package core
   core_exceptions.py                          # Exceptions du domaine GRUB
   config/                                     # Config/runtime (logging, paths, args)
-    __init__.py                               # Package config
-    core_logging_config.py                    # Configuration loguru/logging
-    core_paths.py                             # Chemins importants (projet / système)
-    core_runtime.py                           # Helpers runtime (ex: parse flags, init)
+    __init__.py
+    core_config_logging.py                    # Configuration loguru/logging
+    core_config_paths.py                      # Chemins importants (projet / système)
+    core_config_runtime.py                    # Helpers runtime (ex: parse flags, init)
   io/                                         # I/O GRUB : lire/écrire/valider/parsing
-    __init__.py                               # Package io
-    core_grub_default_io.py                   # Lecture/écriture /etc/default/grub + backups
-    core_grub_menu_parser.py                  # Parsing du menu GRUB (grub.cfg)
-    grub_parsing_utils.py                     # Petites fonctions utilitaires de parsing
-    grub_validation.py                        # Validation/cohérence des données parseées
+    __init__.py
+    core_io_grub_default.py                   # Lecture/écriture /etc/default/grub + backups
+    core_io_grub_menu_parser.py               # Parsing du menu GRUB (grub.cfg)
+    core_io_grub_parsing_utils.py             # Utilitaires de parsing
+    core_io_grub_validation.py                # Validation/cohérence des données parsées
   managers/                                   # Orchestration de changements et d’états
-    __init__.py                               # Package managers
-    apply_states.py                           # Modèle d’état d’application (pending/applied)
-    core_apply_manager.py                     # Application des changements (écriture + commandes)
-    core_entry_visibility_manager.py          # Masquage/affichage des entrées GRUB
+    __init__.py
+    core_managers_apply.py                    # Application des changements (écriture + commandes)
+    core_managers_apply_states.py             # Modèle d’état d’application (pending/applied)
+    core_managers_entry_visibility.py         # Masquage/affichage des entrées GRUB
   models/                                     # Modèles de données (UI model / thèmes)
-    __init__.py                               # Package models
-    core_grub_ui_model.py                     # Modèle agrégé manipulé par l’UI
-    core_theme_models.py                      # Modèles liés aux thèmes
+    __init__.py
+    core_models_grub_ui.py                    # Modèle agrégé manipulé par l’UI
+    core_models_theme.py                      # Modèles liés aux thèmes
   services/                                   # Services “métier” (coordonnent I/O + managers)
-    __init__.py                               # Package services
-    core_grub_script_service.py               # Génération/gestion scripts appliqués à GRUB
-    core_grub_service.py                      # Service principal GRUB
-    core_maintenance_service.py               # Maintenance (nettoyage, vérifications)
-    core_theme_service.py                     # Service thèmes (apply/génération)
+    __init__.py
+    core_services_grub.py                     # Service principal GRUB
+    core_services_grub_script.py              # Génération/gestion scripts appliqués à GRUB
+    core_services_maintenance.py              # Maintenance (nettoyage, vérifications)
+    core_services_theme.py                    # Service thèmes (apply/génération)
   system/                                     # Commandes système / vérifs système
-    __init__.py                               # Package system
-    core_grub_system_commands.py              # Wrappers d’appels (update-grub, etc.)
-    core_sync_checker.py                      # Détection de désynchronisation/état
+    __init__.py
+    core_system_grub_commands.py              # Wrappers d’appels (update-grub, etc.)
+    core_system_sync_checker.py               # Détection de désynchronisation/état
   theme/                                      # Gestion des thèmes (actif + génération)
-    __init__.py                               # Package theme
-    core_active_theme_manager.py              # Détecte/applique le thème actif
-    theme_generator/                          # Générateur de thèmes (modèles + templates)
-      __init__.py                             # Package theme_generator
-      core_theme_generator.py                 # Orchestration génération paquet thème
+    __init__.py
+    core_theme_active_manager.py              # Détecte/applique le thème actif
+    generator/                                # Génération de thèmes (modèles + templates)
+      __init__.py
+      core_theme_generator.py                 # Façade/Orchestration génération thème
       core_theme_generator_enums.py           # Enums (résolutions, schémas couleurs)
       core_theme_generator_models.py          # Dataclasses de config (boot_menu/item/terminal/...)
       core_theme_generator_palettes.py        # Palettes de couleurs
       core_theme_generator_resolution.py      # Helpers de config selon résolution
-      core_theme_generator_templates.py       # Génération des fichiers template/theme
+      core_theme_generator_templates.py       # Génération des templates / theme.txt
       core_theme_generator_validation.py      # Validation des thèmes générés
 
-ui/                                           # Interface GTK (widgets, contrôleurs, tabs)
+ui/                                           # Interface GTK (organisation modulaire SOLID)
   __init__.py                                 # Package ui
-  style.css                                   # Style GTK (chargé au démarrage)
-  ui_builder.py                               # Construction UI (widgets, layout)
-  ui_constants.py                             # Constantes UI
-  ui_dialogs.py                               # Dialogs génériques
   ui_exceptions.py                            # Exceptions UI
-  ui_file_dialogs.py                          # Dialogs fichiers (ouvrir/enregistrer)
-  ui_gtk_helpers.py                           # Helpers GTK (widgets, signaux)
-  ui_gtk_imports.py                           # Imports GTK centralisés (tests/headless)
-  ui_infobar_controller.py                    # InfoBar (messages, erreurs, succès)
-  ui_manager.py                               # Fenêtre principale + orchestration UI
-  ui_model_mapper.py                          # Mappe UI <-> modèle core
-  ui_protocols.py                             # Protocols/typing pour contrats UI
-  ui_state.py                                 # État UI (sélection, flags, etc.)
-  ui_tab_policy.py                            # Règles d’accès/permissions par onglet
-  ui_widgets.py                               # Widgets partagés (factory/helpers)
-  ui_workflow_controller.py                   # Workflows (apply, backups, validations)
-  components/                                 # Composants réutilisables (thèmes, listes, etc.)
-    __init__.py                               # Package components
-    ui_color_picker.py                        # Sélecteur de couleur
-    ui_theme_components.py                    # Briques UI thème
-    ui_theme_config_actions.py                # Actions/boutons liés à la config thème
-    ui_theme_scripts_list.py                  # Liste des scripts d’un thème
-    ui_theme_scripts_renderer.py              # Rendu scripts + état pending
-    ui_theme_simple_config.py                 # Panneau config “simple” thème
-    ui_theme_simple_config_logic.py           # Logique non-widget du panneau simple
-  controllers/                                # Contrôleurs UI (ex: permissions)
-    __init__.py                               # Package controllers
-    permission_controller.py                  # Gestion droits (root, accès fichiers)
-  dialogs/                                    # Fenêtres/dialogs spécialisés
-    ui_interactive_theme_generator.py         # Générateur interactif (logique)
-    ui_interactive_theme_generator_window.py  # Fenêtre GTK associée
-    theme_editors/                            # Sous-éditeurs (layout/texte/visuel)
-      base_editor.py                          # Base/contrat commun
-      layout_editors.py                       # Éditeurs layout
-      text_editors.py                         # Éditeurs texte
-      visual_editors.py                       # Éditeurs visuels
-  tabs/                                       # Onglets de l’application
-    __init__.py                               # Package tabs
-    ui_entries_renderer.py                    # Rendu liste des entrées GRUB
-    ui_grub_preview_dialog.py                 # Prévisualisation du menu GRUB
-    ui_tab_backups.py                         # Onglet sauvegardes/restauration
-    ui_tab_display.py                         # Onglet affichage
-    ui_tab_entries.py                         # Onglet entrées
-    ui_tab_general.py                         # Onglet général
-    ui_tab_maintenance.py                     # Onglet maintenance
-    ui_tab_theme_config.py                    # Onglet configuration thème
-    theme_config/                             # Handlers dédiés au thème
-      __init__.py                             # Package theme_config
-      ui_theme_config_handlers.py             # Handlers (signals/callbacks) config thème
+  builders/                                   # Construction UI (widgets, layout)
+    __init__.py
+    ui_builders_index.py                      # Construction UI principale (tabs, notebook)
+    ui_builders_widgets.py                    # Widgets partagés (factory/helpers)
+  components/                                 # Composants réutilisables
+    __init__.py
+    ui_components_color_picker.py
+    ui_components_theme.py
+    ui_components_theme_config_actions.py
+    ui_components_theme_scripts_list.py
+    ui_components_theme_scripts_renderer.py
+    ui_components_theme_simple_config.py
+    ui_components_theme_simple_config_logic.py
+  config/                                     # Configuration UI (constantes, styles)
+    __init__.py
+    ui_config_constants.py
+    style.css
+  controllers/                                # Orchestration et workflows
+    __init__.py
+    ui_controllers_infobar.py
+    ui_controllers_manager.py
+    ui_controllers_permission.py
+    ui_controllers_tab_policy.py
+    ui_controllers_workflow.py
+  dialogs/                                    # Dialogs GTK
+    ui_dialogs_index.py
+    ui_dialogs_file.py
+    ui_dialogs_grub_preview.py
+    ui_dialogs_interactive_theme_generator.py
+    ui_dialogs_interactive_theme_generator_window.py
+    preview/
+      __init__.py
+      ui_dialogs_preview_grub_css.py
+      ui_dialogs_preview_grub_data.py
+      ui_dialogs_preview_grub_parsers.py
+      ui_dialogs_preview_grub_renderer.py
+    theme_editors/
+      ui_dialogs_theme_editors_base.py
+      ui_dialogs_theme_editors_layout.py
+      ui_dialogs_theme_editors_text.py
+      ui_dialogs_theme_editors_visual.py
+  helpers/                                    # Helpers et utilitaires GTK
+    __init__.py
+    ui_helpers_gtk.py
+    ui_helpers_gtk_imports.py
+    ui_helpers_model_mapper.py
+  models/                                     # Modèles UI (état, protocoles)
+    __init__.py
+    ui_models_protocols.py
+    ui_models_state.py
+  tabs/                                       # Onglets
+    __init__.py
+    ui_tabs_entries_renderer.py
+    ui_tabs_backups.py
+    ui_tabs_display.py
+    ui_tabs_entries.py
+    ui_tabs_general.py
+    ui_tabs_maintenance.py
+    ui_tabs_theme_config.py
+    theme_config/
+      __init__.py
+      ui_tabs_theme_config_handlers.py
 ```

@@ -6,8 +6,8 @@ from unittest.mock import patch
 import pytest
 
 from core.core_exceptions import GrubConfigError, GrubValidationError
-from core.io.grub_parsing_utils import extract_menuentry_id
-from core.managers.core_entry_visibility_manager import (
+from core.io.core_io_grub_parsing_utils import extract_menuentry_id
+from core.managers.core_managers_entry_visibility import (
     apply_hidden_entries_to_grub_cfg,
     find_grub_cfg_path,
     load_hidden_entry_ids,
@@ -148,14 +148,14 @@ class TestExtractMenuentryId:
 class TestCandidateGrubCfgPaths:
     """Tests pour discover_grub_cfg_paths."""
 
-    @patch("core.config.core_paths.glob")
+    @patch("core.config.core_config_paths.glob")
     def test_candidate_grub_cfg_paths(self, mock_glob):
         """Test génération des chemins candidats avec doublons."""
         # On simule des doublons entre GRUB_CFG_PATHS et glob
-        with patch("core.config.core_paths.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg", "/boot/grub/grub.cfg"]):
+        with patch("core.config.core_config_paths.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg", "/boot/grub/grub.cfg"]):
             mock_glob.return_value = ["/boot/grub/grub.cfg", "/boot/efi/EFI/ubuntu/grub.cfg"]
 
-            from core.config.core_paths import discover_grub_cfg_paths
+            from core.config.core_config_paths import discover_grub_cfg_paths
 
             result = discover_grub_cfg_paths()
 
@@ -166,7 +166,7 @@ class TestCandidateGrubCfgPaths:
 class TestFindGrubCfgPath:
     """Tests pour find_grub_cfg_path."""
 
-    @patch("core.managers.core_entry_visibility_manager.discover_grub_cfg_paths")
+    @patch("core.managers.core_managers_entry_visibility.discover_grub_cfg_paths")
     @patch("os.path.exists")
     def test_find_grub_cfg_path_found(self, mock_exists, mock_candidates):
         """Test quand un chemin est trouvé."""
@@ -176,7 +176,7 @@ class TestFindGrubCfgPath:
         result = find_grub_cfg_path()
         assert result == "/path2/grub.cfg"
 
-    @patch("core.managers.core_entry_visibility_manager.discover_grub_cfg_paths")
+    @patch("core.managers.core_managers_entry_visibility.discover_grub_cfg_paths")
     @patch("os.path.exists")
     def test_find_grub_cfg_path_not_found(self, mock_exists, mock_candidates):
         """Test quand aucun chemin n'est trouvé."""
@@ -210,7 +210,7 @@ menuentry "Windows" --id windows {
         config_file.write_text(config_content)
         hidden_ids = {"ubuntu"}
 
-        with patch("core.managers.core_entry_visibility_manager.find_grub_cfg_path") as mock_find:
+        with patch("core.managers.core_managers_entry_visibility.find_grub_cfg_path") as mock_find:
             mock_find.return_value = str(config_file)
 
             result_path, count = apply_hidden_entries_to_grub_cfg(hidden_ids)
@@ -221,7 +221,7 @@ menuentry "Windows" --id windows {
         """Test quand grub.cfg n'est pas trouvé."""
         hidden_ids = {"entry1"}
 
-        with patch("core.managers.core_entry_visibility_manager.find_grub_cfg_path") as mock_find:
+        with patch("core.managers.core_managers_entry_visibility.find_grub_cfg_path") as mock_find:
             mock_find.return_value = None
 
             with pytest.raises(GrubConfigError):

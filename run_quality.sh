@@ -152,17 +152,11 @@ lint() {
   if [[ -n "$non_test_paths" ]]; then
     run_check "Pylint (qualité)" "$PYTHON_BIN" -m pylint $non_test_paths
 
-    # Passes ciblées pour mieux voir les hotspots (doublons + patterns récurrents).
-    # Elles n'ajoutent pas de nouvelles règles, elles filtrent l'output.
+    # Passes ciblées pour mieux voir les hotspots (doublons).
     # Seuil réglable via env: PYLINT_DUP_MIN_LINES (défaut: 8)
     local dup_min_lines=${PYLINT_DUP_MIN_LINES:-8}
     run_check "Pylint (doublons)" "$PYTHON_BIN" -m pylint \
       --disable=all --enable=R0801 --min-similarity-lines="$dup_min_lines" \
-      $non_test_paths
-
-    run_check "Pylint (patterns)" "$PYTHON_BIN" -m pylint \
-      --disable=all \
-      --enable=R0902,R0903,R0912,R0913,R0914,R0915,C0415,W0718 \
       $non_test_paths
   fi
   
@@ -217,11 +211,16 @@ def main() -> int:
 
   max_idx = order.index(max_rank)
   bad: list[tuple[str, str, str, int, int]] = []
+  stats = {"A": 0, "B": 0, "C": 0, "D": 0, "E": 0, "F": 0}
+  total = 0
+  
   for file_path, blocks in data.items():
     for block in blocks or []:
       rank = str(block.get("rank", "")).strip().upper()
       if not rank or rank not in order:
         continue
+      total += 1
+      stats[rank] = stats.get(rank, 0) + 1
       if order.index(rank) > max_idx:
         name = str(block.get("name", "<unknown>"))
         complexity = int(block.get("complexity", 0) or 0)
@@ -229,7 +228,8 @@ def main() -> int:
         bad.append((file_path, name, rank, complexity, lineno))
 
   if not bad:
-    print(f"Radon: OK (max rank {max_rank})")
+    summary = " | ".join(f"{k}:{v}" for k, v in stats.items() if v > 0)
+    print(f"Radon: OK (max rank {max_rank}) - {total} fonctions ({summary})")
     return 0
 
   print(f"Radon: complexité trop élevée (max rank {max_rank}).", file=sys.stderr)
