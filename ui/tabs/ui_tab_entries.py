@@ -72,7 +72,6 @@ def build_entries_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
 
     controller.disable_os_prober_check = Gtk.Switch()
     controller.disable_os_prober_check.connect("notify::active", controller.on_menu_options_toggled)
-    controller.disable_os_prober_check.option_name = "Disable OS Prober"
     _add_styled_switch(
         switches_box,
         "Désactiver OS Prober",

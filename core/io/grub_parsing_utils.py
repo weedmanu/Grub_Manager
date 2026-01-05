@@ -54,4 +54,3 @@ def extract_menuentry_title(line: str) -> str:
     if m:
         return m.group(1)
     return ""
-    return ""

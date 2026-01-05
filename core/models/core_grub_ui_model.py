@@ -23,6 +23,8 @@ class GrubUiModel:
     Ce modèle est volontairement découplé du format exact de `/etc/default/grub`.
     """
 
+    # pylint: disable=too-many-instance-attributes
+
     timeout: int = 5
     default: str = "0"  # "0", "1", ... ou "saved" ou "1>2" (sous-menu)
 
@@ -34,6 +36,15 @@ class GrubUiModel:
 
     disable_os_prober: bool = False
     grub_theme: str = ""  # Chemin vers le fichier theme.txt
+
+    # Paramètres de thème simple (si theme_management_enabled=False)
+    grub_background: str = ""
+    grub_color_normal: str = ""
+    grub_color_highlight: str = ""
+
+    # Gestion des scripts de thème (ex: 05_debian_theme, 60_theme_custom)
+    # Si False, on désactive ces scripts lors de l'application.
+    theme_management_enabled: bool = True
 
     # Paramètres kernel (GRUB_CMDLINE_LINUX_DEFAULT)
     quiet: bool = True  # Mode silencieux
@@ -63,6 +74,9 @@ _MANAGED_KEYS: Final[set[str]] = {
     "GRUB_GFXPAYLOAD_LINUX",
     "GRUB_TERMINAL",
     "GRUB_THEME",
+    "GRUB_BACKGROUND",
+    "GRUB_COLOR_NORMAL",
+    "GRUB_COLOR_HIGHLIGHT",
     "GRUB_CMDLINE_LINUX_DEFAULT",
 }
 
@@ -78,13 +92,13 @@ def _as_bool(config: dict[str, str], key: str, true_values: set[str]) -> bool:
     return result
 
 
-def model_from_config(config: dict[str, str]) -> GrubUiModel:
+def model_from_config(config: dict[str, str], theme_scripts_enabled: bool = True) -> GrubUiModel:
     """Construit un `GrubUiModel` à partir d'un dict issu de `/etc/default/grub`."""
     logger.debug(f"[model_from_config] Construction depuis config - {len(config)} clés")
 
     def _int(value: str, default: int) -> int:
         try:
-            return int(value)
+            return max(0, int(value))
         except (TypeError, ValueError):
             return default
 
@@ -106,6 +120,10 @@ def model_from_config(config: dict[str, str]) -> GrubUiModel:
         gfxpayload_linux=config.get("GRUB_GFXPAYLOAD_LINUX", ""),
         disable_os_prober=_as_bool(config, "GRUB_DISABLE_OS_PROBER", {"true"}),
         grub_theme=config.get("GRUB_THEME", ""),
+        grub_background=config.get("GRUB_BACKGROUND", ""),
+        grub_color_normal=config.get("GRUB_COLOR_NORMAL", ""),
+        grub_color_highlight=config.get("GRUB_COLOR_HIGHLIGHT", ""),
+        theme_management_enabled=theme_scripts_enabled,
         quiet=quiet,
         splash=splash,
     )
@@ -137,7 +155,9 @@ def merged_config_from_model(base_config: dict[str, str], model: GrubUiModel) ->
 
     if model.disable_os_prober:
         cfg["GRUB_DISABLE_OS_PROBER"] = "true"
-    # Sinon : clé absente = os-prober activé
+    else:
+        # Force l'activation pour les versions récentes de GRUB (2.06+) où c'est désactivé par défaut
+        cfg["GRUB_DISABLE_OS_PROBER"] = "false"
 
     # === OPTIONS GRAPHIQUES (présentes si non vides) ===
     if model.gfxmode.strip():
@@ -145,10 +165,24 @@ def merged_config_from_model(base_config: dict[str, str], model: GrubUiModel) ->
     if model.gfxpayload_linux.strip():
         cfg["GRUB_GFXPAYLOAD_LINUX"] = model.gfxpayload_linux.strip()
 
-    # === THÈME (présent si défini) ===
-    if model.grub_theme.strip():
+    # === THÈME (présent si défini ET activé) ===
+    # Si la gestion des thèmes est activée ET qu'un thème est défini
+    if model.theme_management_enabled and model.grub_theme.strip():
         cfg["GRUB_THEME"] = model.grub_theme.strip()
-    # Sinon : clé absente = pas de thème
+    else:
+        # Si désactivé ou vide, on s'assure que la clé n'existe pas
+        # Cela correspond à "supprimer le theme.txt" de la config
+        cfg.pop("GRUB_THEME", None)
+
+    # === THÈME SIMPLE (Background & Colors) ===
+    if model.grub_background.strip():
+        cfg["GRUB_BACKGROUND"] = model.grub_background.strip()
+
+    if model.grub_color_normal.strip():
+        cfg["GRUB_COLOR_NORMAL"] = model.grub_color_normal.strip()
+
+    if model.grub_color_highlight.strip():
+        cfg["GRUB_COLOR_HIGHLIGHT"] = model.grub_color_highlight.strip()
 
     # === PARAMÈTRES KERNEL (GRUB_CMDLINE_LINUX_DEFAULT) ===
     cmdline_parts = []
@@ -183,7 +217,29 @@ def load_grub_ui_state(
     entries, _used_grub_cfg_path = read_grub_default_choices_with_source(grub_cfg_path)
     logger.debug(f"[load_grub_ui_state] {len(entries)} entrées trouvées")
 
-    model = model_from_config(config)
+    # Détection de l'état des scripts de thème
+    from ..services.core_grub_script_service import GrubScriptService
+
+    script_service = GrubScriptService()
+    theme_scripts = script_service.scan_theme_scripts()
+    # Si au moins un script de thème est exécutable, on considère que la gestion est activée
+    theme_scripts_enabled = any(s.is_executable for s in theme_scripts)
+
+    # HEURISTIQUE DE CORRECTION:
+    # Si l'utilisateur a configuré des options simples (Background/Colors) ET qu'il n'y a pas de GRUB_THEME,
+    # on force le mode "Simple" (theme_management_enabled=False) même si les scripts sont encore actifs.
+    # Cela permet à l'UI de refléter l'intention de l'utilisateur, et le prochain "Appliquer"
+    # désactivera correctement les scripts.
+    has_simple_config = bool(config.get("GRUB_BACKGROUND") or config.get("GRUB_COLOR_NORMAL"))
+    has_theme_config = bool(config.get("GRUB_THEME"))
+
+    if has_simple_config and not has_theme_config:
+        logger.info("[load_grub_ui_state] Détection config simple sans thème -> Force theme_management_enabled=False")
+        theme_scripts_enabled = False
+
+    logger.debug(f"[load_grub_ui_state] Scripts de thème activés: {theme_scripts_enabled}")
+
+    model = model_from_config(config, theme_scripts_enabled=theme_scripts_enabled)
 
     logger.success("[load_grub_ui_state] État chargé avec succès")
     return GrubUiState(model=model, entries=entries, raw_config=config)

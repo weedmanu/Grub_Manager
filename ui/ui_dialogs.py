@@ -28,6 +28,7 @@ def run_command_popup(controller: GrubConfigManager, command: list[str], title: 
         command: List of command and arguments
         title: Dialog window title
     """
+    # pylint: disable=too-many-statements
     if os.geteuid() != 0:
         logger.warning("[run_command_popup] Not running as root")
         controller.show_info("Droits root nécessaires", "error")

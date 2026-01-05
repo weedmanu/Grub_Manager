@@ -102,7 +102,7 @@ def _on_restore_clicked(_btn, controller, dropdown: Gtk.DropDown | None):
             logger.info(f"[_on_restore_clicked] Restauration réussie de {basename}")
             msg = f"✅ Sauvegarde restaurée avec succès:\n{basename}" "\n\nRedémarrez pour appliquer les changements."
             controller.show_info(msg, "info")
-            controller.reload_from_disk()
+            controller.load_config()
         except (OSError, PermissionError, ValueError, RuntimeError) as e:
             logger.error(f"[_on_restore_clicked] ERREUR: {e}")
             controller.show_info(f"❌ Échec de la restauration:\n{e}", "error")
@@ -202,6 +202,7 @@ def _refresh_list(controller, dropdown: Gtk.DropDown, empty_label: Gtk.Label, re
 
 def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> None:
     """Build the Backups tab (list/create/delete)."""
+    # pylint: disable=too-many-locals
     logger.debug("[build_backups_tab] Construction de l'onglet Sauvegardes")
     root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
     apply_margins(root, 12)

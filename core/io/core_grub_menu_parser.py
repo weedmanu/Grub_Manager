@@ -83,6 +83,51 @@ def _iter_readable_grub_cfg_lines(candidates: list[str]):
     return
 
 
+def _process_menuentry(line: str, stack: list[_Scope], current_source: str, choices: list[GrubDefaultChoice]) -> bool:
+    """Traite une ligne menuentry et ajoute le choix si trouvé."""
+    m_ent = _MENUENTRY_RE.match(line)
+    if not m_ent:
+        return False
+
+    title = m_ent.group(1)
+    menu_id = extract_menuentry_id(line)
+    idx = stack[-1].next_index
+    stack[-1].next_index += 1
+
+    id_parts = [*stack[-1].prefix, idx]
+    choice_id = ">".join(str(i) for i in id_parts)
+
+    display = " > ".join([*stack[-1].titles, title]) if stack[-1].titles else title
+    choices.append(GrubDefaultChoice(id=choice_id, title=display, menu_id=menu_id, source=current_source))
+    return True
+
+
+def _process_submenu(line: str, stack: list[_Scope], brace_depth: int) -> tuple[bool, int]:
+    """Traite une ligne submenu et met à jour la pile et la profondeur."""
+    m_sub = _SUBMENU_RE.match(line)
+    if not m_sub:
+        return False, brace_depth
+
+    title = m_sub.group(1)
+    idx = stack[-1].next_index
+    stack[-1].next_index += 1
+
+    start_depth = brace_depth
+    opens = line.count("{")
+    closes = line.count("}")
+    new_depth = brace_depth + opens - closes
+
+    stack.append(
+        _Scope(
+            prefix=[*stack[-1].prefix, idx],
+            titles=[*stack[-1].titles, title],
+            next_index=0,
+            start_depth=start_depth,
+        )
+    )
+    return True, new_depth
+
+
 def _parse_choices(lines: list[str]) -> list[GrubDefaultChoice]:
     """Parse les lignes de grub.cfg en choix `GRUB_DEFAULT`."""
     logger.debug(f"[_parse_choices] Parsing {len(lines)} lignes")
@@ -103,46 +148,14 @@ def _parse_choices(lines: list[str]) -> list[GrubDefaultChoice]:
             current_source = m_section.group(1)
             continue
 
-        m_sub = _SUBMENU_RE.match(line)
-        if m_sub:
-            title = m_sub.group(1)
-            idx = stack[-1].next_index
-            stack[-1].next_index += 1
-
-            start_depth = brace_depth
-            opens = line.count("{")
-            closes = line.count("}")
-            brace_depth += opens - closes
-
-            stack.append(
-                _Scope(
-                    prefix=[*stack[-1].prefix, idx],
-                    titles=[*stack[-1].titles, title],
-                    next_index=0,
-                    start_depth=start_depth,
-                )
-            )
-
+        is_submenu, new_depth = _process_submenu(line, stack, brace_depth)
+        if is_submenu:
+            brace_depth = new_depth
             while len(stack) > 1 and brace_depth <= stack[-1].start_depth:
                 stack.pop()
             continue
 
-        m_ent = _MENUENTRY_RE.match(line)
-        if m_ent:
-            title = m_ent.group(1)
-            menu_id = extract_menuentry_id(line)
-            idx = stack[-1].next_index
-            stack[-1].next_index += 1
-
-            id_parts = [*stack[-1].prefix, idx]
-            choice_id = ">".join(str(i) for i in id_parts)
-
-            if stack[-1].titles:
-                display = " > ".join([*stack[-1].titles, title])
-            else:
-                display = title
-
-            choices.append(GrubDefaultChoice(id=choice_id, title=display, menu_id=menu_id, source=current_source))
+        _process_menuentry(line, stack, current_source, choices)
 
         opens = line.count("{")
         closes = line.count("}")

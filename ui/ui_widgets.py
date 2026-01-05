@@ -95,6 +95,7 @@ def grid_add_labeled(
     Returns:
         Prochain index de ligne
     """
+    # pylint: disable=too-many-arguments
     logger.debug(f"[grid_add_labeled] Ligne {row}: {label_text[:30]} + {widget.__class__.__name__}")
     label = Gtk.Label(label=label_text, xalign=label_xalign)
     if label_valign is not None:

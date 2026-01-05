@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, mock_open, patch
 import pytest
 
 from core.theme.core_active_theme_manager import ActiveThemeManager
-from core.theme.core_theme_generator import GrubTheme, create_custom_theme
+from core.models.core_theme_models import GrubTheme, create_custom_theme
 
 
 class TestActiveThemeManager:
@@ -131,22 +131,19 @@ class TestActiveThemeManager:
         """Test l'export vers la configuration GRUB."""
         manager.active_theme = mock_theme
 
-        with patch("core.theme.core_theme_generator.ThemeGenerator.export_grub_config") as mock_export:
-            mock_export.return_value = {"GRUB_TIMEOUT": "5"}
+        config = manager.export_to_grub_config()
 
-            config = manager.export_to_grub_config()
-
-            assert config == {"GRUB_TIMEOUT": "5"}
-            mock_export.assert_called_once_with(mock_theme)
+        assert "GRUB_TIMEOUT" in config
+        assert config["GRUB_TIMEOUT"] == str(mock_theme.grub_timeout)
+        assert "GRUB_THEME" in config
 
     def test_export_to_grub_config_loads_theme(self, manager):
         """Test que l'export charge le thème s'il n'est pas chargé."""
         manager.active_theme = None
-        manager.load_active_theme = MagicMock()
+        manager.get_active_theme = MagicMock(return_value=create_custom_theme("test"))
 
-        with patch("core.theme.core_theme_generator.ThemeGenerator.export_grub_config"):
-            manager.export_to_grub_config()
-            manager.load_active_theme.assert_called_once()
+        manager.export_to_grub_config()
+        manager.get_active_theme.assert_called_once()
 
     def test_create_default_theme(self, manager):
         """Test la création du thème par défaut."""

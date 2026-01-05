@@ -8,12 +8,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from core.core_exceptions import GrubBackupError, GrubConfigError
 from core.io.core_grub_default_io import (
     GRUB_DEFAULT_PATH,
     _best_fallback_for_missing_config,
     _prune_manual_backups,
     _touch_now,
     create_grub_default_backup,
+    create_last_modif_backup,
     delete_grub_default_backup,
     ensure_initial_grub_default_backup,
     format_grub_default,
@@ -23,7 +25,6 @@ from core.io.core_grub_default_io import (
     restore_grub_default_backup,
     write_grub_default,
 )
-from core.core_exceptions import GrubConfigError, GrubBackupError
 
 
 class TestTouchNow:
@@ -573,12 +574,31 @@ class TestRestoreGrubDefaultBackup:
             assert any(c[1] == "/boot/grub/grub.cfg" for c in calls)
 
     def test_restore_backup_tar_error(self, tmp_path):
-        """Test restauration avec archive corrompue."""
+        """Test restauration avec archive corrompue (mais extension .tar.gz)."""
         archive_path = tmp_path / "corrupt.tar.gz"
         archive_path.write_text("not a tar")
 
         with pytest.raises(OSError, match="Échec de la restauration"):
             restore_grub_default_backup(str(archive_path))
+
+    def test_restore_backup_legacy_text_file(self, tmp_path):
+        """Test restauration d'un backup legacy (fichier texte simple)."""
+        backup_path = tmp_path / "grub.backup"
+        backup_path.write_text("GRUB_TIMEOUT=42")
+        target_path = tmp_path / "grub_restored"
+
+        restore_grub_default_backup(str(backup_path), str(target_path))
+
+        assert target_path.read_text() == "GRUB_TIMEOUT=42"
+
+    def test_restore_backup_legacy_copy_error(self, tmp_path):
+        """Test erreur lors de la restauration legacy."""
+        backup_path = tmp_path / "grub.backup"
+        backup_path.write_text("content")
+
+        with patch("shutil.copy2", side_effect=OSError("Disk full")):
+            with pytest.raises(OSError, match="Échec de la restauration legacy"):
+                restore_grub_default_backup(str(backup_path), "/target")
 
     def test_restore_backup_os_error_during_copy(self, tmp_path):
         """Test échec lors de la copie des fichiers extraits."""
@@ -867,6 +887,28 @@ class TestTarFilters:
             res = create_grub_default_backup(str(fake_grub))
             assert res is not None
 
+    def test_tar_filter_manual_exception(self):
+        """Test le filtre tar manuel quand une exception survient."""
+        from core.io.core_grub_default_io import _tar_filter_manual
+        
+        tarinfo = MagicMock()
+        tarinfo.name = "/some/path"
+        
+        with patch("os.path.exists", side_effect=OSError("Disk error")):
+            result = _tar_filter_manual(tarinfo)
+            assert result is None
+
+    def test_tar_filter_initial_exception(self):
+        """Test le filtre tar initial quand une exception survient."""
+        from core.io.core_grub_default_io import _tar_filter_initial
+        
+        tarinfo = MagicMock()
+        tarinfo.name = "/some/path"
+        
+        with patch("os.path.exists", side_effect=OSError("Disk error")):
+            result = _tar_filter_initial(tarinfo)
+            assert result is None
+
 
 class TestEdgeCases:
     """Tests pour les cas limites restants."""
@@ -1027,7 +1069,7 @@ class TestEdgeCases:
         """Test OSError lors du check d'existence dans le loop grub.cfg."""
         config_path = tmp_path / "grub"
         config_path.write_text("c")
-        
+
         # Simuler que le backup n'existe pas encore et qu'on est sur GRUB_DEFAULT_PATH
         with (
             patch("core.io.core_grub_default_io.os.path.abspath", return_value=str(GRUB_DEFAULT_PATH)),
@@ -1039,10 +1081,10 @@ class TestEdgeCases:
             mock_path.exists.return_value = False  # Le backup n'existe pas
             mock_path.parent = tmp_path
             mock_path_class.return_value = mock_path
-            
+
             mock_tar = MagicMock()
             mock_tar_open.return_value.__enter__.return_value = mock_tar
-            
+
             # Appel de la fonction
             res = ensure_initial_grub_default_backup(str(config_path))
             assert res is not None
@@ -2201,3 +2243,137 @@ class TestGrubDefaultIOCoverage:
         create_grub_default_backup(GRUB_DEFAULT_PATH)
         # Should not add script
         assert mock_tar.add.call_count == 2  # default_grub + grub.cfg (if exists)
+
+
+class TestCreateLastModifBackup:
+    """Tests pour create_last_modif_backup."""
+
+    def test_create_last_modif_backup_tar_error(self, tmp_path):
+        """Test create_last_modif_backup avec erreur tarfile."""
+        grub_default = tmp_path / "grub"
+        grub_default.write_text("GRUB_TIMEOUT=5")
+
+        with patch("core.io.core_grub_default_io.tarfile.open") as mock_tar:
+            mock_tar.side_effect = tarfile.TarError("Tar error")
+
+            with pytest.raises(OSError, match="Échec création backup"):
+                create_last_modif_backup(str(grub_default))
+
+    def test_create_last_modif_backup_oserror(self, tmp_path):
+        """Test create_last_modif_backup avec OSError."""
+        grub_default = tmp_path / "grub"
+        grub_default.write_text("GRUB_TIMEOUT=5")
+
+        with patch("core.io.core_grub_default_io.tarfile.open") as mock_tar:
+            mock_tar.side_effect = OSError("Permission denied")
+
+            with pytest.raises(OSError, match="Échec création backup"):
+                create_last_modif_backup(str(grub_default))
+
+    def test_create_last_modif_backup_full_success(self, tmp_path):
+        """Test create_last_modif_backup avec succès complet (full system backup)."""
+        grub_default = tmp_path / "grub"
+        grub_default.write_text("GRUB_TIMEOUT=5")
+
+        # On simule que le chemin passé est le chemin système par défaut
+        with (
+            patch("core.io.core_grub_default_io.GRUB_DEFAULT_PATH", str(grub_default)),
+            patch("core.io.core_grub_default_io.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg"]),
+            patch("core.io.core_grub_default_io.Path") as mock_path_class,
+            patch("core.io.core_grub_default_io.tarfile.open"),
+            patch("core.io.core_grub_default_io._touch_now"),
+            patch("core.io.core_grub_default_io._add_to_tar", return_value=True),
+            patch("core.io.core_grub_default_io.os.path.abspath", side_effect=lambda x: x),
+        ):
+            # Setup mock pour Path("/etc/grub.d")
+            mock_grub_d = MagicMock()
+            mock_grub_d.exists.return_value = True
+
+            script = MagicMock()
+            script.is_file.return_value = True
+            script.name = "10_linux"
+            mock_grub_d.iterdir.return_value = [script]
+
+            # Setup mock pour Path("/boot/grub/grub.cfg")
+            mock_cfg_path = MagicMock()
+            mock_cfg_path.parts = ["/", "boot", "grub", "grub.cfg"]
+
+            def path_side_effect(p):
+                if p == "/etc/grub.d":
+                    return mock_grub_d
+                if p == "/boot/grub/grub.cfg":
+                    return mock_cfg_path
+                return Path(p)
+
+            mock_path_class.side_effect = path_side_effect
+
+            result = create_last_modif_backup(str(grub_default))
+
+            assert "grub_backup.last_modif.tar.gz" in result
+
+    def test_create_last_modif_backup_partial_success(self, tmp_path):
+        """Test create_last_modif_backup avec succès partiel (pas de full system backup)."""
+        grub_default = tmp_path / "grub"
+        grub_default.write_text("GRUB_TIMEOUT=5")
+
+        # On simule que le chemin passé n'est PAS le chemin système par défaut
+        with (
+            patch("core.io.core_grub_default_io.GRUB_DEFAULT_PATH", "/etc/default/grub"),
+            patch("core.io.core_grub_default_io.tarfile.open"),
+            patch("core.io.core_grub_default_io._touch_now"),
+            patch("core.io.core_grub_default_io._add_to_tar", return_value=True),
+            patch("core.io.core_grub_default_io.os.path.abspath", side_effect=lambda x: x),
+        ):
+            result = create_last_modif_backup(str(grub_default))
+            assert "grub_backup.last_modif.tar.gz" in result
+
+    def test_create_last_modif_backup_no_grub_d(self, tmp_path):
+        """Test create_last_modif_backup quand /etc/grub.d n'existe pas."""
+        grub_default = tmp_path / "grub"
+        grub_default.write_text("GRUB_TIMEOUT=5")
+
+        with (
+            patch("core.io.core_grub_default_io.GRUB_DEFAULT_PATH", str(grub_default)),
+            patch("core.io.core_grub_default_io.Path") as mock_path_class,
+            patch("core.io.core_grub_default_io.tarfile.open"),
+            patch("core.io.core_grub_default_io._touch_now"),
+            patch("core.io.core_grub_default_io._add_to_tar", return_value=True),
+            patch("core.io.core_grub_default_io.os.path.abspath", side_effect=lambda x: x),
+        ):
+            mock_grub_d = MagicMock()
+            mock_grub_d.exists.return_value = False
+
+            def path_side_effect(p):
+                if p == "/etc/grub.d":
+                    return mock_grub_d
+                return Path(p)
+
+            mock_path_class.side_effect = path_side_effect
+
+            create_last_modif_backup(str(grub_default))
+
+    def test_create_last_modif_backup_empty_dirs(self, tmp_path):
+        """Test create_last_modif_backup avec répertoires vides."""
+        grub_default = tmp_path / "grub"
+        grub_default.write_text("GRUB_TIMEOUT=5")
+
+        with (
+            patch("core.io.core_grub_default_io.GRUB_DEFAULT_PATH", str(grub_default)),
+            patch("core.io.core_grub_default_io.Path") as mock_path_class,
+            patch("core.io.core_grub_default_io.tarfile.open"),
+            patch("core.io.core_grub_default_io._touch_now"),
+            patch("core.io.core_grub_default_io._add_to_tar", side_effect=[True, False, False]),
+            patch("core.io.core_grub_default_io.os.path.abspath", side_effect=lambda x: x),
+        ):
+            mock_grub_d = MagicMock()
+            mock_grub_d.exists.return_value = True
+            mock_grub_d.iterdir.return_value = [] # Vide
+
+            def path_side_effect(p):
+                if p == "/etc/grub.d":
+                    return mock_grub_d
+                return Path(p)
+
+            mock_path_class.side_effect = path_side_effect
+
+            create_last_modif_backup(str(grub_default))

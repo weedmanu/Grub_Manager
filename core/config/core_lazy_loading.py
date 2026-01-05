@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 class LazyLoader:
     """Chargeur lazy pour modules Python."""
 
+    # pylint: disable=too-few-public-methods
+
     def __init__(self, module_name: str):
         """Initialise le lazy loader.
 

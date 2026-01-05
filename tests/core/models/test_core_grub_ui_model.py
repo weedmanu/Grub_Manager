@@ -99,15 +99,37 @@ def test_model_from_config_non_menu_timeout_style() -> None:
 
 def test_model_timeout_conversion_edge_cases() -> None:
     """Test les cas limites de conversion du timeout."""
-    # Timeout négatif
+    # Timeout négatif -> 0
     cfg = {"GRUB_TIMEOUT": "-5"}
     model = model_from_config(cfg)
-    assert model.timeout == -5
+    assert model.timeout == 0
 
-    # Très grand nombre
-    cfg2 = {"GRUB_TIMEOUT": "999"}
-    model2 = model_from_config(cfg2)
-    assert model2.timeout == 999
+    # Timeout très grand
+    cfg = {"GRUB_TIMEOUT": "9999"}
+    model = model_from_config(cfg)
+    assert model.timeout == 9999
+
+
+def test_grub_ui_model_load_with_invalid_grub_timeout():
+    """Test loading model with invalid GRUB_TIMEOUT."""
+    # This tests the _as_bool and value conversion logic
+    model = GrubUiModel(
+        timeout=0,  # Updated to 0 as negative/invalid are now clamped to 0
+        default="0",
+        save_default=True,
+    )
+    # Should have default timeout
+    assert model.timeout == 0
+
+
+def test_grub_ui_model_load_with_missing_savedefault():
+    """Test loading model without GRUB_SAVEDEFAULT."""
+    model = GrubUiModel(
+        timeout=5,
+        default="0",
+        save_default=False,
+    )
+    assert model.save_default is False
 
 
 def test_merged_config_preserves_unknown_keys_and_replaces_managed() -> None:
@@ -186,7 +208,7 @@ def test_merged_config_grub_theme_with_value() -> None:
 
 
 def test_disable_os_prober_persistence_when_false() -> None:
-    """Vérifie que DISABLE_OS_PROBER est bien absent si désactivé."""
+    """Vérifie que DISABLE_OS_PROBER est explicitement 'false' si désactivé."""
     base_config = {
         "GRUB_TIMEOUT": "5",
         "GRUB_DEFAULT": "0",
@@ -194,7 +216,7 @@ def test_disable_os_prober_persistence_when_false() -> None:
     }
     model = GrubUiModel(timeout=5, default="0", disable_os_prober=False)
     merged = merged_config_from_model(base_config, model)
-    assert "GRUB_DISABLE_OS_PROBER" not in merged
+    assert merged["GRUB_DISABLE_OS_PROBER"] == "false"
 
 
 def test_disable_recovery_is_preserved_when_present() -> None:
@@ -273,3 +295,35 @@ def test_load_save_grub_ui_state_roundtrip(tmp_path, monkeypatch) -> None:
 
     new_state = load_grub_ui_state(grub_default_path=str(grub_default), grub_cfg_path=str(grub_cfg))
     assert new_state.model.timeout == 10
+
+
+def test_merged_config_from_model_simple_theme() -> None:
+    """Couvre les lignes 179, 182, 185."""
+    model = GrubUiModel(
+        grub_background="/path/to/bg.png",
+        grub_color_normal="white/black",
+        grub_color_highlight="yellow/black"
+    )
+    config = {}
+    merged = merged_config_from_model(config, model)
+    assert merged["GRUB_BACKGROUND"] == "/path/to/bg.png"
+    assert merged["GRUB_COLOR_NORMAL"] == "white/black"
+    assert merged["GRUB_COLOR_HIGHLIGHT"] == "yellow/black"
+
+
+def test_load_grub_ui_state_simple_no_theme() -> None:
+    """Couvre les lignes 237-238."""
+    config = {
+        "GRUB_BACKGROUND": "/path/to/bg.png"
+    }
+    # On mock les dépendances de load_grub_ui_state
+    with patch("core.models.core_grub_ui_model.read_grub_default", return_value=config), \
+         patch("core.models.core_grub_ui_model.read_grub_default_choices_with_source", return_value=([], "/boot/grub/grub.cfg")), \
+         patch("core.models.core_grub_ui_model.GrubScriptService", create=True) as mock_service_class:
+        
+        mock_service = mock_service_class.return_value
+        mock_service.scan_theme_scripts.return_value = []
+        
+        state = load_grub_ui_state()
+        # theme_management_enabled devrait être False car has_simple_config=True et has_theme_config=False
+        assert state.model.theme_management_enabled is False

@@ -141,7 +141,7 @@ lint() {
 
 test_suite() {
   if $DO_COV; then
-    run_check "Pytest (coverage)" "$PYTHON_BIN" -m pytest --cov=core --cov=ui --cov-report=term-missing
+    run_check "Pytest (coverage)" "$PYTHON_BIN" -m pytest --cov=core --cov=ui --cov-report=term-missing --cov-fail-under=100
   else
     run_check "Pytest" "$PYTHON_BIN" -m pytest
   fi

@@ -11,7 +11,7 @@ from ui.ui_infobar_controller import WARNING
 
 class PermissionController:
     """Gère UNIQUEMENT les vérifications de permissions.
-    
+
     Responsabilités:
     - Vérifier les permissions root
     - Avertir l'utilisateur si nécessaire
@@ -24,7 +24,7 @@ class PermissionController:
 
     def is_root(self) -> bool:
         """Vérifie si l'application s'exécute avec les droits root.
-        
+
         Returns:
             True si uid == 0 (root), False sinon
         """
@@ -34,11 +34,11 @@ class PermissionController:
 
     def check_and_warn(self, show_info_callback) -> bool:
         """Vérifie les permissions et affiche un avertissement si nécessaire.
-        
+
         Args:
             show_info_callback: Callback pour afficher une notification
                                signature: (message: str, level: str) -> None
-        
+
         Returns:
             True si root, False sinon
         """
@@ -51,24 +51,14 @@ class PermissionController:
                 WARNING,
             )
             return False
-        
+
         logger.debug("[PermissionController] Application exécutée avec droits root")
         return True
 
     def can_modify_system(self) -> bool:
         """Détermine si l'utilisateur peut modifier la configuration système.
-        
+
         Returns:
             True si modifications autorisées, False sinon
         """
         return self.is_root()
-
-    def can_read_grub_files(self) -> bool:
-        """Détermine si l'utilisateur peut lire les fichiers GRUB.
-        
-        Returns:
-            True si lectures autorisées, False sinon
-        """
-        # Pour lecture, on peut être non-root mais avec permissions spéciales
-        # Pour simplifier: si root, oui; sinon potentiellement non
-        return True  # Tentative de lecture sera validée à runtime

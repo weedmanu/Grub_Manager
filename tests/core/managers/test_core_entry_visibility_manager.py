@@ -6,13 +6,13 @@ from unittest.mock import patch
 import pytest
 
 from core.core_exceptions import GrubConfigError, GrubValidationError
+from core.io.grub_parsing_utils import extract_menuentry_id
 from core.managers.core_entry_visibility_manager import (
     apply_hidden_entries_to_grub_cfg,
     find_grub_cfg_path,
     load_hidden_entry_ids,
     save_hidden_entry_ids,
 )
-from core.io.grub_parsing_utils import extract_menuentry_id
 
 
 class TestLoadHiddenEntryIds:
@@ -152,12 +152,11 @@ class TestCandidateGrubCfgPaths:
     def test_candidate_grub_cfg_paths(self, mock_glob):
         """Test génération des chemins candidats avec doublons."""
         # On simule des doublons entre GRUB_CFG_PATHS et glob
-        with patch(
-            "core.config.core_paths.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg", "/boot/grub/grub.cfg"]
-        ):
+        with patch("core.config.core_paths.GRUB_CFG_PATHS", ["/boot/grub/grub.cfg", "/boot/grub/grub.cfg"]):
             mock_glob.return_value = ["/boot/grub/grub.cfg", "/boot/efi/EFI/ubuntu/grub.cfg"]
 
             from core.config.core_paths import discover_grub_cfg_paths
+
             result = discover_grub_cfg_paths()
 
             assert result.count("/boot/grub/grub.cfg") == 1

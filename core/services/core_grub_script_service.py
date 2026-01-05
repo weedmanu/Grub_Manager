@@ -17,7 +17,7 @@ from core.core_exceptions import GrubCommandError, GrubScriptNotFoundError
 
 # Constantes
 GRUB_SCRIPT_DIR: Final[Path] = Path("/etc/grub.d")
-THEME_SCRIPT_PATTERN: Final[str] = "*theme*"
+THEME_SCRIPT_PATTERNS: Final[list[str]] = ["*theme*", "*colors*"]
 EXECUTABLE_PERMISSION: Final[int] = 0o111
 
 
@@ -60,21 +60,27 @@ class GrubScriptService:
             return []
 
         scripts: list[GrubScript] = []
+        seen_paths: set[Path] = set()
 
-        for script_path in self.script_dir.glob(THEME_SCRIPT_PATTERN):
-            if not script_path.is_file():
-                continue
+        for pattern in THEME_SCRIPT_PATTERNS:
+            for script_path in self.script_dir.glob(pattern):
+                if not script_path.is_file():
+                    continue
 
-            is_exec = bool(script_path.stat().st_mode & EXECUTABLE_PERMISSION)
+                if script_path in seen_paths:
+                    continue
+                seen_paths.add(script_path)
 
-            script = GrubScript(
-                name=script_path.name,
-                path=script_path,
-                is_executable=is_exec,
-            )
+                is_exec = bool(script_path.stat().st_mode & EXECUTABLE_PERMISSION)
 
-            scripts.append(script)
-            logger.debug(f"[GrubScriptService] Trouvé: {script}")
+                script = GrubScript(
+                    name=script_path.name,
+                    path=script_path,
+                    is_executable=is_exec,
+                )
+
+                scripts.append(script)
+                logger.debug(f"[GrubScriptService] Trouvé: {script}")
 
         logger.info(f"[GrubScriptService] {len(scripts)} script(s) de thème trouvé(s)")
         return scripts

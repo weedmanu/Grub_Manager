@@ -8,7 +8,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk
 
 from core.services.core_grub_service import GrubConfig, MenuEntry
-from core.theme.core_theme_generator import GrubTheme
+from core.models.core_theme_models import GrubTheme
 from ui.tabs.ui_grub_preview_dialog import GrubPreviewDialog
 
 # Set headless backend for GTK
@@ -17,7 +17,7 @@ os.environ["GDK_BACKEND"] = "headless"
 
 def test_grub_preview_dialog_fallback():
     theme_obj = GrubTheme(name="test_theme")
-    dialog = GrubPreviewDialog(theme_obj)
+    dialog = GrubPreviewDialog(theme_obj, model=None)
 
     with (
         patch("core.services.core_grub_service.GrubService.read_current_config", side_effect=OSError("Error")),
@@ -32,7 +32,16 @@ def test_grub_preview_dialog_fallback():
 def theme():
     t = MagicMock(spec=GrubTheme)
     t.name = "TestTheme"
-    t.grub_timeout = 10
+    t.colors = MagicMock()
+    t.colors.menu_normal_fg = "white"
+    t.colors.menu_highlight_fg = "black"
+    t.colors.menu_highlight_bg = "white"
+    t.layout = MagicMock()
+    t.layout.menu_top = "20%"
+    t.layout.menu_left = "10%"
+    t.layout.menu_width = "80%"
+    t.image = MagicMock()
+    t.image.desktop_image = ""
     return t
 
 
@@ -47,9 +56,12 @@ def test_grub_preview_dialog_show(theme):
 
     with (
         patch("ui.tabs.ui_grub_preview_dialog.Gtk.Window") as mock_window_class,
-        patch("ui.tabs.ui_grub_preview_dialog.GrubService.read_current_config"),
+        patch("ui.tabs.ui_grub_preview_dialog.GrubService.read_current_config") as mock_read,
         patch("ui.tabs.ui_grub_preview_dialog.GrubService.get_menu_entries"),
     ):
+        mock_read.return_value.timeout = 10
+        mock_read.return_value.default_entry = "0"
+        mock_read.return_value.grub_gfxmode = "auto"
 
         mock_window = mock_window_class.return_value
         dialog.show()

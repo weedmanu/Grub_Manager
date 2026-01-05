@@ -160,13 +160,6 @@ class GrubValidationError(GrubManagerError):
     """
 
 
-class GrubLoadError(GrubManagerError):
-    """Erreur lors du chargement de la configuration.
-
-    Levée lorsque le chargement de l'état initial de l'application échoue.
-    """
-
-
 class GrubRollbackError(GrubManagerError):
     """Erreur lors d'un rollback.
 

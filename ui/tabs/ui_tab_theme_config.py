@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -13,11 +14,16 @@ from core.core_exceptions import GrubCommandError, GrubScriptNotFoundError
 from core.services.core_grub_script_service import GrubScriptService
 from core.services.core_theme_service import ThemeService
 from core.theme.core_active_theme_manager import ActiveThemeManager
-from core.theme.core_theme_generator import GrubTheme
-from core.theme.core_theme_generator import create_custom_theme as _create_custom_theme
+from core.models.core_theme_models import GrubTheme
+from core.models.core_theme_models import create_custom_theme as _create_custom_theme
 from ui.components.ui_theme_config_actions import build_theme_config_right_column
+from ui.components.ui_theme_simple_config import ThemeSimpleConfigPanel
+from ui.components.ui_theme_scripts_list import ThemeScriptsList
+from ui.dialogs.ui_interactive_theme_generator_window import (
+    InteractiveThemeGeneratorWindow,
+)
 from ui.tabs.ui_grub_preview_dialog import GrubPreviewDialog
-from ui.tabs.ui_theme_editor_dialog import ThemeEditorDialog
+from ui.ui_constants import GRUB_COLORS
 from ui.ui_gtk_helpers import GtkHelper
 from ui.ui_widgets import create_error_dialog, create_main_box, create_success_dialog, create_two_column_layout
 
@@ -38,11 +44,14 @@ def create_custom_theme(name: str, **kwargs: Any) -> GrubTheme:
 class TabThemeConfig:
     """Onglet pour sélectionner et configurer le thème GRUB."""
 
-    def __init__(self, state_manager: Any) -> None:
+    # pylint: disable=too-many-instance-attributes
+
+    def __init__(self, state_manager: Any, window: Gtk.Window | None = None) -> None:
         """Initialise l'onglet de configuration de thème.
 
         Args:
             state_manager: Gestionnaire d'état global.
+            window: Fenêtre parente (optionnel).
         """
         self.state_manager = state_manager
         self.current_theme: GrubTheme | None = None
@@ -51,22 +60,45 @@ class TabThemeConfig:
         self.theme_service = ThemeService()
         self.available_themes: dict[str, GrubTheme] = {}
         self.theme_paths: dict[str, Path] = {}  # Pour stocker le chemin de chaque thème
-        self.parent_window: Gtk.Window | None = None
-        self._ignore_switch_signal = False
+        self.parent_window: Gtk.Window | None = window
+        self._updating_ui: bool = False
 
         # Widgets
         self.theme_list_box: Gtk.ListBox | None = None
-        self.activate_btn: Gtk.Button | None = None
+        self.current_script: Any = None
         self.preview_btn: Gtk.Button | None = None
+        self.activate_theme_btn: Gtk.Button | None = None
+        self.deactivate_theme_btn: Gtk.Button | None = None
         self.edit_btn: Gtk.Button | None = None
         self.delete_btn: Gtk.Button | None = None
         self.theme_switch: Gtk.Switch | None = None
-        self.scripts_info_box: Gtk.Box | None = None
+
+        # Compat tests (anciens attributs)
+        self.scripts_list_box: Gtk.ListBox | None = None
+
+        # Compat tests (anciens widgets de config simple)
+        self.bg_image_entry: Gtk.Entry | None = None
+        self.normal_fg_combo: Gtk.DropDown | None = None
+        self.normal_bg_combo: Gtk.DropDown | None = None
+        self.highlight_fg_combo: Gtk.DropDown | None = None
+        self.highlight_bg_combo: Gtk.DropDown | None = None
+
+        # Composants
+        self.simple_config_panel: ThemeSimpleConfigPanel | None = None
+        self.scripts_list: ThemeScriptsList | None = None
 
         # Sections à afficher/masquer avec le switch
         self.theme_sections_container: Gtk.Box | None = None
+        self.simple_config_container: Gtk.Box | None = None
 
         logger.debug("[TabThemeConfig.__init__] Onglet initialisé")
+
+    def _mark_dirty(self) -> None:
+        """Marque l'état comme modifié."""
+        save_btn = getattr(self.parent_window, "save_btn", None)
+        reload_btn = getattr(self.parent_window, "reload_btn", None)
+        if save_btn and reload_btn:
+            self.state_manager.mark_dirty(save_btn, reload_btn)
 
     def build(self) -> Gtk.Box:
         """Construit l'interface utilisateur de l'onglet.
@@ -85,14 +117,20 @@ class TabThemeConfig:
         separator = Gtk.Separator(orientation=HORIZONTAL)
         main_box.append(separator)
 
+        # === SECTION 1: Configuration Simple (Switch OFF) ===
+        self.simple_config_container = self._build_simple_config_section()
+        main_box.append(self.simple_config_container)
+
+        # === SECTION 2: Gestion Complète des Thèmes (Switch ON) ===
         # Conteneur pour toutes les sections de thèmes (masquable)
         self.theme_sections_container, left_section, right_section = create_two_column_layout(main_box)
 
         self._build_left_column(left_section)
         self._build_right_column(right_section)
 
-        # Initialement masqué
+        # Initialement masqué (sera géré par _load_themes)
         self.theme_sections_container.set_visible(False)
+        self.simple_config_container.set_visible(True)
 
         # Charger les thèmes
         self._load_themes()
@@ -124,9 +162,6 @@ class TabThemeConfig:
         list_title.add_css_class("section-title")
         container.append(list_title)
 
-        self.scripts_info_box = Gtk.Box(orientation=VERTICAL, spacing=8)
-        container.append(self.scripts_info_box)
-
         # Frame + Scrolled window pour harmoniser avec les autres onglets
         frame = Gtk.Frame()
         frame.set_vexpand(True)
@@ -146,20 +181,117 @@ class TabThemeConfig:
         scrolled.set_child(self.theme_list_box)
         frame.set_child(scrolled)
 
+    def _build_simple_config_section(self) -> Gtk.Box:
+        """Construit la section de configuration simple (couleurs et fond)."""
+        container = Gtk.Box(orientation=VERTICAL, spacing=15)
+        container.set_margin_top(10)
+        container.set_margin_bottom(10)
+        container.set_margin_start(10)
+        container.set_margin_end(10)
+
+        # Panneau de configuration simple
+        self.simple_config_panel = ThemeSimpleConfigPanel(
+            state_manager=self.state_manager,
+            on_changed=self._mark_dirty
+        )
+        container.append(self.simple_config_panel)
+
+        # Aliases attendus par certains tests/anciens appels.
+        self.bg_image_entry = self.simple_config_panel.bg_image_entry
+        self.normal_fg_combo = self.simple_config_panel.normal_fg_combo
+        self.normal_bg_combo = self.simple_config_panel.normal_bg_combo
+        self.highlight_fg_combo = self.simple_config_panel.highlight_fg_combo
+        self.highlight_bg_combo = self.simple_config_panel.highlight_bg_combo
+
+        # Séparateur
+        sep = Gtk.Separator(orientation=HORIZONTAL)
+        sep.set_margin_top(15)
+        sep.set_margin_bottom(15)
+        container.append(sep)
+
+        # Liste des scripts
+        self.scripts_list = ThemeScriptsList(
+            state_manager=self.state_manager,
+            script_service=self.script_service
+        )
+        # Expose la listbox pour compatibilité avec les tests/anciens appels.
+        self.scripts_list_box = self.scripts_list.scripts_list_box
+        container.append(self.scripts_list)
+
+        return container
+
+    def _on_select_bg_image(self, button: Gtk.Button) -> None:
+        """Ouvre un sélecteur de fichier pour l'image de fond (compat tests)."""
+        dialog = Gtk.FileDialog()
+        dialog.set_title("Choisir une image de fond")
+
+        filters = Gtk.FileFilter()
+        filters.set_name("Images")
+        filters.add_mime_type("image/jpeg")
+        filters.add_mime_type("image/png")
+        filters.add_mime_type("image/tga")
+        dialog.set_default_filter(filters)
+
+        parent = GtkHelper.resolve_parent_window(button, fallback=self.parent_window)
+        dialog.open(parent, None, self._on_bg_image_selected)
+
+    def _on_bg_image_selected(self, dialog: Gtk.FileDialog, result) -> None:
+        """Callback après sélection de l'image (compat tests)."""
+        try:
+            file = dialog.open_finish(result)
+            if file and self.bg_image_entry:
+                self.bg_image_entry.set_text(file.get_path())
+        except (OSError, RuntimeError) as e:
+            logger.warning(f"[TabThemeConfig] Sélection d'image annulée ou échouée: {e}")
+
+    def _on_simple_config_changed(self, *_) -> None:
+        """Met à jour le modèle depuis la config simple (compat tests)."""
+        if self._updating_ui:
+            return
+
+        if not self.bg_image_entry or not self.normal_fg_combo or not self.normal_bg_combo:
+            return
+
+        if not self.highlight_fg_combo or not self.highlight_bg_combo:
+            return
+
+        bg_image = self.bg_image_entry.get_text()
+
+        n_fg = GRUB_COLORS[self.normal_fg_combo.get_selected()]
+        n_bg = GRUB_COLORS[self.normal_bg_combo.get_selected()]
+        color_normal = f"{n_fg}/{n_bg}"
+
+        h_fg = GRUB_COLORS[self.highlight_fg_combo.get_selected()]
+        h_bg = GRUB_COLORS[self.highlight_bg_combo.get_selected()]
+        color_highlight = f"{h_fg}/{h_bg}"
+
+        current_model = self.state_manager.get_model()
+        new_model = replace(
+            current_model,
+            grub_background=bg_image,
+            grub_color_normal=color_normal,
+            grub_color_highlight=color_highlight,
+        )
+        self.state_manager.update_model(new_model)
+        self._mark_dirty()
+
     def _build_right_column(self, container: Gtk.Box) -> None:
         """Construit la colonne de droite (actions)."""
         parts = build_theme_config_right_column(
-            on_activate=lambda: _on_activate_theme(self),
             on_preview=lambda: _on_preview_theme(self),
+            on_activate_theme=lambda b: _on_activate_theme(b, self),
+            on_deactivate_theme=lambda b: _on_deactivate_theme(b, self),
             on_edit=lambda b: _on_edit_theme(b, self.current_theme.name, self) if self.current_theme else None,
             on_delete=lambda b: _on_delete_theme(b, self.current_theme.name, self) if self.current_theme else None,
             on_open_editor=lambda b: _on_open_editor(self, b),
         )
 
-        self.activate_btn = parts.activate_btn
         self.preview_btn = parts.preview_btn
+        self.activate_theme_btn = parts.activate_theme_btn
+        self.deactivate_theme_btn = parts.deactivate_theme_btn
         self.edit_btn = parts.edit_btn
         self.delete_btn = parts.delete_btn
+        # self.activate_script_btn et self.deactivate_script_btn sont maintenant dans _build_simple_config_section
 
         container.append(parts.actions_title)
         container.append(parts.actions_box)
@@ -193,36 +325,48 @@ class TabThemeConfig:
 
     # _build_theme_list_section et _build_actions_section sont supprimés car intégrés dans build()
 
-    def _load_themes(self) -> None:
-        """Charge la liste des thèmes disponibles."""
+    def load_themes(self) -> None:
+        """Charge la configuration du thème depuis le modèle et met à jour l'UI."""
+        # Utiliser l'état du modèle chargé (basé sur les scripts)
+        if not self.state_manager.state_data or not self.state_manager.state_data.model:
+            logger.debug("[TabThemeConfig.load_themes] Pas de modèle disponible")
+            return
+
+        # On bloque les mises à jour de l'UI vers le modèle pendant le chargement
+        self._updating_ui = True
         try:
-            # Vérifier d'abord si un thème est réellement configuré dans GRUB
-            grub_theme_enabled = self.theme_service.is_theme_enabled_in_grub()
+            model = self.state_manager.state_data.model
+            theme_enabled = model.theme_management_enabled
+            logger.info(
+                f"[TabThemeConfig.load_themes] Chargement config thème - theme_management_enabled={theme_enabled}"
+            )
 
-            # Définir l'état du switch selon la configuration GRUB réelle
+            # Définir l'état du switch
             if self.theme_switch:
-                # Bloquer temporairement le signal pour éviter de déclencher le scan
-                # Note: On ne peut plus utiliser handler_block_by_func avec une lambda
-                # On va utiliser une propriété temporaire pour ignorer le signal
-                self._ignore_switch_signal = True
-                self.theme_switch.set_active(grub_theme_enabled)
-                self._ignore_switch_signal = False
+                self.theme_switch.set_active(theme_enabled)
+                logger.debug(f"[TabThemeConfig.load_themes] Switch mis à {theme_enabled}")
 
-                # Afficher les sections si un thème est configuré
+                # Afficher les sections si activé
                 if self.theme_sections_container:
-                    self.theme_sections_container.set_visible(grub_theme_enabled)
+                    self.theme_sections_container.set_visible(theme_enabled)
+                if self.simple_config_container:
+                    self.simple_config_container.set_visible(not theme_enabled)
+
+            # === Charger la config simple ===
+            if self.simple_config_panel:
+                self.simple_config_panel.update_from_model(model)
 
             # Charger le thème actif s'il existe
             try:
                 active_theme = self.theme_manager.load_active_theme()
                 if active_theme:
                     self.current_theme = active_theme
-                    logger.debug(f"[TabThemeConfig._load_themes] Thème actif: {active_theme.name}")
+                    logger.debug(f"[TabThemeConfig.load_themes] Thème actif: {active_theme.name}")
             except (OSError, RuntimeError) as e:
-                logger.warning(f"[TabThemeConfig._load_themes] Pas de thème actif: {e}")
+                logger.warning(f"[TabThemeConfig.load_themes] Pas de thème actif: {e}")
 
             # Si le switch est activé, charger les thèmes maintenant
-            if grub_theme_enabled:
+            if theme_enabled:
                 self.refresh()
 
                 # Sélectionner le premier thème si disponible
@@ -231,10 +375,15 @@ class TabThemeConfig:
                     if first_row:
                         self.theme_list_box.select_row(first_row)
 
-            logger.debug(f"[TabThemeConfig._load_themes] Switch état: {grub_theme_enabled}")
-
+            logger.debug(f"[TabThemeConfig.load_themes] Switch état: {theme_enabled}")
         except (OSError, RuntimeError) as e:
-            logger.error(f"[TabThemeConfig._load_themes] Erreur: {e}")
+            logger.error(f"[TabThemeConfig.load_themes] Erreur: {e}")
+        finally:
+            self._updating_ui = False
+
+    def _load_themes(self) -> None:
+        """Alias interne pour compatibilité."""
+        self.load_themes()
 
     def scan_system_themes(self) -> None:
         """Scanne les répertoires système pour trouver les thèmes."""
@@ -251,7 +400,13 @@ class TabThemeConfig:
                 break
             self.theme_list_box.remove(child)
 
-        # Utiliser le service pour scanner les thèmes
+        # 1. Ajouter l'option "Aucun"
+        from core.models.core_theme_models import GrubTheme
+        none_theme = GrubTheme(name="Aucun (GRUB par défaut)")
+        self.available_themes[none_theme.name] = none_theme
+        self._add_theme_to_list(none_theme, None)
+
+        # 2. Utiliser le service pour scanner les thèmes
         scanned_themes = self.theme_service.scan_system_themes()
 
         for theme_name, (theme, item) in scanned_themes.items():
@@ -272,12 +427,12 @@ class TabThemeConfig:
             row.set_child(label)
             self.theme_list_box.append(row)
 
-    def _add_theme_to_list(self, theme: GrubTheme, theme_path: Path) -> None:
+    def _add_theme_to_list(self, theme: GrubTheme, theme_path: Path | None) -> None:
         """Ajoute un thème à la liste.
 
         Args:
             theme: Thème à ajouter.
-            theme_path: Chemin du répertoire du thème.
+            theme_path: Chemin du répertoire du thème (None pour 'Aucun').
         """
         row = Gtk.ListBoxRow()
 
@@ -290,6 +445,8 @@ class TabThemeConfig:
 
         # Icône
         icon_label = Gtk.Label(label="🎨")
+        if theme_path is None:
+            icon_label.set_label("🚫")
         icon_label.set_margin_end(8)
         content_box.append(icon_label)
 
@@ -301,15 +458,33 @@ class TabThemeConfig:
         content_box.append(theme_label)
 
         # Vérifier si le thème est modifiable
-        is_custom = self.theme_service.is_theme_custom(theme_path)
+        is_custom = False
+        if theme_path:
+            is_custom = self.theme_service.is_theme_custom(theme_path)
 
+        # Vérifier si le thème est actif dans le modèle
+        model = self.state_manager.get_model()
+        is_active = False
+        if theme_path:
+            theme_txt_path = theme_path / "theme.txt"
+            is_active = str(theme_txt_path) == model.grub_theme
+        else:
+            # Cas "Aucun"
+            is_active = not model.grub_theme
+
+        # Badge pour l'état actif
+        if is_active:
+            active_badge = Gtk.Label(label="✅ Actif")
+            active_badge.add_css_class("success")
+            active_badge.set_margin_end(10)
+            content_box.append(active_badge)
         # Badge pour les thèmes système
-        if not is_custom:
+        elif theme_path and not is_custom:
             system_badge = Gtk.Label(label="Système")
             system_badge.add_css_class("dim-label")
             system_badge.set_margin_end(10)
             content_box.append(system_badge)
-        else:
+        elif theme_path:
             custom_badge = Gtk.Label(label="Custom")
             custom_badge.add_css_class("success")
             custom_badge.set_margin_end(10)
@@ -317,6 +492,53 @@ class TabThemeConfig:
 
         row.set_child(content_box)
         self.theme_list_box.append(row)
+
+
+def _on_activate_theme(_button: Gtk.Button, tab: TabThemeConfig) -> None:
+    """Active le thème sélectionné dans le modèle.
+
+    Args:
+        _button: Le bouton cliqué.
+        tab: L'instance de l'onglet.
+    """
+    if not tab.current_theme:
+        return
+
+    theme_name = tab.current_theme.name
+    theme_path = tab.theme_paths.get(theme_name)
+    theme_txt = ""
+    if theme_path:
+        theme_txt = str(theme_path / "theme.txt")
+
+    # Mettre à jour le modèle
+    current_model = tab.state_manager.get_model()
+    new_model = replace(current_model, grub_theme=theme_txt)
+
+    tab.state_manager.update_model(new_model)
+    tab._mark_dirty()
+
+    # Rafraîchir l'UI pour mettre à jour les badges et boutons
+    tab.refresh()
+    logger.info(f"[_on_activate_theme] Thème activé dans le modèle: {theme_name}")
+
+
+def _on_deactivate_theme(_button: Gtk.Button, tab: TabThemeConfig) -> None:
+    """Désactive le thème (revient à 'Aucun').
+
+    Args:
+        _button: Le bouton cliqué.
+        tab: L'instance de l'onglet.
+    """
+    # Mettre à jour le modèle
+    current_model = tab.state_manager.get_model()
+    new_model = replace(current_model, grub_theme="")
+
+    tab.state_manager.update_model(new_model)
+    tab._mark_dirty()
+
+    # Rafraîchir l'UI
+    tab.refresh()
+    logger.info("[_on_deactivate_theme] Thème désactivé (GRUB par défaut)")
 
 
 def _on_theme_selected(_list_box: Gtk.ListBox, row: Gtk.ListBoxRow, tab: TabThemeConfig) -> None:
@@ -329,8 +551,6 @@ def _on_theme_selected(_list_box: Gtk.ListBox, row: Gtk.ListBoxRow, tab: TabThem
     """
     if row is None:
         tab.current_theme = None
-        if tab.activate_btn:
-            tab.activate_btn.set_sensitive(False)
         if tab.preview_btn:
             tab.preview_btn.set_sensitive(False)
         if tab.edit_btn:
@@ -346,13 +566,12 @@ def _on_theme_selected(_list_box: Gtk.ListBox, row: Gtk.ListBoxRow, tab: TabThem
         tab.current_theme = themes_list[index]
 
         # Activer les boutons d'action
-        if tab.activate_btn:
-            tab.activate_btn.set_sensitive(True)
         if tab.preview_btn:
             tab.preview_btn.set_sensitive(tab.current_theme.name != "Aucun (GRUB par défaut)")
 
         # Vérifier si c'est un thème custom pour activer Edit/Delete
         is_custom = False
+        theme_path = None
         if tab.current_theme.name in tab.theme_paths:
             theme_path = tab.theme_paths[tab.current_theme.name]
             is_custom = tab.theme_service.is_theme_custom(theme_path)
@@ -362,7 +581,21 @@ def _on_theme_selected(_list_box: Gtk.ListBox, row: Gtk.ListBoxRow, tab: TabThem
         if tab.delete_btn:
             tab.delete_btn.set_sensitive(is_custom)
 
-        logger.debug(f"[_on_theme_selected] Thème: {tab.current_theme.name} (Custom: {is_custom})")
+        # Vérifier si c'est le thème actif dans le modèle
+        model = tab.state_manager.get_model()
+        is_active = False
+        if theme_path:
+            theme_txt_path = theme_path / "theme.txt"
+            is_active = str(theme_txt_path) == model.grub_theme
+        elif tab.current_theme.name == "Aucun (GRUB par défaut)":
+            is_active = not model.grub_theme
+
+        if tab.activate_theme_btn:
+            tab.activate_theme_btn.set_sensitive(not is_active)
+        if tab.deactivate_theme_btn:
+            tab.deactivate_theme_btn.set_sensitive(is_active and tab.current_theme.name != "Aucun (GRUB par défaut)")
+
+        logger.debug(f"[_on_theme_selected] Thème: {tab.current_theme.name} (Custom: {is_custom}, Active: {is_active})")
 
 
 def _on_theme_switch_toggled(switch: Gtk.Switch, _param: Any, tab: TabThemeConfig) -> None:
@@ -373,126 +606,166 @@ def _on_theme_switch_toggled(switch: Gtk.Switch, _param: Any, tab: TabThemeConfi
         _param: Paramètre ignoré.
         tab: L'instance de l'onglet.
     """
-    is_active = switch.get_active()
+    if tab.state_manager.is_loading() or getattr(tab, "_updating_switch", False):
+        return
 
-    # Afficher/masquer les sections de configuration des thèmes
+    is_active = switch.get_active()
+    logger.info(f"[_on_theme_switch_toggled] Switch basculé: {is_active}")
+
+    # Mettre à jour le modèle
+    current_model = tab.state_manager.get_model()
+    if current_model.theme_management_enabled != is_active:
+        new_model = replace(current_model, theme_management_enabled=is_active)
+        tab.state_manager.update_model(new_model)
+        tab._mark_dirty()
+
+    # Afficher/masquer les sections
     if tab.theme_sections_container:
         tab.theme_sections_container.set_visible(is_active)
+    if tab.simple_config_container:
+        tab.simple_config_container.set_visible(not is_active)
 
-    if is_active:
-        # Quand on affiche, rafraîchir les données
-        tab.refresh()
+    # Recharger l'interface pour refléter le nouveau mode et les valeurs
+    # Cela gère la visibilité et le peuplement des widgets
+    tab.load_themes()
 
-        # Sélectionner le premier thème si disponible
-        if tab.theme_list_box and len(tab.available_themes) > 0:
-            first_row = tab.theme_list_box.get_row_at_index(0)
-            if first_row:
-                tab.theme_list_box.select_row(first_row)
-
-    logger.debug(f"[_on_theme_switch_toggled] Sections {'affichées' if is_active else 'masquées'}")
+    logger.debug(f"[_on_theme_switch_toggled] Sections {'affichées' if is_active else 'masquées'}, Modèle mis à jour")
 
 
 def _scan_grub_scripts(tab: TabThemeConfig) -> None:
-    """Scanne /etc/grub.d/ pour détecter les scripts de thème.
+    """Scanne et affiche les scripts GRUB.
+
+    Conservé pour compatibilité avec les tests: la logique est déléguée au composant
+    `ThemeScriptsList`.
 
     Args:
         tab: L'instance de l'onglet.
     """
-    if tab.scripts_info_box is None:
+    list_box: Gtk.ListBox | None = getattr(tab, "scripts_list_box", None)
+    if list_box is None and getattr(tab, "scripts_list", None):
+        list_box = tab.scripts_list.scripts_list_box
+        tab.scripts_list_box = list_box
+
+    if list_box is None:
         return
 
-    # Nettoyer l'affichage précédent
+    # Nettoyer l'affichage précédent (compatible mocks tests).
     while True:
-        child = tab.scripts_info_box.get_first_child()
+        child = list_box.get_first_child()
         if child is None:
             break
-        tab.scripts_info_box.remove(child)
+        list_box.remove(child)
+
+    # Source des scripts: soit via le service de l'onglet (tests), soit via le composant.
+    script_service = getattr(tab, "script_service", None)
+    if script_service is None and getattr(tab, "scripts_list", None):
+        script_service = tab.scripts_list.script_service
+
+    if script_service is None:
+        return
 
     logger.debug("[_scan_grub_scripts] Scan des scripts GRUB")
+    theme_scripts = script_service.scan_theme_scripts()
 
-    # Utiliser le service pour scanner les scripts
-    theme_scripts = tab.script_service.scan_theme_scripts()
+    if not theme_scripts:
+        return
 
-    if theme_scripts:
-        logger.info(f"[_scan_grub_scripts] {len(theme_scripts)} script(s) de thème trouvé(s)")
+    for script in theme_scripts:
+        row = Gtk.ListBoxRow()
+        row.set_selectable(False)
 
-        # Afficher les scripts dans l'interface
-        for script in theme_scripts:
-            script_row = Gtk.Box(orientation=HORIZONTAL, spacing=10)
-            script_row.set_margin_start(10)
-            script_row.set_margin_bottom(5)
+        script_box = Gtk.Box(orientation=HORIZONTAL, spacing=10)
+        script_box.set_margin_top(8)
+        script_box.set_margin_bottom(8)
+        script_box.set_margin_start(10)
+        script_box.set_margin_end(10)
 
-            # Icône de statut
-            status_icon = "✓" if script.is_executable else "⚠"
-            status_label = Gtk.Label(label=status_icon)
-            script_row.append(status_label)
+        is_executable = getattr(script, "is_executable", False)
+        is_pending = False
 
-            # Nom du script
-            name_label = Gtk.Label(label=script.name)
-            name_label.set_halign(Gtk.Align.START)
-            name_label.set_hexpand(True)
-            script_row.append(name_label)
+        pending_changes = getattr(tab.state_manager, "pending_script_changes", {})
+        script_path = getattr(script, "path", None)
+        if script_path in pending_changes:
+            is_executable = pending_changes[script_path]
+            is_pending = True
 
-            # État
-            state_text = "actif" if script.is_executable else "inactif"
-            state_label = Gtk.Label(label=state_text)
-            state_label.set_halign(Gtk.Align.END)
-            if not script.is_executable:
-                state_label.add_css_class("warning")
-            script_row.append(state_label)
+        script_name = getattr(script, "name", "")
+        if script_name in ["05_debian_theme", "05_grub_colors"]:
+            script_name += " (Défaut)"
+        if is_pending:
+            script_name += " *"
 
-            # Bouton d'activation si inactif
-            if not script.is_executable:
-                activate_script_btn = Gtk.Button(label="Activer")
-                activate_script_btn.connect("clicked", lambda b, p=str(script.path): _on_activate_script(b, p, tab))
-                script_row.append(activate_script_btn)
+        name_label = Gtk.Label(label=script_name)
+        name_label.set_halign(Gtk.Align.START)
+        name_label.set_hexpand(True)
+        name_label.add_css_class("title-4")
+        script_box.append(name_label)
 
-            tab.scripts_info_box.append(script_row)
+        state_label = Gtk.Label(label="actif" if is_executable else "inactif")
+        state_label.set_margin_end(10)
+        if not is_executable:
+            state_label.add_css_class("warning")
+        script_box.append(state_label)
+
+        switch = Gtk.Switch()
+        switch.set_active(is_executable)
+        switch.set_valign(Gtk.Align.CENTER)
+        switch.connect(
+            "notify::active",
+            lambda s, _p, sc=script, lbl=state_label: _on_script_switch_toggled(s, sc, tab, lbl),
+        )
+        script_box.append(switch)
+
+        row.set_child(script_box)
+        list_box.append(row)
 
 
-def _on_activate_script(_button: Gtk.Button, script_path: str, tab: TabThemeConfig) -> None:
-    """Active un script GRUB en le rendant exécutable.
+def _on_script_switch_toggled(
+    switch: Gtk.Switch,
+    script: Any,
+    tab: TabThemeConfig,
+    label: Gtk.Label | None = None,
+) -> None:
+    """Callback switch script (compat tests).
 
     Args:
-        _button: Le bouton cliqué.
-        script_path: Chemin du script à activer.
+        switch: Le switch basculé.
+        script: Objet script (doit exposer `path`, `name`, `is_executable`).
         tab: L'instance de l'onglet.
+        label: Label d'état optionnel.
     """
-    try:
-        # Utiliser le service au lieu de subprocess direct
-        success = tab.script_service.make_executable(Path(script_path))
+    if tab.scripts_list:
+        tab.scripts_list._on_script_switch_toggled(switch, script, label)  # pylint: disable=protected-access
+        return
 
-        if success:
-            logger.info(f"[_on_activate_script] Script activé: {script_path}")
-            create_success_dialog(
-                f"Script activé: {Path(script_path).name}\nRelancez le scan pour voir les changements."
-            )
+    # Fallback minimal si le composant n'est pas initialisé.
+    if tab.state_manager.is_loading():
+        return
 
-            # Relancer le scan
-            tab.refresh()
+    is_active = switch.get_active()
+    if label:
+        label.set_label("actif" if is_active else "inactif")
+        if is_active:
+            label.remove_css_class("warning")
         else:
-            logger.error(f"[_on_activate_script] Échec de l'activation: {script_path}")
-            create_error_dialog(f"Impossible d'activer le script:\n{Path(script_path).name}")
+            label.add_css_class("warning")
 
-    except GrubCommandError as e:
-        logger.error(f"[_on_activate_script] Erreur commande: {e}")
-        create_error_dialog(f"Erreur lors de l'activation:\n{e}")
+    tab.state_manager.pending_script_changes[script.path] = is_active
+    if getattr(script, "is_executable", None) == is_active:
+        tab.state_manager.pending_script_changes.pop(script.path, None)
 
-    except GrubScriptNotFoundError as e:
-        logger.error(f"[_on_activate_script] Script introuvable: {e}")
-        create_error_dialog(f"Script introuvable:\n{e}")
-
-    except PermissionError as e:
-        logger.error(f"[_on_activate_script] Permission refusée: {e}")
-        create_error_dialog(f"Permission refusée:\n{e}\nNécessite les privilèges root")
-
-    except OSError as e:
-        logger.error(f"[_on_activate_script] Erreur inattendue: {e}")
-        create_error_dialog(f"Erreur inattendue:\n{e}")
+    model = tab.state_manager.get_model() if hasattr(tab.state_manager, "get_model") else None
+    try:
+        if model is not None:
+            tab.state_manager.update_model(model)
+        else:
+            tab.state_manager.update_model()
+    except TypeError:
+        tab.state_manager.update_model()
 
 
 def _on_open_editor(tab: TabThemeConfig, button: Gtk.Button | None = None) -> None:
-    """Ouvre l'éditeur de thème dans une fenêtre séparée.
+    """Ouvre le générateur interactif de thème dans une fenêtre séparée.
 
     Args:
         tab: L'instance de l'onglet.
@@ -504,9 +777,68 @@ def _on_open_editor(tab: TabThemeConfig, button: Gtk.Button | None = None) -> No
             tab.parent_window = GtkHelper.resolve_parent_window(button, fallback=tab.parent_window)
 
         if tab.parent_window:
-            editor_dialog = ThemeEditorDialog(tab.parent_window, tab.state_manager)
-            editor_dialog.present()
-            logger.info("[_on_open_editor] Éditeur de thème ouvert")
+            def _on_theme_created(name: str, package: dict[str, Any]) -> None:
+                """Callback appelé quand un thème est créé."""
+                try:
+                    import shutil
+                    from core.config.core_paths import get_grub_themes_dir  # pylint: disable=import-outside-toplevel
+                    
+                    themes_dir = get_grub_themes_dir()
+                    theme_path = themes_dir / name
+                    
+                    # Créer le dossier du thème
+                    theme_path.mkdir(parents=True, exist_ok=True)
+                    
+                    # Écrire le fichier theme.txt
+                    (theme_path / "theme.txt").write_text(package["theme.txt"], encoding="utf-8")
+                    
+                    # Copier les assets
+                    assets = package.get("assets", {})
+                    for target_name, source_path in assets.items():
+                        try:
+                            src = Path(source_path)
+                            if not src.exists():
+                                logger.warning(f"Asset non trouvé: {source_path}")
+                                continue
+                                
+                            dst = theme_path / target_name
+                            if src.is_dir():
+                                if dst.exists():
+                                    shutil.rmtree(dst)
+                                shutil.copytree(src, dst)
+                            else:
+                                shutil.copy(src, dst)
+                            logger.debug(f"Asset copié: {target_name}")
+                        except Exception as e:
+                            logger.error(f"Erreur lors de la copie de l'asset {target_name}: {e}")
+
+                    logger.info(f"Thème '{name}' créé avec succès dans {theme_path}")
+                    
+                    # Rafraîchir la liste des thèmes
+                    tab.scan_system_themes()
+                    
+                except (OSError, PermissionError) as e:
+                    logger.error(f"Erreur lors de la création du thème: {e}")
+                    create_error_dialog(f"Erreur lors de la création du thème:\n{e}")
+
+            win = InteractiveThemeGeneratorWindow(
+                parent_window=tab.parent_window,
+                on_theme_created=_on_theme_created
+            )
+
+            # Conserver une référence Python pour éviter une destruction prématurée (fermeture immédiate).
+            tab._interactive_theme_generator_window = win  # type: ignore[attr-defined]
+
+            def _on_close(_widget) -> bool:
+                try:
+                    delattr(tab, "_interactive_theme_generator_window")
+                except Exception:
+                    pass
+                return False
+
+            win.connect("close-request", _on_close)
+            win.present()
+            logger.info("[_on_open_editor] Générateur de thème ouvert")
         else:
             logger.error("[_on_open_editor] Fenêtre parente introuvable")
             create_error_dialog("Impossible d'ouvrir l'éditeur")
@@ -521,49 +853,25 @@ def _on_preview_theme(tab: TabThemeConfig) -> None:
     Args:
         tab: L'instance de l'onglet.
     """
-    if tab.current_theme is None:
+    model = tab.state_manager.get_model()
+    theme = tab.current_theme
+    
+    # Si pas de thème sélectionné mais qu'on est en mode thème, erreur
+    if theme is None and model.theme_management_enabled:
         create_error_dialog("Veuillez sélectionner un thème")
         return
 
+    # Si pas de thème (mode simple), on crée un objet thème vide pour le dialog
+    if theme is None:
+        theme = GrubTheme(name="Configuration Simple")
+
     try:
-        dialog = GrubPreviewDialog(tab.current_theme)
+        dialog = GrubPreviewDialog(theme, model=model)
         dialog.show()
-        logger.debug(f"[_on_preview_theme] Aperçu: {tab.current_theme.name}")
+        logger.debug(f"[_on_preview_theme] Aperçu: {theme.name}")
     except (OSError, RuntimeError) as e:
         logger.error(f"[_on_preview_theme] Erreur: {e}")
         create_error_dialog(f"Erreur lors de l'aperçu:\n{e}")
-
-
-def _on_activate_theme(tab: TabThemeConfig) -> None:
-    """Marque le thème sélectionné comme actif (sera appliqué avec le bouton global).
-
-    Args:
-        tab: L'instance de l'onglet.
-    """
-    if tab.current_theme is None:
-        create_error_dialog("Veuillez sélectionner un thème")
-        return
-
-    try:
-        logger.debug(f"[_on_activate_theme] Sélection: {tab.current_theme.name}")
-
-        # Assigner et sauvegarder le thème actif (en cache local)
-        tab.theme_manager.active_theme = tab.current_theme
-        tab.theme_manager.save_active_theme()
-
-        # Marquer comme modifié pour activer le bouton "Appliquer" global
-        if hasattr(tab.state_manager, "mark_dirty"):
-            tab.state_manager.mark_dirty()
-            logger.debug("[_on_activate_theme] État marqué comme modifié")
-
-        create_success_dialog(
-            f"Thème '{tab.current_theme.name}' sélectionné.\n\n"
-            f"Cliquez sur 'Appliquer' pour appliquer les changements."
-        )
-        logger.info(f"[_on_activate_theme] ✓ Thème sélectionné: {tab.current_theme.name}")
-    except (OSError, RuntimeError) as e:
-        logger.error(f"[_on_activate_theme] Erreur: {e}")
-        create_error_dialog(f"Erreur lors de la sélection:\n{e}")
 
 
 def _on_edit_theme(_button: Gtk.Button | None, theme_name: str, tab: TabThemeConfig) -> None:
@@ -587,11 +895,19 @@ def _on_edit_theme(_button: Gtk.Button | None, theme_name: str, tab: TabThemeCon
             return
 
         if tab.parent_window:
-            # Ouvrir l'éditeur avec le thème chargé
-            editor_dialog = ThemeEditorDialog(tab.parent_window, tab.state_manager)
-            # Note: Chargement du thème dans l'éditeur se fait via state_manager
-            editor_dialog.present()
-            logger.info(f"[_on_edit_theme] Éditeur ouvert pour '{theme_name}'")
+            # Ouvrir le nouveau générateur interactif
+            
+            # Pour l'instant, on ouvre le générateur vide (le nouveau générateur ne supporte pas encore l'édition)
+            # Mais on respecte la demande de l'utilisateur d'utiliser le nouveau générateur.
+            win = InteractiveThemeGeneratorWindow(
+                parent_window=tab.parent_window,
+                on_theme_created=lambda name, pkg: tab.scan_system_themes()
+            )
+            
+            # Conserver une référence
+            tab._interactive_theme_generator_window = win  # type: ignore[attr-defined]
+            win.present()
+            logger.info(f"[_on_edit_theme] Nouveau générateur ouvert pour '{theme_name}'")
         else:
             logger.error("[_on_edit_theme] Fenêtre parente introuvable")
             create_error_dialog("Impossible d'ouvrir l'éditeur")

@@ -25,7 +25,7 @@ from core.config.core_paths import get_grub_themes_dir
 from core.managers.core_apply_manager import GrubApplyManager
 from core.managers.core_entry_visibility_manager import apply_hidden_entries_to_grub_cfg, save_hidden_entry_ids
 from core.models.core_grub_ui_model import merged_config_from_model
-from core.system.core_grub_system_commands import GrubDefaultChoice, GrubUiModel, load_grub_ui_state
+from core.system.core_grub_system_commands import GrubDefaultChoice, GrubUiModel, load_grub_ui_state, run_update_grub
 from core.system.core_sync_checker import check_grub_sync
 from core.theme.core_active_theme_manager import ActiveThemeManager
 from ui.tabs.ui_entries_renderer import render_entries as render_entries_view
@@ -35,8 +35,7 @@ from ui.ui_infobar_controller import InfoBarController, INFO, WARNING, ERROR
 from ui.ui_model_mapper import ModelWidgetMapper
 from ui.ui_workflow_controller import WorkflowController
 from ui.ui_state import AppState, AppStateManager
-from ui.controllers import TimeoutController, DefaultChoiceController, PermissionController
-from ui.ui_protocols import TimeoutWidget, DefaultChoiceWidget, ConfigModelMapper, PermissionChecker, InfoDisplay
+from ui.controllers import PermissionController
 
 __all__ = [
     "ActiveThemeManager",
@@ -50,17 +49,19 @@ __all__ = [
 
 class GrubConfigManager(Gtk.ApplicationWindow):
     """Fenêtre principale de l'application GTK (édition de `/etc/default/grub`).
-    
+
     Implémente les Protocols (interfaces ségrégées):
     - TimeoutWidget: gestion du timeout GRUB
     - DefaultChoiceWidget: gestion du choix par défaut
     - ConfigModelMapper: sync modèle ↔ widgets
     - PermissionChecker: vérifications de permissions
     - InfoDisplay: affichage de messages
-    
+
     Note: Les Protocols sont utilisés pour la vérification de type statique (mypy),
           pas hérités à runtime (incompatibilité métaclasse GTK).
     """
+
+    # pylint: disable=too-many-instance-attributes,too-many-public-methods
 
     # Membres pour les contrôleurs délégués (déclarés ici pour les tests qui bypassent __init__)
     infobar: InfoBarController | None = None
@@ -95,8 +96,10 @@ class GrubConfigManager(Gtk.ApplicationWindow):
 
         self.entries_listbox: Gtk.ListBox | None = None
 
-        # Widgets onglet Maintenance
-        self.maintenance_output: Gtk.TextView | None = None
+        # Contrôleur de l'onglet Thème
+        from ui.tabs.ui_tab_theme_config import TabThemeConfig
+
+        self.theme_config_controller: TabThemeConfig | None = None
 
         # Widgets créés par UIBuilder
         self.info_revealer: Gtk.Revealer | None = None
@@ -109,14 +112,12 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         self.infobar: InfoBarController | None = None
         self.workflow: WorkflowController | None = None
         self.state_manager = AppStateManager()
-        
+
         # Contrôleurs SRP (Single Responsibility)
-        self.timeout_ctrl = TimeoutController(self)
-        self.default_ctrl = DefaultChoiceController(self)
         self.perm_ctrl = PermissionController()
 
         self.create_ui()
-        self.load_config()
+        self.load_config(refresh_grub=True)
         self.check_permissions()
         logger.success("[GrubConfigManager.__init__] Initialisation complète")
 
@@ -316,17 +317,37 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         """Affiche un avertissement si l'application n'a pas les droits root."""
         self.perm_ctrl.check_and_warn(self.show_info)
 
-    def load_config(self):
-        """Charge la configuration depuis le système et met à jour l'UI."""
-        logger.info("[load_config] Début du chargement de configuration GRUB")
+    def load_config(self, refresh_grub: bool = False) -> None:
+        """Charge la configuration depuis le système et met à jour l'UI.
+
+        Args:
+            refresh_grub: Si True et root, exécute update-grub avant de charger.
+        """
+        logger.info(f"[load_config] Début du chargement (refresh_grub={refresh_grub})")
         try:
-            self._check_sync_status()
+            # Mise à jour des entrées GRUB (os-prober) au démarrage si root
+            if refresh_grub and os.geteuid() == 0:
+                logger.info("[load_config] Exécution de update-grub pour rafraîchir les entrées...")
+                # On pourrait afficher un splash screen ici, mais pour l'instant on bloque
+                # car c'est requis avant de charger la config.
+                res = run_update_grub()
+                if res.returncode != 0:
+                    logger.warning(f"[load_config] update-grub a échoué: {res.stderr}")
+                    self.show_info(f"Erreur lors de la mise à jour GRUB: {res.stderr}", WARNING)
+                else:
+                    logger.success("[load_config] update-grub terminé avec succès")
 
             state = load_grub_ui_state()
             self.state_manager.update_state_data(state)
             self.apply_model_to_ui(state.model, state.entries)
             render_entries_view(self)
+
+            # On applique l'état CLEAN par défaut
             self.state_manager.apply_state(AppState.CLEAN, self.save_btn, self.reload_btn)
+
+            # Mais on vérifie la synchro APRES avoir chargé l'état
+            # Si désynchronisé, _check_sync_status passera l'état à DIRTY
+            self._check_sync_status()
 
             self._validate_and_warn(state)
 
@@ -352,6 +373,9 @@ class GrubConfigManager(Gtk.ApplicationWindow):
                 f"⚠ {sync_status.message}",
                 WARNING,
             )
+            # Si désynchronisé, on permet d'appliquer (update-grub) même si l'UI est "clean"
+            # On marque l'état comme DIRTY pour activer le bouton Appliquer
+            self.state_manager.mark_dirty(self.save_btn, self.reload_btn)
 
     def _validate_and_warn(self, state):
         """Valide l'état chargé et affiche des avertissements si nécessaire."""

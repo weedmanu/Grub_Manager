@@ -33,6 +33,8 @@ class AppStateManager:
     - Synchronisation UI state
     """
 
+    # pylint: disable=too-many-instance-attributes
+
     def __init__(self):
         """Initialise le gestionnaire d'état."""
         logger.debug("[AppStateManager.__init__] Initialisation du gestionnaire d'état")
@@ -43,6 +45,9 @@ class AppStateManager:
         self.modified = False
         self.state = AppState.CLEAN
         self._loading = False  # Flag pour ignorer les changements UI lors du chargement initial
+
+        # Changements en attente (scripts)
+        self.pending_script_changes: dict[str, bool] = {}
 
         # Gestion des entrées masquées
         self.hidden_entry_ids: set[str] = load_hidden_entry_ids()
@@ -65,7 +70,9 @@ class AppStateManager:
         self.state = state
         self.modified = state == AppState.DIRTY
 
-        can_save = ((state == AppState.DIRTY) or self.entries_visibility_dirty) and (os.geteuid() == 0)
+        can_save = ((state == AppState.DIRTY) or self.entries_visibility_dirty or bool(self.pending_script_changes)) and (
+            os.geteuid() == 0
+        )
         busy = state == AppState.APPLYING
 
         save_btn.set_sensitive(can_save and not busy)
@@ -106,8 +113,9 @@ class AppStateManager:
         Inclut:
         - modifications de configuration (state == DIRTY)
         - changements de visibilité des entrées GRUB
+        - changements d'état des scripts
         """
-        return bool(self.modified or self.entries_visibility_dirty)
+        return bool(self.modified or self.entries_visibility_dirty or self.pending_script_changes)
 
     def update_state_data(self, state_data: GrubUiState) -> None:
         """Met à jour les données d'état de l'application.
@@ -134,3 +142,17 @@ class AppStateManager:
             Liste des IDs de choix disponibles
         """
         return self._default_choice_ids
+
+    def get_model(self) -> GrubUiModel:
+        """Retourne le modèle de configuration actuel."""
+        return self.state_data.model
+
+    def update_model(self, model: GrubUiModel) -> None:
+        """Met à jour le modèle de configuration.
+
+        Args:
+            model: Nouveau modèle
+        """
+        from dataclasses import replace
+
+        self.state_data = replace(self.state_data, model=model)

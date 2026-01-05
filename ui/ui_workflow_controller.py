@@ -14,7 +14,12 @@ gi.require_version("Gtk", "4.0")
 # pylint: disable=wrong-import-position
 from gi.repository import GLib, Gtk
 
-from core.io.core_grub_default_io import read_grub_default
+from core.config.core_paths import GRUB_DEFAULT_PATH
+from core.io.core_grub_default_io import (
+    create_last_modif_backup,
+    read_grub_default,
+    restore_grub_default_backup,
+)
 from core.managers.core_apply_manager import GrubApplyManager
 from core.managers.core_entry_visibility_manager import apply_hidden_entries_to_grub_cfg
 from core.models.core_grub_ui_model import merged_config_from_model
@@ -52,6 +57,7 @@ class WorkflowController:
             read_model_cb: Callback pour lire le modèle depuis l'UI.
             show_info_cb: Callback pour afficher des messages.
         """
+        # pylint: disable=too-many-arguments
         self.window = window
         self.state_manager = state_manager
         self.save_btn = save_btn
@@ -64,6 +70,10 @@ class WorkflowController:
         """Recharge la configuration GRUB depuis le disque."""
         logger.info("[WorkflowController.on_reload] Demande de recharge")
         logger.debug(f"[WorkflowController.on_reload] Config modified state: {self.state_manager.modified}")
+
+        # Vérifier si un backup "last_modif" existe
+        backup_path = os.path.join(os.path.dirname(GRUB_DEFAULT_PATH), "grub_backup.last_modif.tar.gz")
+        has_last_modif = os.path.exists(backup_path)
 
         if self.state_manager.modified:
             logger.debug("[WorkflowController.on_reload] Affichage dialogue de confirmation")
@@ -78,21 +88,59 @@ class WorkflowController:
                 idx = None
                 try:
                     idx = dlg.choose_finish(result)
-                    logger.debug(f"[WorkflowController.on_reload._on_choice] Résultat dialogue: {idx}")
-                except GLib.Error as e:
-                    logger.debug(f"[WorkflowController.on_reload._on_choice] Dialogue annulé: {e}")
+                except GLib.Error:
+                    pass
 
                 if idx == 1:
-                    logger.debug("[WorkflowController.on_reload._on_choice] Confirmation utilisateur")
-                    self.load_config_cb()
-                    self.show_info_cb("Configuration rechargée", INFO)
+                    # Si confirmé, on vérifie ensuite si on veut restaurer le backup
+                    self._check_restore_last_modif(has_last_modif, backup_path)
 
             dialog.choose(self.window, None, _on_choice)
             return
 
-        logger.debug("[WorkflowController.on_reload] Pas de modifications, recharge directe")
-        self.load_config_cb()
-        self.show_info_cb("Configuration rechargée", INFO)
+        self._check_restore_last_modif(has_last_modif, backup_path)
+
+    def _check_restore_last_modif(self, has_last_modif: bool, backup_path: str) -> None:
+        """Propose de restaurer la dernière modification si disponible."""
+        if not has_last_modif:
+            self.load_config_cb()
+            self.show_info_cb("Configuration rechargée", INFO)
+            return
+
+        # Proposer de restaurer la version précédente
+        dialog = Gtk.AlertDialog()
+        dialog.set_message("Restaurer la version précédente ?")
+        dialog.set_detail(
+            "Une sauvegarde automatique (avant la dernière application) a été trouvée.\n"
+            "Voulez-vous restaurer cette version ou simplement recharger le fichier actuel ?"
+        )
+        dialog.set_buttons(["Annuler", "Recharger actuel", "Restaurer précédent"])
+        dialog.set_cancel_button(0)
+        dialog.set_default_button(2)
+
+        dialog.choose(self.window, None, lambda dlg, res: self._handle_restore_choice(dlg, res, backup_path))
+
+    def _handle_restore_choice(self, dlg, result, backup_path: str) -> None:
+        idx = None
+        try:
+            idx = dlg.choose_finish(result)
+        except GLib.Error:
+            pass
+
+        if idx == 1:  # Recharger actuel
+            self.load_config_cb()
+            self.show_info_cb("Configuration rechargée", INFO)
+        elif idx == 2:  # Restaurer précédent
+            try:
+                if os.geteuid() != 0:
+                    self.show_info_cb("Droits root requis pour restaurer", ERROR)
+                    return
+                restore_grub_default_backup(backup_path)
+                self.load_config_cb()
+                self.show_info_cb("Version précédente restaurée avec succès", INFO)
+            except (OSError, ValueError) as e:
+                logger.error(f"Erreur restauration last_modif: {e}")
+                self.show_info_cb(f"Erreur restauration: {e}", ERROR)
 
     def on_save(self, _button: Gtk.Button | None = None) -> None:
         """Valide et sauvegarde la configuration."""
@@ -135,20 +183,40 @@ class WorkflowController:
         self.state_manager.apply_state(AppState.APPLYING, self.save_btn, self.reload_btn)
 
         try:
+            # Créer un backup "last_modif" avant d'appliquer
+            if apply_now:
+                try:
+                    create_last_modif_backup()
+                except OSError as e:
+                    logger.warning(f"Impossible de créer le backup last_modif: {e}")
+                    # On continue quand même, ce n'est pas bloquant pour l'application
+
             model = self.read_model_cb()
             logger.debug(
                 f"[WorkflowController.perform_save] Modèle lu: timeout={model.timeout}, default={model.default}"
             )
+            logger.info(f"[WorkflowController.perform_save] theme_management_enabled={model.theme_management_enabled}")
 
             merged_config = merged_config_from_model(self.state_manager.state_data.raw_config, model)
             logger.debug(f"[WorkflowController._perform_save] Config fusionnée, apply_now={apply_now}")
 
             manager = GrubApplyManager()
-            result = manager.apply_configuration(merged_config, apply_changes=apply_now)
+            result = manager.apply_configuration(
+                merged_config,
+                apply_changes=apply_now,
+                theme_management_enabled=model.theme_management_enabled,
+                pending_script_changes=self.state_manager.pending_script_changes,
+            )
+            logger.info(
+                f"[WorkflowController._perform_save] Passé theme_management_enabled={model.theme_management_enabled} au manager"
+            )
             logger.debug(f"[WorkflowController._perform_save] Résultat apply: success={result.success}")
 
             if result.success:
                 logger.debug("[WorkflowController._perform_save] Configuration appliquée avec succès")
+
+                # Effacer les changements de scripts en attente car ils ont été appliqués
+                self.state_manager.pending_script_changes.clear()
 
                 # Vérification post-application
                 try:
@@ -189,6 +257,10 @@ class WorkflowController:
                     msg += "\n(Masquage non appliqué car update-grub ignoré)"
 
                 self.show_info_cb(msg, msg_type)
+
+                # Recharger la configuration pour rafraîchir l'interface (ex: liste des scripts)
+                # Cela permet de supprimer les indicateurs "en attente" et de montrer l'état réel
+                self.load_config_cb()
             else:
                 self.state_manager.apply_state(AppState.DIRTY, self.save_btn, self.reload_btn)
                 self.show_info_cb(f"Erreur: {result.message}", ERROR)

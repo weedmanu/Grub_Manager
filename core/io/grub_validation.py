@@ -15,7 +15,6 @@ class ValidationResult:
 
     is_valid: bool
     error_message: str | None = None
-    file_size: int = 0
     meaningful_lines: int = 0
 
 
@@ -38,12 +37,12 @@ def validate_grub_file(path: Path, *, min_lines: int = 1) -> ValidationResult:
             return ValidationResult(False, "Fichier vide")
 
         content = path.read_text(encoding="utf-8", errors="replace")
-        lines = [l for l in content.splitlines() if l.strip() and not l.startswith("#")]
+        lines = [line for line in content.splitlines() if line.strip() and not line.startswith("#")]
 
         if len(lines) < min_lines:
             return ValidationResult(False, f"Trop peu de lignes ({len(lines)} < {min_lines})")
 
-        return ValidationResult(True, file_size=size, meaningful_lines=len(lines))
+        return ValidationResult(True, meaningful_lines=len(lines))
 
     except OSError as e:
         return ValidationResult(False, f"Erreur de lecture: {e}")

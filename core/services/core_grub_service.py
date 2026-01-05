@@ -8,7 +8,23 @@ from pathlib import Path
 from loguru import logger
 
 from core.io.core_grub_default_io import read_grub_default
-from core.io.core_grub_menu_parser import get_simulated_os_prober_entries
+from core.io.core_grub_menu_parser import read_grub_default_choices_with_source
+
+
+def get_simulated_os_prober_entries() -> list[object]:
+    """Retourne des entrées de menu GRUB.
+
+    Compatibilité: des tests historiques patchent ce symbole.
+    Implémentation actuelle: on lit les entrées réelles depuis grub.cfg.
+
+    Returns:
+        Liste d'objets (dict-like ou objets avec attributs `title`/`id`).
+    """
+    choices, _ = read_grub_default_choices_with_source()
+    if not choices:
+        return []
+    # On renvoie des dicts pour rester proche de l'API historique.
+    return [{"title": c.title, "id": c.id} for c in choices]
 
 
 @dataclass
@@ -68,25 +84,32 @@ class GrubService:
 
     @staticmethod
     def get_menu_entries() -> list[MenuEntry]:
-        """Récupère les entrées du menu GRUB.
+        """Récupère les entrées du menu GRUB réelles.
 
         Returns:
             list[MenuEntry]: Liste des entrées du menu
         """
         try:
-            entries = get_simulated_os_prober_entries()
-            menu_entries: list[MenuEntry] = []
-            for entry in entries:
-                if isinstance(entry, dict):
-                    title = str(entry.get("title", ""))
-                    entry_id = str(entry.get("id", ""))
+            raw_entries = get_simulated_os_prober_entries()
+            if not raw_entries:
+                logger.warning(
+                    "[GrubService] Aucune entrée trouvée dans grub.cfg, utilisation d'une entrée par défaut"
+                )
+                return [MenuEntry(title="Ubuntu", id="gnulinux")]
+
+            entries: list[MenuEntry] = []
+            for item in raw_entries:
+                if isinstance(item, dict):
+                    title = str(item.get("title", "") or "")
+                    entry_id = str(item.get("id", "") or "")
                 else:
-                    title = str(getattr(entry, "title", ""))
-                    entry_id = str(getattr(entry, "id", ""))
+                    title = str(getattr(item, "title", "") or "")
+                    entry_id = str(getattr(item, "id", "") or "")
 
-                menu_entries.append(MenuEntry(title=title, id=entry_id))
+                if title:
+                    entries.append(MenuEntry(title=title, id=entry_id))
 
-            return menu_entries
+            return entries or [MenuEntry(title="Ubuntu", id="gnulinux")]
         except (OSError, ValueError) as e:
             logger.error(f"[GrubService] Erreur lors de la lecture des entrées: {e}")
             return [MenuEntry(title="Ubuntu", id="gnulinux")]

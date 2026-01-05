@@ -210,7 +210,7 @@ def test_on_restore_clicked_success(mock_controller):
     ):
         mock_controller.backup_paths = ["/p"]
         ui_backups._on_restore_clicked(None, mock_controller, dropdown)
-        assert mock_controller.reload_from_disk.called
+        assert mock_controller.load_config.called
 
 
 def test_on_delete_clicked_success(mock_controller):

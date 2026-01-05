@@ -56,6 +56,19 @@ def _prune_manual_backups(path: str, *, keep: int = 3) -> list[str]:
     return deleted
 
 
+def _tar_filter_initial(tarinfo):
+    """Filtre pour ignorer les erreurs de permissions lors du tar.add() (backup initial)."""
+    try:
+        # Vérifier que le fichier source est accessible
+        if os.path.exists(tarinfo.name) and not os.access(tarinfo.name, os.R_OK):
+            logger.debug(f"[ensure_initial_grub_default_backup] Fichier non accessible: {tarinfo.name}")
+            return None
+        return tarinfo
+    except (OSError, PermissionError):
+        logger.debug(f"[ensure_initial_grub_default_backup] Fichier non accessible: {tarinfo.name}")
+        return None
+
+
 def ensure_initial_grub_default_backup(path: str = GRUB_DEFAULT_PATH) -> str | None:
     """Crée un backup *initial* complet de la configuration GRUB si absent.
 
@@ -100,24 +113,12 @@ def ensure_initial_grub_default_backup(path: str = GRUB_DEFAULT_PATH) -> str | N
             logger.warning(f"[ensure_initial_grub_default_backup] Impossible de créer un backup initial: {path} absent")
             return None
 
-    def _tar_filter(tarinfo):
-        """Filtre pour ignorer les erreurs de permissions lors du tar.add()."""
-        try:
-            # Vérifier que le fichier source est accessible
-            if os.path.exists(tarinfo.name) and not os.access(tarinfo.name, os.R_OK):
-                logger.debug(f"[ensure_initial_grub_default_backup] Fichier non accessible: {tarinfo.name}")
-                return None
-            return tarinfo
-        except (OSError, PermissionError):
-            logger.debug(f"[ensure_initial_grub_default_backup] Fichier non accessible: {tarinfo.name}")
-            return None
-
     try:
         logger.info(f"Création backup initial complet -> {initial_backup_path}")
 
         with tarfile.open(initial_backup_path, "w:gz", compresslevel=1) as tar:
             # 1. Sauvegarder /etc/default/grub
-            _add_to_tar(tar, path, "default_grub", _tar_filter)
+            _add_to_tar(tar, path, "default_grub", _tar_filter_initial)
 
             if full_system_backup:
                 # 2. Sauvegarder /etc/grub.d/
@@ -125,7 +126,7 @@ def ensure_initial_grub_default_backup(path: str = GRUB_DEFAULT_PATH) -> str | N
                 if grub_d_dir.exists():
                     for script in grub_d_dir.iterdir():
                         if script.is_file():
-                            _add_to_tar(tar, script, f"grub.d/{script.name}", _tar_filter)
+                            _add_to_tar(tar, script, f"grub.d/{script.name}", _tar_filter_initial)
 
                 # 3. Sauvegarder grub.cfg
                 for grub_cfg_path in GRUB_CFG_PATHS:
@@ -133,7 +134,7 @@ def ensure_initial_grub_default_backup(path: str = GRUB_DEFAULT_PATH) -> str | N
                         tar,
                         grub_cfg_path,
                         f"grub.cfg_{Path(grub_cfg_path).parts[2]}",
-                        _tar_filter,
+                        _tar_filter_initial,
                     ):
                         break
 
@@ -163,6 +164,106 @@ def list_grub_default_backups(path: str = GRUB_DEFAULT_PATH) -> list[str]:
     return candidates
 
 
+def _tar_filter_manual(tarinfo: tarfile.TarInfo) -> tarfile.TarInfo | None:
+    """Filtre pour ignorer les erreurs de permissions lors du tar.add()."""
+    try:
+        # Vérifier que le fichier source est accessible
+        if os.path.exists(tarinfo.name) and not os.access(tarinfo.name, os.R_OK):
+            logger.debug(f"[create_grub_default_backup] Fichier non accessible: {tarinfo.name}")
+            return None
+        return tarinfo
+    except (OSError, PermissionError):
+        logger.debug(f"[create_grub_default_backup] Fichier non accessible: {tarinfo.name}")
+        return None
+
+
+def _generate_unique_backup_path(path: str) -> str:
+    """Génère un chemin de backup unique basé sur le timestamp."""
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    base_backup_path = f"{path}.backup.manual.{ts}.tar.gz"
+    backup_path = base_backup_path
+
+    def _safe_exists(p: str) -> bool:
+        try:
+            return os.path.exists(p)
+        except OSError:
+            return False
+
+    suffix = 1
+    max_attempts = 128
+    while _safe_exists(backup_path) and suffix <= max_attempts:
+        backup_path = f"{path}.backup.manual.{ts}.{suffix}.tar.gz"
+        suffix += 1
+
+    if _safe_exists(backup_path):
+        backup_path = f"{path}.backup.manual.{ts}.{uuid.uuid4().hex}.tar.gz"
+
+    return backup_path
+
+
+def create_last_modif_backup(path: str = GRUB_DEFAULT_PATH) -> str:
+    """Crée ou écrase la sauvegarde 'last_modif' avant application.
+
+    Sauvegarde :
+    - /etc/default/grub
+    - /etc/grub.d/
+    - /boot/grub/grub.cfg
+
+    Le fichier est nommé `grub_backup.last_modif.tar.gz` dans le même dossier.
+    """
+    logger.debug(f"[create_last_modif_backup] Création backup pré-application pour {path}")
+    backup_dir = Path(path).parent
+    backup_path = backup_dir / "grub_backup.last_modif.tar.gz"
+
+    source_path = _determine_source_path(path)
+    full_system_backup = os.path.abspath(path) == os.path.abspath(GRUB_DEFAULT_PATH)
+
+    try:
+        with tarfile.open(backup_path, "w:gz", compresslevel=1) as tar:
+            _add_to_tar(tar, source_path, "default_grub", _tar_filter_manual)
+
+            if full_system_backup:
+                grub_d_dir = Path("/etc/grub.d")
+                if grub_d_dir.exists():
+                    for script in grub_d_dir.iterdir():
+                        if script.is_file():
+                            _add_to_tar(tar, script, f"grub.d/{script.name}", _tar_filter_manual)
+
+                for grub_cfg_path in GRUB_CFG_PATHS:
+                    if _add_to_tar(tar, grub_cfg_path, f"grub.cfg_{Path(grub_cfg_path).parts[2]}", _tar_filter_manual):
+                        break
+
+        _touch_now(str(backup_path))
+        logger.info(f"[create_last_modif_backup] Backup créé: {backup_path}")
+        return str(backup_path)
+
+    except (OSError, tarfile.TarError) as e:
+        logger.error(f"[create_last_modif_backup] ERREUR: {e}")
+        raise OSError(f"Échec création backup last_modif: {e}") from e
+
+
+def _determine_source_path(path: str) -> str:
+    """Détermine le fichier source à utiliser, avec gestion de fallback."""
+
+    def _safe_is_file(p: str) -> bool:
+        try:
+            return os.path.isfile(p)
+        except OSError:
+            return False
+
+    if _safe_is_file(path):
+        return path
+
+    logger.debug(f"[create_grub_default_backup] {path} absent, recherche de fallback")
+    fallback = _best_fallback_for_missing_config(path)
+    if fallback is None:
+        logger.error("[create_grub_default_backup] ERREUR: Aucune source trouvée")
+        raise GrubConfigError(f"Aucune source trouvée pour le backup: {path}")
+
+    logger.debug(f"[create_grub_default_backup] Fallback trouvé: {fallback}")
+    return fallback
+
+
 def create_grub_default_backup(path: str = GRUB_DEFAULT_PATH) -> str:
     """Crée une nouvelle sauvegarde complète horodatée au format tar.gz.
 
@@ -181,59 +282,15 @@ def create_grub_default_backup(path: str = GRUB_DEFAULT_PATH) -> str:
         FileNotFoundError: si aucune source (fichier ou fallback) n'est trouvée.
     """
     logger.debug(f"[create_grub_default_backup] Création d'une nouvelle sauvegarde pour {path}")
-    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-    base_backup_path = f"{path}.backup.manual.{ts}.tar.gz"
-    backup_path = base_backup_path
 
-    def _safe_exists(p: str) -> bool:
-        try:
-            return os.path.exists(p)
-        except OSError:
-            return False
-
-    def _safe_is_file(p: str) -> bool:
-        try:
-            return os.path.isfile(p)
-        except OSError:
-            return False
-
-    # Assure un nom unique (borne la boucle pour éviter un blocage si exists()
-    # est mocké/buggé et renvoie toujours True).
-    suffix = 1
-    max_attempts = 128
-    while _safe_exists(backup_path) and suffix <= max_attempts:
-        backup_path = f"{path}.backup.manual.{ts}.{suffix}.tar.gz"
-        suffix += 1
-    if _safe_exists(backup_path):
-        backup_path = f"{path}.backup.manual.{ts}.{uuid.uuid4().hex}.tar.gz"
-
-    source_path = path
-    if not _safe_is_file(source_path):
-        logger.debug(f"[create_grub_default_backup] {path} absent, recherche de fallback")
-        fallback = _best_fallback_for_missing_config(path)
-        if fallback is None:
-            logger.error("[create_grub_default_backup] ERREUR: Aucune source trouvée")
-            raise GrubConfigError(f"Aucune source trouvée pour le backup: {path}")
-        source_path = fallback
-        logger.debug(f"[create_grub_default_backup] Fallback trouvé: {source_path}")
+    backup_path = _generate_unique_backup_path(path)
+    source_path = _determine_source_path(path)
 
     logger.info(f"Création sauvegarde complète manuelle -> {backup_path}")
 
     # En tests, on passe souvent un chemin temporaire. Dans ce cas, on évite
     # de parcourir /etc/grub.d et /boot (lent + dépend de l'environnement).
     full_system_backup = os.path.abspath(path) == os.path.abspath(GRUB_DEFAULT_PATH)
-
-    def _tar_filter_manual(tarinfo):
-        """Filtre pour ignorer les erreurs de permissions lors du tar.add()."""
-        try:
-            # Vérifier que le fichier source est accessible
-            if os.path.exists(tarinfo.name) and not os.access(tarinfo.name, os.R_OK):
-                logger.debug(f"[create_grub_default_backup] Fichier non accessible: {tarinfo.name}")
-                return None
-            return tarinfo
-        except (OSError, PermissionError):
-            logger.debug(f"[create_grub_default_backup] Fichier non accessible: {tarinfo.name}")
-            return None
 
     try:
         with tarfile.open(backup_path, "w:gz", compresslevel=1) as tar:
@@ -311,6 +368,17 @@ def restore_grub_default_backup(backup_path: str, target_path: str = GRUB_DEFAUL
 
     if not os.path.exists(backup_path):
         raise FileNotFoundError(f"Archive de sauvegarde introuvable: {backup_path}")
+
+    # Détection simple: si le fichier ne finit pas par .tar.gz, on suppose que c'est un simple fichier texte (legacy)
+    if not backup_path.endswith(".tar.gz"):
+        logger.info(f"[restore_grub_default_backup] Détection format legacy (texte simple) pour {backup_path}")
+        try:
+            shutil.copy2(backup_path, target_path)
+            logger.success(f"[restore_grub_default_backup] Restauration legacy réussie: {target_path}")
+            return
+        except OSError as e:
+            logger.error(f"[restore_grub_default_backup] ERREUR legacy: {e}")
+            raise OSError(f"Échec de la restauration legacy: {e}") from e
 
     try:
         with tarfile.open(backup_path, "r:gz") as tar:

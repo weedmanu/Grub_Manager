@@ -114,27 +114,38 @@ class GrubConfigManagerFull(GrubConfigManager):
         self.terminal_color_check = MagicMock()
         self.disable_os_prober_check = MagicMock()
         self.entries_listbox = MagicMock()
-        self.maintenance_output = MagicMock()
         self.info_revealer = MagicMock()
         self.info_box = MagicMock()
         self.info_label = MagicMock()
         self.reload_btn = MagicMock()
         self.save_btn = MagicMock()
 
-        self.hide_category_dropdown = MagicMock()
-        self.hide_category_switch = MagicMock()
-        self.show_advanced_switch = MagicMock()
-
         self.entries_renderer = MagicMock()
-        self.entries_renderer.hide_advanced_mode = True
 
         self.workflow = MagicMock()
         self.infobar = None
+        
+        # theme_config_controller with proper color combo mocks
+        self.theme_config_controller = MagicMock()
+        self.theme_config_controller.theme_switch = MagicMock()
+        self.theme_config_controller.theme_switch.get_active.return_value = True
+        self.theme_config_controller.bg_image_entry = MagicMock()
+        self.theme_config_controller.bg_image_entry.get_text.return_value = ""
+        
+        # Color combos - must return integers for get_selected()
+        self.theme_config_controller.normal_fg_combo = MagicMock()
+        self.theme_config_controller.normal_fg_combo.get_selected.return_value = -1  # No selection
+        self.theme_config_controller.normal_bg_combo = MagicMock()
+        self.theme_config_controller.normal_bg_combo.get_selected.return_value = -1
+        
+        self.theme_config_controller.highlight_fg_combo = MagicMock()
+        self.theme_config_controller.highlight_fg_combo.get_selected.return_value = -1
+        self.theme_config_controller.highlight_bg_combo = MagicMock()
+        self.theme_config_controller.highlight_bg_combo.get_selected.return_value = -1
 
         # Contrôleurs SRP (Single Responsibility)
-        from ui.controllers import TimeoutController, DefaultChoiceController, PermissionController
-        self.timeout_ctrl = TimeoutController(self)
-        self.default_ctrl = DefaultChoiceController(self)
+        from ui.controllers import PermissionController
+
         self.perm_ctrl = PermissionController()
 
         # show_info est souvent asserté dans les tests, mais on veut aussi exécuter la logique
@@ -220,7 +231,7 @@ def test_real_init_calls_create_ui_load_config_and_check_permissions():
         win = GrubConfigManager(app)
 
     mock_create_ui.assert_called_once_with(win)
-    mock_load_config.assert_called_once_with(win)
+    mock_load_config.assert_called_once_with(win, refresh_grub=True)
     mock_check_permissions.assert_called_once_with(win)
 
 
@@ -397,7 +408,10 @@ def test_load_config_no_entries_non_root(manager):
 
 
 def test_load_config_file_not_found(manager):
-    with patch("ui.ui_manager.check_grub_sync", side_effect=FileNotFoundError("Missing")):
+    with (
+        patch("ui.ui_manager.check_grub_sync", side_effect=FileNotFoundError("Missing")),
+        patch("ui.ui_manager.render_entries_view"),
+    ):
         manager.load_config()
 
 
@@ -415,6 +429,7 @@ def test_load_config_exceptions(manager):
     with (
         patch("ui.ui_manager.check_grub_sync", return_value=sync_status),
         patch("ui.ui_manager.load_grub_ui_state", side_effect=OSError("Permission denied")),
+        patch("ui.ui_manager.render_entries_view"),
     ):
         manager.load_config()
         # Should show error info
@@ -1049,6 +1064,7 @@ def test_load_config_parsing_error(manager):
         grub_cfg_mtime=0,
     )
     from core.core_exceptions import GrubParsingError
+
     with (
         patch("ui.ui_manager.check_grub_sync", return_value=sync_status),
         patch("ui.ui_manager.load_grub_ui_state", side_effect=GrubParsingError("Invalid config")),

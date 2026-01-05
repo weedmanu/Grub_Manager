@@ -1,7 +1,7 @@
 """Tests pour core/io/grub_validation.py."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from core.io.grub_validation import validate_grub_file
 

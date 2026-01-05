@@ -23,16 +23,18 @@ class ThemeConfigRightColumnParts:
     actions_box: Gtk.Box
     global_actions_box: Gtk.Box
 
-    activate_btn: Gtk.Button
     preview_btn: Gtk.Button
+    activate_theme_btn: Gtk.Button
+    deactivate_theme_btn: Gtk.Button
     edit_btn: Gtk.Button
     delete_btn: Gtk.Button
 
 
 def build_theme_config_right_column(
     *,
-    on_activate: Callable[[], None],
     on_preview: Callable[[], None],
+    on_activate_theme: Callable[[Gtk.Button], None],
+    on_deactivate_theme: Callable[[Gtk.Button], None],
     on_edit: Callable[[Gtk.Button], None],
     on_delete: Callable[[Gtk.Button], None],
     on_open_editor: Callable[[Gtk.Button], None],
@@ -41,31 +43,36 @@ def build_theme_config_right_column(
 
     Ne modifie pas l'UX: mêmes labels, mêmes styles, même disposition.
     """
-
-    def _on_activate_clicked(_button: Gtk.Button) -> None:
-        on_activate()
+    # pylint: disable=too-many-locals
 
     def _on_preview_clicked(_button: Gtk.Button) -> None:
         on_preview()
 
     actions_title = Gtk.Label(xalign=0)
-    actions_title.set_markup("<b>Actions sur la sélection</b>")
+    actions_title.set_markup("<b>Actions sur le thème</b>")
     actions_title.add_css_class("section-title")
 
     actions_box = Gtk.Box(orientation=VERTICAL, spacing=8)
-
-    activate_btn = Gtk.Button(label="✅ Activer ce thème")
-    activate_btn.set_halign(Gtk.Align.FILL)
-    activate_btn.set_sensitive(False)
-    activate_btn.add_css_class("suggested-action")
-    activate_btn.connect("clicked", _on_activate_clicked)
-    actions_box.append(activate_btn)
 
     preview_btn = Gtk.Button(label="👁️ Aperçu")
     preview_btn.set_halign(Gtk.Align.FILL)
     preview_btn.set_sensitive(False)
     preview_btn.connect("clicked", _on_preview_clicked)
     actions_box.append(preview_btn)
+
+    activate_theme_btn = Gtk.Button(label="▶️ Activer le thème")
+    activate_theme_btn.set_halign(Gtk.Align.FILL)
+    activate_theme_btn.set_sensitive(False)
+    activate_theme_btn.add_css_class("suggested-action")
+    activate_theme_btn.connect("clicked", on_activate_theme)
+    actions_box.append(activate_theme_btn)
+
+    deactivate_theme_btn = Gtk.Button(label="⏸️ Désactiver le thème")
+    deactivate_theme_btn.set_halign(Gtk.Align.FILL)
+    deactivate_theme_btn.set_sensitive(False)
+    deactivate_theme_btn.add_css_class("destructive-action")
+    deactivate_theme_btn.connect("clicked", on_deactivate_theme)
+    actions_box.append(deactivate_theme_btn)
 
     sep_actions = Gtk.Separator(orientation=HORIZONTAL)
     sep_actions.set_margin_top(8)
@@ -103,8 +110,9 @@ def build_theme_config_right_column(
         actions_title=actions_title,
         actions_box=actions_box,
         global_actions_box=global_actions_box,
-        activate_btn=activate_btn,
         preview_btn=preview_btn,
+        activate_theme_btn=activate_theme_btn,
+        deactivate_theme_btn=deactivate_theme_btn,
         edit_btn=edit_btn,
         delete_btn=delete_btn,
     )

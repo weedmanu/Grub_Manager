@@ -20,6 +20,21 @@ class ModelWidgetMapper:
     """Gère la synchronisation bidirectionnelle entre GrubUiModel et les widgets GTK."""
 
     @staticmethod
+    def _get_color_from_combos(fg_combo, bg_combo, grub_colors: list[str]) -> str:
+        if not fg_combo or not bg_combo:
+            return ""
+        fg_idx = fg_combo.get_selected()
+        bg_idx = bg_combo.get_selected()
+        if fg_idx < 0 or fg_idx >= len(grub_colors):
+            return ""
+        if bg_idx < 0 or bg_idx >= len(grub_colors):
+            return ""
+
+        fg = grub_colors[fg_idx]
+        bg = grub_colors[bg_idx]
+        return f"{fg}/{bg}"
+
+    @staticmethod
     def apply_model_to_ui(
         window: GrubConfigManager,
         model: GrubUiModel,
@@ -71,6 +86,11 @@ class ModelWidgetMapper:
             # Default choice
             window.refresh_default_choices(entries)
             window.set_default_choice(model.default)
+
+            # Theme Tab Update
+            if window.theme_config_controller:
+                # On met à jour tout l'onglet thème (switch, config simple, etc.)
+                window.theme_config_controller.load_themes()
 
             logger.success(f"[ModelWidgetMapper.apply_model_to_ui] Terminé ({len(entries)} entrées)")
         finally:
@@ -136,8 +156,46 @@ class ModelWidgetMapper:
         quiet = "quiet" in cmdline_value
         splash = "splash" in cmdline_value
 
-        # Thème actif
-        grub_theme = ModelWidgetMapper._get_active_theme_path()
+        # Theme Management & Simple Config
+        # Default values from current model if controller not available
+        current_model = window.state_manager.state_data.model if window.state_manager.state_data else None
+
+        # Thème actif (on le prend du modèle car il est mis à jour par la sélection dans la liste)
+        grub_theme = current_model.grub_theme if current_model else ""
+
+        theme_enabled = current_model.theme_management_enabled if current_model else True
+        grub_bg = current_model.grub_background if current_model else ""
+        color_normal = current_model.grub_color_normal if current_model else ""
+        color_highlight = current_model.grub_color_highlight if current_model else ""
+
+        if window.theme_config_controller:
+            ctrl = window.theme_config_controller
+            if ctrl.theme_switch:
+                theme_enabled = ctrl.theme_switch.get_active()
+                logger.info(f"[ModelWidgetMapper.read_model_from_ui] Thème management enabled (UI): {theme_enabled}")
+
+            # Simple Config
+            if ctrl.bg_image_entry:
+                grub_bg = ctrl.bg_image_entry.get_text()
+                logger.debug(f"[ModelWidgetMapper.read_model_from_ui] Background image: {grub_bg}")
+
+            try:
+                from ui.tabs.ui_tab_theme_config import GRUB_COLORS
+
+                # Only update if widgets are available
+                if ctrl.normal_fg_combo and ctrl.normal_bg_combo:
+                    color_normal = ModelWidgetMapper._get_color_from_combos(
+                        ctrl.normal_fg_combo, ctrl.normal_bg_combo, GRUB_COLORS
+                    )
+                    logger.debug(f"[ModelWidgetMapper.read_model_from_ui] Color normal: {color_normal}")
+
+                if ctrl.highlight_fg_combo and ctrl.highlight_bg_combo:
+                    color_highlight = ModelWidgetMapper._get_color_from_combos(
+                        ctrl.highlight_fg_combo, ctrl.highlight_bg_combo, GRUB_COLORS
+                    )
+                    logger.debug(f"[ModelWidgetMapper.read_model_from_ui] Color highlight: {color_highlight}")
+            except ImportError:
+                logger.warning("Impossible d'importer GRUB_COLORS pour lire la config simple")
 
         model = GrubUiModel(
             timeout=timeout_val,
@@ -148,10 +206,16 @@ class ModelWidgetMapper:
             gfxpayload_linux=gfxpayload,
             disable_os_prober=disable_os_prober,
             grub_theme=grub_theme,
+            grub_background=grub_bg,
+            grub_color_normal=color_normal,
+            grub_color_highlight=color_highlight,
+            theme_management_enabled=theme_enabled,
             quiet=quiet,
             splash=splash,
         )
-        logger.success("[ModelWidgetMapper.read_model_from_ui] Modèle extrait")
+        logger.success(
+            f"[ModelWidgetMapper.read_model_from_ui] Modèle extrait - theme_management_enabled={theme_enabled}"
+        )
         return model
 
     @staticmethod

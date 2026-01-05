@@ -13,9 +13,7 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import shutil
-from glob import glob
 
 from loguru import logger
 
@@ -62,14 +60,76 @@ def save_hidden_entry_ids(ids: set[str], path: str = HIDDEN_ENTRIES_PATH) -> Non
         logger.warning(f"[save_hidden_entry_ids] ERREUR: Impossible d'enregistrer les entrées masquées: {e}")
 
 
-
-
 def find_grub_cfg_path() -> str | None:
     """Return the first existing grub.cfg path among known candidates."""
     for p in discover_grub_cfg_paths():
         if os.path.exists(p):
             return p
     return None
+
+
+def _validate_masking_safety(lines: list[str], hidden_ids: set[str]) -> None:
+    """Vérifie qu'il restera au moins une entrée visible après masquage."""
+    total_entries = sum(1 for line in lines if line.lstrip().startswith("menuentry"))
+    would_mask = sum(
+        1 for line in lines if line.lstrip().startswith("menuentry") and extract_menuentry_id(line) in hidden_ids
+    )
+
+    remaining = total_entries - would_mask
+    logger.debug(
+        f"[apply_hidden_entries_to_grub_cfg] Total={total_entries}, À masquer={would_mask}, Restera={remaining}"
+    )
+
+    if remaining < 1:
+        logger.error(
+            f"[apply_hidden_entries_to_grub_cfg] ERREUR: PROTECTION - Masquage interdit ({would_mask}/{total_entries})"
+        )
+        raise GrubValidationError(
+            f"PROTECTION: Impossible de masquer {would_mask} entrées sur {total_entries}. "
+            f"Au moins 1 entrée doit rester visible pour éviter un système non-bootable."
+        )
+
+    if remaining < 2:
+        logger.warning(
+            f"[apply_hidden_entries_to_grub_cfg] Attention: seulement {remaining} entrée(s) restera(ont) visible(s)"
+        )
+
+
+def _process_lines_for_masking(lines: list[str], hidden_ids: set[str]) -> tuple[list[str], int]:
+    """Traite les lignes pour masquer les entrées demandées."""
+    out: list[str] = []
+    brace_depth = 0
+    skipping = False
+    skip_start_depth = 0
+    masked_count = 0
+
+    for line in lines:
+        opens = line.count("{")
+        closes = line.count("}")
+
+        if not skipping:
+            if line.lstrip().startswith("menuentry"):
+                mid = extract_menuentry_id(line)
+                if mid and mid in hidden_ids:
+                    title = extract_menuentry_title(line)
+                    logger.debug(f"[apply_hidden_entries_to_grub_cfg] Masquage: id={mid}, title={title}")
+                    out.append(f"### GRUB_MANAGER_HIDDEN id={mid} title={title}")
+                    skipping = True
+                    skip_start_depth = brace_depth
+                    masked_count += 1
+                    brace_depth += opens - closes
+                    continue
+
+            out.append(line)
+            brace_depth += opens - closes
+            continue
+
+        # Skipping branch: ne recopie pas les lignes du bloc
+        brace_depth += opens - closes
+        if brace_depth <= skip_start_depth:
+            skipping = False
+
+    return out, masked_count
 
 
 def apply_hidden_entries_to_grub_cfg(
@@ -102,62 +162,9 @@ def apply_hidden_entries_to_grub_cfg(
     with open(used_path, encoding="utf-8", errors="replace") as f:
         lines = f.read().splitlines()
 
-    # SÉCURITÉ: Compter le total d'entrées avant masquage
-    total_entries = sum(1 for line in lines if line.lstrip().startswith("menuentry"))
-    would_mask = sum(
-        1 for line in lines if line.lstrip().startswith("menuentry") and extract_menuentry_id(line) in hidden_ids
-    )
+    _validate_masking_safety(lines, hidden_ids)
 
-    remaining = total_entries - would_mask
-    logger.debug(
-        f"[apply_hidden_entries_to_grub_cfg] Total={total_entries}, À masquer={would_mask}, Restera={remaining}"
-    )
-
-    if remaining < 1:
-        logger.error(
-            f"[apply_hidden_entries_to_grub_cfg] ERREUR: PROTECTION - Masquage interdit ({would_mask}/{total_entries})"
-        )
-        raise GrubValidationError(
-            f"PROTECTION: Impossible de masquer {would_mask} entrées sur {total_entries}. "
-            f"Au moins 1 entrée doit rester visible pour éviter un système non-bootable."
-        )
-
-    if remaining < 2:
-        logger.warning(
-            f"[apply_hidden_entries_to_grub_cfg] Attention: seulement {remaining} entrée(s) restera(ont) visible(s)"
-        )
-
-    out: list[str] = []
-    brace_depth = 0
-    skipping = False
-    skip_start_depth = 0
-    masked_count = 0
-
-    for line in lines:
-        opens = line.count("{")
-        closes = line.count("}")
-
-        if not skipping:
-            if line.lstrip().startswith("menuentry"):
-                mid = extract_menuentry_id(line)
-                if mid and mid in hidden_ids:
-                    title = extract_menuentry_title(line)
-                    logger.debug(f"[apply_hidden_entries_to_grub_cfg] Masquage: id={mid}, title={title}")
-                    out.append(f"### GRUB_MANAGER_HIDDEN id={mid} title={title}")
-                    skipping = True
-                    skip_start_depth = brace_depth
-                    masked_count += 1
-                    brace_depth += opens - closes
-                    continue
-
-            out.append(line)
-            brace_depth += opens - closes
-            continue
-
-        # Skipping branch: ne recopie pas les lignes du bloc
-        brace_depth += opens - closes
-        if brace_depth <= skip_start_depth:
-            skipping = False
+    out, masked_count = _process_lines_for_masking(lines, hidden_ids)
 
     new_text = "\n".join(out) + "\n"
     old_text = "\n".join(lines) + "\n"

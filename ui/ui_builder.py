@@ -32,6 +32,8 @@ class UIBuilder:
     - Configuration des boutons d'action
     """
 
+    # pylint: disable=too-few-public-methods
+
     @staticmethod
     def create_main_ui(window: GrubConfigManager) -> None:
         """Construit l'interface principale complète.
@@ -136,7 +138,8 @@ class UIBuilder:
         build_display_tab(window, notebook)
 
         # Onglet de configuration de thème (activation)
-        theme_config = TabThemeConfig(window.state_manager)
+        theme_config = TabThemeConfig(window.state_manager, window=window)
+        window.theme_config_controller = theme_config
         theme_config_tab = theme_config.build()
         notebook.append_page(theme_config_tab, Gtk.Label(label="Thèmes"))
 

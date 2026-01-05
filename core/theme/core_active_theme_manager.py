@@ -12,7 +12,7 @@ from typing import Final
 
 from loguru import logger
 
-from core.theme.core_theme_generator import GrubTheme, ThemeGenerator, create_custom_theme
+from core.models.core_theme_models import GrubTheme, create_custom_theme
 
 
 class ActiveThemeManager:
@@ -102,7 +102,64 @@ class ActiveThemeManager:
             Dictionnaire des paramètres GRUB
         """
         theme = self.get_active_theme()
-        return ThemeGenerator.export_grub_config(theme)
+        logger.info(f"[ActiveThemeManager] Export de la configuration GRUB pour '{theme.name}'")
+
+        config = {}
+
+        # Paramètres de base
+        config["GRUB_DEFAULT"] = theme.grub_default
+        config["GRUB_TIMEOUT"] = str(theme.grub_timeout)
+        config["GRUB_TIMEOUT_STYLE"] = theme.grub_timeout_style
+
+        if theme.grub_recordfail_timeout is not None:
+            config["GRUB_RECORDFAIL_TIMEOUT"] = str(theme.grub_recordfail_timeout)
+
+        # Affichage
+        config["GRUB_GFXMODE"] = theme.grub_gfxmode
+        config["GRUB_GFXPAYLOAD_LINUX"] = theme.grub_gfxpayload_linux
+        config["GRUB_TERMINAL_OUTPUT"] = theme.grub_terminal_output
+        config["GRUB_TERMINAL_INPUT"] = theme.grub_terminal_input
+
+        # Paramètres du kernel
+        if theme.grub_cmdline_linux:
+            config["GRUB_CMDLINE_LINUX"] = theme.grub_cmdline_linux
+        config["GRUB_CMDLINE_LINUX_DEFAULT"] = theme.grub_cmdline_linux_default
+
+        # Options booléennes
+        if theme.grub_disable_recovery:
+            config["GRUB_DISABLE_RECOVERY"] = "true"
+
+        if theme.grub_disable_os_prober:
+            config["GRUB_DISABLE_OS_PROBER"] = "true"
+
+        if theme.grub_disable_submenu:
+            config["GRUB_DISABLE_SUBMENU"] = "y"
+
+        if theme.grub_disable_linux_uuid:
+            config["GRUB_DISABLE_LINUX_UUID"] = "true"
+
+        if theme.grub_savedefault:
+            config["GRUB_SAVEDEFAULT"] = "true"
+
+        # Options avancées
+        if theme.grub_hidden_timeout_quiet:
+            config["GRUB_HIDDEN_TIMEOUT_QUIET"] = "true"
+
+        if theme.grub_init_tune:
+            config["GRUB_INIT_TUNE"] = theme.grub_init_tune
+
+        if theme.grub_preload_modules:
+            config["GRUB_PRELOAD_MODULES"] = theme.grub_preload_modules
+
+        config["GRUB_DISTRIBUTOR"] = theme.grub_distributor
+
+        # Thème visuel (chemin vers theme.txt)
+        themes_dir = Path("/boot/grub/themes")
+        theme_file = themes_dir / theme.name / "theme.txt"
+        config["GRUB_THEME"] = str(theme_file)
+
+        logger.success(f"[ActiveThemeManager] {len(config)} paramètres GRUB exportés")
+        return config
 
     def _create_default_theme(self) -> GrubTheme:
         """Crée un thème par défaut.
@@ -228,6 +285,7 @@ class ActiveThemeManager:
         Returns:
             Thème reconstruit
         """
+        # pylint: disable=too-many-statements
         theme = create_custom_theme(
             name=data["name"],
             title_color=data["colors"]["title_color"],

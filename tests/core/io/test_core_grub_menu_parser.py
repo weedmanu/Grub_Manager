@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from core.config.core_paths import discover_grub_cfg_paths
 from core.io.core_grub_menu_parser import (
     GrubDefaultChoice,
     _candidate_grub_cfg_paths,
@@ -17,7 +18,6 @@ from core.io.core_grub_menu_parser import (
     read_grub_default_choices,
     read_grub_default_choices_with_source,
 )
-from core.config.core_paths import discover_grub_cfg_paths
 from core.io.grub_parsing_utils import extract_menuentry_id
 
 

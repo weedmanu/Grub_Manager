@@ -72,6 +72,7 @@ def render_entries(controller: GrubConfigManager) -> None:
     recovery/os-prober entries based on user settings. Handles entry
     selection and state persistence.
     """
+    # pylint: disable=too-many-locals,too-many-branches
     listbox = controller.entries_listbox
     if listbox is None:
         logger.warning("[render_entries] ListBox not initialized")

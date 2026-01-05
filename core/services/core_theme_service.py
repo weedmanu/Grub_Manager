@@ -10,10 +10,10 @@ from loguru import logger
 
 from core.config.core_paths import GRUB_CFG_PATHS, get_all_grub_themes_dirs
 from core.io.core_grub_default_io import read_grub_default
-from core.theme.core_theme_generator import create_custom_theme
+from core.models.core_theme_models import create_custom_theme
 
 if TYPE_CHECKING:
-    from core.theme.core_theme_generator import GrubTheme
+    from core.models.core_theme_models import GrubTheme
 
 
 class ThemeService:

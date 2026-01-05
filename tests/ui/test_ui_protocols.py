@@ -4,16 +4,14 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from core.models.core_grub_ui_model import GrubUiModel
 from core.system.core_grub_system_commands import GrubDefaultChoice
 from ui.ui_protocols import (
-    TimeoutWidget,
-    DefaultChoiceWidget,
     ConfigModelMapper,
-    PermissionChecker,
+    DefaultChoiceWidget,
     InfoDisplay,
+    PermissionChecker,
+    TimeoutWidget,
 )
 
 
@@ -26,7 +24,7 @@ class MockTimeoutWidget:
     def set_timeout_value(self, value: int) -> None:
         pass
 
-    def sync_timeout_choices(self, current: int) -> None:
+    def sync_timeout_choices(self, _current: int) -> None:
         pass
 
 
@@ -39,9 +37,7 @@ class MockDefaultChoiceWidget:
     def set_default_choice(self, value: str) -> None:
         pass
 
-    def refresh_default_choices(
-        self, choices: list[GrubDefaultChoice], current: str
-    ) -> None:
+    def refresh_default_choices(self, _choices: list[GrubDefaultChoice], _current: str) -> None:
         pass
 
 
@@ -68,7 +64,7 @@ class MockPermissionChecker:
 class MockInfoDisplay:
     """Implémentation test de InfoDisplay."""
 
-    def show_info(self, message: str, level: str = "info") -> None:
+    def show_info(self, _message: str, _level: str = "info") -> None:
         pass
 
     def hide_info_callback(self) -> bool:
@@ -170,12 +166,11 @@ class TestProtocolInheritance:
     def test_grub_config_manager_implements_permission_checker(self):
         """GrubConfigManager utilise un PermissionController."""
         from tests.ui.test_ui_manager import GrubConfigManagerFull
-        from unittest.mock import MagicMock
-        
+
         # Utiliser la version test qui n'appelle pas le parent GTK
         app = MagicMock()
         manager = GrubConfigManagerFull(app)
-        
+
         # Vérifier que le contrôleur de permissions existe
         assert hasattr(manager, "perm_ctrl")
         assert manager.perm_ctrl is not None
