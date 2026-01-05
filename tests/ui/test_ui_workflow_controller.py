@@ -222,8 +222,8 @@ def test_perform_save_success_apply_now_with_hidden_entries_adds_mask_info():
         controller.perform_save(apply_now=True)
 
     read_model_cb.assert_called_once()
-    controller.window._apply_state.assert_any_call(AppState.APPLYING)
-    controller.window._apply_state.assert_any_call(AppState.CLEAN)
+    controller.window.apply_state.assert_any_call(AppState.APPLYING)
+    controller.window.apply_state.assert_any_call(AppState.CLEAN)
     assert sm.entries_visibility_dirty is False
 
     # Message final
@@ -374,7 +374,7 @@ def test_perform_save_failure_sets_dirty_and_shows_error():
     ):
         controller.perform_save(apply_now=True)
 
-    controller.window._apply_state.assert_any_call(AppState.DIRTY)
+    controller.window.apply_state.assert_any_call(AppState.DIRTY)
     msg, msg_type = show_info_cb.call_args[0]
     assert msg.startswith("Erreur: ")
     assert msg_type == ERROR
@@ -441,7 +441,7 @@ def test_perform_save_exception_sets_dirty_and_shows_unexpected_error():
     with patch("ui.controllers.ui_controllers_workflow.create_last_modif_backup"):
         controller.perform_save(apply_now=True)
 
-    controller.window._apply_state.assert_any_call(AppState.DIRTY)
+    controller.window.apply_state.assert_any_call(AppState.DIRTY)
     msg, msg_type = show_info_cb.call_args[0]
     assert "Erreur inattendue" in msg
     assert msg_type == ERROR

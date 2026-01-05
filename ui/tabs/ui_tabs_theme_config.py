@@ -207,12 +207,12 @@ class TabThemeConfig:
         try:
             if getattr(sys, "is_finalizing", lambda: False)():
                 return
-        except Exception:  # pylint: disable=broad-exception-caught
+        except (AttributeError, ImportError):
             return
 
         try:
             handlers.on_theme_selected(list_box, row, self)
-        except Exception as exc:  # pylint: disable=broad-exception-caught
+        except (AttributeError, TypeError, ValueError) as exc:
             # Ne jamais laisser une exception sortir d'un callback GTK: cela peut
             # provoquer des crashes natifs (SIGSEGV) côté PyGObject.
             logger.debug(f"[TabThemeConfig._on_theme_row_selected] Ignoré: {exc}")

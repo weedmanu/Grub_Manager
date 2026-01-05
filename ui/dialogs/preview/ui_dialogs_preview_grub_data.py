@@ -45,6 +45,7 @@ class GrubPreviewDataLoader:
         self._system_menu_colors: SystemMenuColors | None = None
         self._system_theme_overrides: ThemeTxtOverrides | None = None
         self._system_theme_dir: Path | None = None
+        self.grub_service = GrubService()
 
     def load_preview_data(self) -> tuple[int, str, list[MenuEntry]]:
         """Charge les données du preview (timeout, default, entries).
@@ -54,18 +55,18 @@ class GrubPreviewDataLoader:
         """
         try:
             if self.use_system_files:
-                config = GrubService.read_current_config()
+                config = self.grub_service.read_current_config()
                 timeout = config.timeout
                 default_entry = config.default_entry
             elif self.model:
                 timeout = self.model.timeout
                 default_entry = self.model.default
             else:
-                config = GrubService.read_current_config()
+                config = self.grub_service.read_current_config()
                 timeout = config.timeout
                 default_entry = config.default_entry
 
-            menu_entries = GrubService.get_menu_entries()
+            menu_entries = self.grub_service.get_menu_entries()
 
             # Limiter à 10 entrées max pour un ratio réaliste
             if len(menu_entries) > 10:

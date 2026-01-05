@@ -123,10 +123,6 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         if tab_label:
             apply_tab_policy(self, tab_label)
 
-    def _apply_state(self, state: AppState) -> None:
-        """Alias pour compatibilité avec les tests (API historique)."""
-        self.apply_state(state)
-
     def _mark_dirty(self) -> None:
         """Marque l'état comme modifié et re-synchronise la barre globale."""
         self.state_manager.mark_dirty(self.save_btn, self.reload_btn)
@@ -540,7 +536,7 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         save_hidden_entry_ids(self.state_manager.hidden_entry_ids)
 
         self.state_manager.entries_visibility_dirty = True
-        self._apply_state(self.state_manager.state)
+        self.apply_state(self.state_manager.state)
         render_entries_view(self)
 
     def on_reload(self, button):

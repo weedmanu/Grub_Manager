@@ -68,23 +68,12 @@ class WorkflowController:
         self.show_info_cb = deps.show_info_cb
 
     def _apply_state(self, state: AppState) -> None:
-        """Applique l'état UI.
-
-        Compatibilité tests: certains mocks n'exposent que `_apply_state`.
-        Runtime: la fenêtre (GrubConfigManager) expose `apply_state`.
-        """
-        apply_state_fn = getattr(self.window, "_apply_state", None)
-        if callable(apply_state_fn):
-            apply_state_fn(state)
-            return
-
-        apply_state_fn = getattr(self.window, "apply_state", None)
-        if callable(apply_state_fn):
-            apply_state_fn(state)
-            return
-
-        # Fallback (défensif): applique l'état via state_manager si disponible.
-        self.state_manager.apply_state(state, self.save_btn, self.reload_btn)
+        """Applique l'état UI."""
+        if hasattr(self.window, "apply_state"):
+            self.window.apply_state(state)
+        else:
+            # Fallback (défensif): applique l'état via state_manager si disponible.
+            self.state_manager.apply_state(state, self.save_btn, self.reload_btn)
 
     def _maybe_create_last_modif_backup(self, apply_now: bool) -> None:
         if not apply_now:

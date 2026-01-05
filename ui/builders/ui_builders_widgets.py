@@ -60,7 +60,7 @@ def create_section_title(text: str) -> Gtk.Label:
     return label
 
 
-def box_append_section_grid(
+def box_append_section_grid(  # pylint: disable=too-many-arguments
     box: Gtk.Box,
     title: str,
     *,
@@ -69,7 +69,6 @@ def box_append_section_grid(
     title_class: str | None = None,
     frame_class: str | None = None,
 ) -> Gtk.Grid:
-    # pylint: disable=too-many-arguments
     """Ajoute une sous-section avec titre intégré + un Grid préconfiguré.
 
     Centralise un motif très fréquent dans les onglets :

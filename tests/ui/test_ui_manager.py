@@ -924,7 +924,7 @@ def test_on_hide_category_toggled_advanced_adds_ids_and_marks_dirty(manager):
     with (
         patch("ui.controllers.ui_controllers_manager.render_entries_view") as mock_render,
         patch("ui.controllers.ui_controllers_manager.save_hidden_entry_ids") as mock_save,
-        patch.object(manager, "_apply_state") as mock_apply_state,
+        patch.object(manager, "apply_state") as mock_apply_state,
     ):
         manager.on_hide_category_toggled(widget)
 
@@ -953,7 +953,7 @@ def test_on_hide_category_toggled_advanced_skips_invalid_and_non_matching_entrie
     with (
         patch("ui.controllers.ui_controllers_manager.render_entries_view"),
         patch("ui.controllers.ui_controllers_manager.save_hidden_entry_ids"),
-        patch.object(manager, "_apply_state"),
+        patch.object(manager, "apply_state"),
     ):
         manager.on_hide_category_toggled(widget)
 
@@ -975,7 +975,7 @@ def test_on_hide_category_toggled_memtest_removes_ids(manager):
     with (
         patch("ui.controllers.ui_controllers_manager.render_entries_view"),
         patch("ui.controllers.ui_controllers_manager.save_hidden_entry_ids"),
-        patch.object(manager, "_apply_state"),
+        patch.object(manager, "apply_state"),
     ):
         manager.on_hide_category_toggled(widget)
 
@@ -999,7 +999,7 @@ def test_on_hide_category_toggled_memtest_adds_ids(manager):
     with (
         patch("ui.controllers.ui_controllers_manager.render_entries_view"),
         patch("ui.controllers.ui_controllers_manager.save_hidden_entry_ids"),
-        patch.object(manager, "_apply_state"),
+        patch.object(manager, "apply_state"),
     ):
         manager.on_hide_category_toggled(widget)
 

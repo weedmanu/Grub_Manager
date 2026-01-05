@@ -25,7 +25,7 @@ class TestGrubService:
             "GRUB_INIT_TUNE": "440 1",
         }
 
-        config = GrubService.read_current_config()
+        config = GrubService().read_current_config()
 
         assert isinstance(config, GrubConfig)
         assert config.timeout == 5
@@ -45,7 +45,7 @@ class TestGrubService:
         """Test les valeurs par défaut si la config est vide."""
         mock_read.return_value = {}
 
-        config = GrubService.read_current_config()
+        config = GrubService().read_current_config()
 
         assert config.timeout == 10
         assert config.default_entry == "0"
@@ -53,25 +53,11 @@ class TestGrubService:
         assert config.grub_theme is None
 
     @patch("core.services.core_services_grub.read_grub_default")
-    def test_read_current_config_legacy_keys_are_supported(self, mock_read):
-        """Compat: d'anciens tests injectent des clés en minuscules."""
-        mock_read.return_value = {
-            "timeout": "6",
-            "default": "1",
-            "grub_theme": "/boot/grub/themes/legacy/theme.txt",
-        }
-
-        config = GrubService.read_current_config()
-        assert config.timeout == 6
-        assert config.default_entry == "1"
-        assert config.grub_theme == "/boot/grub/themes/legacy/theme.txt"
-
-    @patch("core.services.core_services_grub.read_grub_default")
     def test_read_current_config_error(self, mock_read):
         """Test la gestion d'erreur lors de la lecture."""
         mock_read.side_effect = OSError("Erreur lecture")
 
-        config = GrubService.read_current_config()
+        config = GrubService().read_current_config()
 
         assert isinstance(config, GrubConfig)
         assert config.timeout == 10  # Valeur par défaut
@@ -84,7 +70,7 @@ class TestGrubService:
             {"title": "Windows", "id": "windows_id"},
         ]
 
-        entries = GrubService.get_menu_entries()
+        entries = GrubService().get_menu_entries()
 
         assert len(entries) == 2
         assert isinstance(entries[0], MenuEntry)
@@ -101,7 +87,7 @@ class TestGrubService:
                 self.id = id
 
         mock_get_entries.return_value = [Obj("Linux", "linux_id")]
-        entries = GrubService.get_menu_entries()
+        entries = GrubService().get_menu_entries()
         assert entries == [MenuEntry(title="Linux", id="linux_id")]
 
     @patch("core.services.core_services_grub.get_simulated_os_prober_entries")
@@ -109,7 +95,7 @@ class TestGrubService:
         """Test la gestion d'erreur lors de la récupération des entrées."""
         mock_get_entries.side_effect = ValueError("Erreur parsing")
 
-        entries = GrubService.get_menu_entries()
+        entries = GrubService().get_menu_entries()
 
         assert len(entries) == 1
         assert entries[0].title == "Ubuntu"
@@ -117,7 +103,8 @@ class TestGrubService:
 
     def test_get_theme_name(self):
         """Test l'extraction du nom du thème."""
-        assert GrubService.get_theme_name(None) == "05_debian_theme (par défaut)"
-        assert GrubService.get_theme_name("") == "05_debian_theme (par défaut)"
-        assert GrubService.get_theme_name("/boot/grub/themes/mytheme") == "mytheme"
-        assert GrubService.get_theme_name("simple_name") == "simple_name"
+        service = GrubService()
+        assert service.get_theme_name(None) == "05_debian_theme (par défaut)"
+        assert service.get_theme_name("") == "05_debian_theme (par défaut)"
+        assert service.get_theme_name("/boot/grub/themes/mytheme") == "mytheme"
+        assert service.get_theme_name("simple_name") == "simple_name"

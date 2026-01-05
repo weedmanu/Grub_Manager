@@ -57,8 +57,7 @@ class MenuEntry:
 class GrubService:
     """Service pour accéder aux données GRUB de manière abstraite."""
 
-    @staticmethod
-    def read_current_config() -> GrubConfig:
+    def read_current_config(self) -> GrubConfig:
         """Lit la configuration GRUB actuelle depuis /etc/default/grub.
 
         Returns:
@@ -68,37 +67,27 @@ class GrubService:
             config_dict = read_grub_default()
 
             # /etc/default/grub utilise des clés en MAJUSCULES (GRUB_*).
-            # On supporte aussi d'anciens tests qui injectent des clés en minuscules.
-            def _get(key_upper: str, key_legacy: str, default: str | None = None) -> str | None:
-                if key_upper in config_dict:
-                    return config_dict.get(key_upper)
-                return config_dict.get(key_legacy, default)
+            def _get(key_upper: str, default: str | None = None) -> str | None:
+                return config_dict.get(key_upper, default)
 
             return GrubConfig(
-                timeout=int(_get("GRUB_TIMEOUT", "timeout", "10") or "10"),
-                default_entry=str(_get("GRUB_DEFAULT", "default", "0") or "0"),
-                grub_color_normal=str(_get("GRUB_COLOR_NORMAL", "grub_color_normal", "white/black") or "white/black"),
-                grub_color_highlight=str(
-                    _get("GRUB_COLOR_HIGHLIGHT", "grub_color_highlight", "black/white") or "black/white"
-                ),
-                grub_gfxmode=str(_get("GRUB_GFXMODE", "grub_gfxmode", "auto") or "auto"),
-                grub_theme=_get("GRUB_THEME", "grub_theme"),
-                grub_cmdline_linux=str(_get("GRUB_CMDLINE_LINUX", "grub_cmdline_linux", "") or ""),
-                grub_cmdline_linux_default=str(
-                    _get("GRUB_CMDLINE_LINUX_DEFAULT", "grub_cmdline_linux_default", "") or ""
-                ),
-                grub_disable_recovery=str(_get("GRUB_DISABLE_RECOVERY", "grub_disable_recovery", "false") or "false"),
-                grub_disable_os_prober=str(
-                    _get("GRUB_DISABLE_OS_PROBER", "grub_disable_os_prober", "false") or "false"
-                ),
-                grub_init_tune=_get("GRUB_INIT_TUNE", "grub_init_tune"),
+                timeout=int(_get("GRUB_TIMEOUT", "10") or "10"),
+                default_entry=str(_get("GRUB_DEFAULT", "0") or "0"),
+                grub_color_normal=str(_get("GRUB_COLOR_NORMAL", "white/black") or "white/black"),
+                grub_color_highlight=str(_get("GRUB_COLOR_HIGHLIGHT", "black/white") or "black/white"),
+                grub_gfxmode=str(_get("GRUB_GFXMODE", "auto") or "auto"),
+                grub_theme=_get("GRUB_THEME"),
+                grub_cmdline_linux=str(_get("GRUB_CMDLINE_LINUX", "") or ""),
+                grub_cmdline_linux_default=str(_get("GRUB_CMDLINE_LINUX_DEFAULT", "") or ""),
+                grub_disable_recovery=str(_get("GRUB_DISABLE_RECOVERY", "false") or "false"),
+                grub_disable_os_prober=str(_get("GRUB_DISABLE_OS_PROBER", "false") or "false"),
+                grub_init_tune=_get("GRUB_INIT_TUNE"),
             )
         except (GrubManagerError, OSError, ValueError) as e:
             logger.error(f"[GrubService] Erreur lors de la lecture config: {e}")
             return GrubConfig()
 
-    @staticmethod
-    def get_menu_entries() -> list[MenuEntry]:
+    def get_menu_entries(self) -> list[MenuEntry]:
         """Récupère les entrées du menu GRUB réelles.
 
         Returns:
@@ -127,8 +116,7 @@ class GrubService:
             logger.error(f"[GrubService] Erreur lors de la lecture des entrées: {e}")
             return [MenuEntry(title="Ubuntu", id="gnulinux")]
 
-    @staticmethod
-    def get_theme_name(theme_path: str | None) -> str:
+    def get_theme_name(self, theme_path: str | None) -> str:
         """Extrait le nom du thème depuis son chemin.
 
         Args:
