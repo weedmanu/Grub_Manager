@@ -22,13 +22,18 @@ from ui.ui_gtk_helpers import GtkHelper
 from ui.ui_widgets import create_error_dialog, create_success_dialog
 
 
+def _set_sensitive(widget: Any, is_sensitive: bool) -> None:
+    if widget is not None:
+        widget.set_sensitive(is_sensitive)
+
+
 def on_activate_theme(_button: Any, tab: Any) -> None:
     """Active le thème sélectionné dans le modèle."""
-    if not getattr(tab, "current_theme", None):
+    if not getattr(getattr(tab, "data", None), "current_theme", None):
         return
 
-    theme_name = tab.current_theme.name
-    theme_path = tab.theme_paths.get(theme_name)
+    theme_name = tab.data.current_theme.name
+    theme_path = tab.data.theme_paths.get(theme_name)
     theme_txt = ""
     if theme_path:
         theme_txt = str(theme_path / "theme.txt")
@@ -56,47 +61,37 @@ def on_deactivate_theme(_button: Any, tab: Any) -> None:
 def on_theme_selected(_list_box: Any, row: Any, tab: Any) -> None:
     """Callback: sélection d'un thème."""
     if row is None:
-        tab.current_theme = None
-        if tab.preview_btn:
-            tab.preview_btn.set_sensitive(False)
-        if tab.edit_btn:
-            tab.edit_btn.set_sensitive(False)
-        if tab.delete_btn:
-            tab.delete_btn.set_sensitive(False)
+        tab.data.current_theme = None
+        actions = tab.widgets.actions
+        _set_sensitive(actions.preview_btn, False)
+        _set_sensitive(actions.edit_btn, False)
+        _set_sensitive(actions.delete_btn, False)
         return
 
     index = row.get_index()
-    themes_list = list(tab.available_themes.values())
+    themes_list = list(tab.data.available_themes.values())
 
     if not 0 <= index < len(themes_list):
         return
 
-    tab.current_theme = themes_list[index]
+    tab.data.current_theme = themes_list[index]
 
-    if tab.preview_btn:
-        tab.preview_btn.set_sensitive(tab.current_theme.name != "Aucun (GRUB par défaut)")
+    actions = tab.widgets.actions
+    _set_sensitive(actions.preview_btn, tab.data.current_theme.name != "Aucun (GRUB par défaut)")
 
-    theme_path = tab.theme_paths.get(tab.current_theme.name)
-    is_custom = bool(theme_path) and tab.theme_service.is_theme_custom(theme_path)
+    theme_path = tab.data.theme_paths.get(tab.data.current_theme.name)
+    is_custom = bool(theme_path) and tab.services.theme_service.is_theme_custom(theme_path)
 
-    if tab.edit_btn:
-        tab.edit_btn.set_sensitive(is_custom)
-    if tab.delete_btn:
-        tab.delete_btn.set_sensitive(is_custom)
+    _set_sensitive(actions.edit_btn, is_custom)
+    _set_sensitive(actions.delete_btn, is_custom)
 
     model = tab.state_manager.get_model()
-    if theme_path:
-        theme_txt_path = theme_path / "theme.txt"
-        is_active = str(theme_txt_path) == model.grub_theme
-    elif tab.current_theme.name == "Aucun (GRUB par défaut)":
-        is_active = not model.grub_theme
-    else:
-        is_active = False
+    is_none = tab.data.current_theme.name == "Aucun (GRUB par défaut)"
+    theme_txt_path = (theme_path / "theme.txt") if theme_path else None
+    is_active = (str(theme_txt_path) == model.grub_theme) if theme_txt_path else (is_none and not model.grub_theme)
 
-    if tab.activate_theme_btn:
-        tab.activate_theme_btn.set_sensitive(not is_active)
-    if tab.deactivate_theme_btn:
-        tab.deactivate_theme_btn.set_sensitive(is_active and tab.current_theme.name != "Aucun (GRUB par défaut)")
+    _set_sensitive(actions.activate_theme_btn, not is_active)
+    _set_sensitive(actions.deactivate_theme_btn, is_active and not is_none)
 
 
 def on_theme_switch_toggled(switch: Any, _param: Any, tab: Any) -> None:
@@ -112,10 +107,11 @@ def on_theme_switch_toggled(switch: Any, _param: Any, tab: Any) -> None:
         tab.state_manager.update_model(new_model)
         tab.mark_dirty()
 
-    if tab.theme_sections_container:
-        tab.theme_sections_container.set_visible(is_active)
-    if tab.simple_config_container:
-        tab.simple_config_container.set_visible(not is_active)
+    containers = tab.widgets.containers
+    if containers.theme_sections_container:
+        containers.theme_sections_container.set_visible(is_active)
+    if containers.simple_config_container:
+        containers.simple_config_container.set_visible(not is_active)
 
     tab.load_themes()
 
@@ -187,7 +183,7 @@ def on_preview_theme(
 ) -> None:
     """Ouvre le dialog de prévisualisation du thème."""
     model = tab.state_manager.get_model()
-    theme = tab.current_theme
+    theme = tab.data.current_theme
 
     if theme is None and model.theme_management_enabled:
         create_error_dialog("Veuillez sélectionner un thème")
@@ -213,12 +209,12 @@ def on_edit_theme(
     try:
         tab.parent_window = GtkHelper.resolve_parent_window(_button, fallback=tab.parent_window)
 
-        if theme_name not in tab.available_themes:
+        if theme_name not in tab.data.available_themes:
             create_error_dialog(f"Thème '{theme_name}' introuvable")
             return
 
-        theme_path = tab.theme_paths.get(theme_name)
-        if not theme_path or not tab.theme_service.is_theme_custom(theme_path):
+        theme_path = tab.data.theme_paths.get(theme_name)
+        if not theme_path or not tab.services.theme_service.is_theme_custom(theme_path):
             create_error_dialog("Ce thème système ne peut pas être modifié")
             return
 
@@ -248,12 +244,12 @@ def on_delete_theme(
     try:
         tab.parent_window = GtkHelper.resolve_parent_window(_button, fallback=tab.parent_window)
 
-        if theme_name not in tab.available_themes:
+        if theme_name not in tab.data.available_themes:
             create_error_dialog(f"Thème '{theme_name}' introuvable")
             return
 
-        theme_path = tab.theme_paths.get(theme_name)
-        if not theme_path or not tab.theme_service.is_theme_custom(theme_path):
+        theme_path = tab.data.theme_paths.get(theme_name)
+        if not theme_path or not tab.services.theme_service.is_theme_custom(theme_path):
             create_error_dialog("Les thèmes système ne peuvent pas être supprimés")
             return
 
@@ -294,7 +290,7 @@ def on_delete_confirmed(
 
         theme_name, theme_path, tab = user_data
 
-        if tab.theme_service.delete_theme(theme_path):
+        if tab.services.theme_service.delete_theme(theme_path):
             logger.info(f"[on_delete_confirmed] Thème supprimé: {theme_name}")
             create_success_dialog(f"Thème '{theme_name}' supprimé avec succès")
         else:

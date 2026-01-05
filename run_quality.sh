@@ -24,10 +24,18 @@ show_help() {
   echo -e "  ${GREEN}--all${NC}         Enchaîne : clean -> fix -> lint -> test (comportement par défaut)"
   echo -e "  ${GREEN}--help, -h${NC}    Affiche cette aide"
   echo ""
+  echo -e "${YELLOW}Sélection par chemins:${NC}"
+  echo "  - Pour --fix/--lint : les PATHS filtrent les fichiers/dossiers analysés."
+  echo "  - Pour --test/--cov : les PATHS (si fournis) sont passés à pytest pour ne lancer que cette sélection."
+  echo "    Sans PATHS, pytest lance toute la suite (comportement par défaut)."
+  echo ""
   echo -e "${YELLOW}Exemples:${NC}"
   echo "  ./run_quality.sh --lint          # Vérifie le code source (core, ui, main.py)"
   echo "  ./run_quality.sh --lint tests    # Vérifie spécifiquement le dossier tests"
   echo "  ./run_quality.sh --fix core      # Formate uniquement le dossier core"
+  echo "  ./run_quality.sh --test          # Lance toute la suite de tests"
+  echo "  ./run_quality.sh --test tests/core/theme/test_core_theme_generator.py"
+  echo "                                # Lance uniquement ce fichier de tests"
   echo "  ./run_quality.sh --cov           # Voir la couverture de tests"
   echo ""
   echo -e "${BLUE}Note:${NC} Sans option, le script exécute ${GREEN}--all${NC} sur les dossiers sources."
@@ -54,6 +62,11 @@ DO_FIX=false
 DO_ALL=false
 EXIT_CODE=0
 
+# Indique si l'utilisateur a fourni explicitement des chemins (non-option).
+# Sert notamment à ne pas passer par erreur les chemins de lint (core/ui/main.py)
+# à pytest lorsque l'utilisateur lance simplement --test/--cov sans argument.
+USER_PROVIDED_PATHS=false
+
 # Chemins par défaut (exclut tests par défaut pour le linting)
 DEFAULT_PATHS="core ui main.py"
 PATHS=""
@@ -73,7 +86,10 @@ for arg in "$@"; do
     --all) DO_ALL=true ;;
     --help|-h) show_help; exit 0 ;;
     -*) echo -e "${RED}Option inconnue : $arg${NC}"; show_help; exit 2 ;;
-    *) PATHS="$PATHS $arg" ;;
+    *)
+      USER_PROVIDED_PATHS=true
+      PATHS="$PATHS $arg"
+      ;;
   esac
 done
 
@@ -230,10 +246,18 @@ PY
 }
 
 test_suite() {
+  local pytest_paths=()
+  if $USER_PROVIDED_PATHS; then
+    # shellcheck disable=SC2206
+    pytest_paths=($PATHS)
+  fi
+
   if $DO_COV; then
-    run_check "Pytest (coverage)" "$PYTHON_BIN" -m pytest --cov=core --cov=ui --cov-report=term-missing --cov-fail-under=100
+    run_check "Pytest (coverage)" "$PYTHON_BIN" -m pytest \
+      --cov=core --cov=ui --cov-report=term-missing --cov-fail-under=100 \
+      "${pytest_paths[@]}"
   else
-    run_check "Pytest" "$PYTHON_BIN" -m pytest
+    run_check "Pytest" "$PYTHON_BIN" -m pytest "${pytest_paths[@]}"
   fi
 }
 

@@ -209,7 +209,7 @@ class InteractiveThemeGeneratorWindow(Gtk.Window):
                 # Close window
                 self.close()
 
-        except Exception as e:
+        except (OSError, RuntimeError, TypeError, ValueError) as e:
             logger.error(f"Failed to create theme: {e}")
             error_dialog = Gtk.MessageDialog(
                 transient_for=self,

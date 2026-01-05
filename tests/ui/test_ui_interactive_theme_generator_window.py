@@ -56,7 +56,7 @@ def test_interactive_theme_generator_window_create_cancel(mock_generator):
 
 def test_interactive_theme_generator_window_create_error(mock_generator):
     win = InteractiveThemeGeneratorWindow()
-    mock_generator.create_theme_package.side_effect = Exception("Create failed")
+    mock_generator.create_theme_package.side_effect = RuntimeError("Create failed")
     
     with patch("ui.dialogs.ui_interactive_theme_generator_window.Gtk") as mock_gtk:
         mock_gtk.ResponseType.OK = Gtk.ResponseType.OK

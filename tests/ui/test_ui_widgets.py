@@ -6,6 +6,7 @@ import pytest
 from gi.repository import Gtk
 
 from ui.ui_widgets import (
+    LabelOptions,
     apply_margins,
     box_append_label,
     box_append_section_title,
@@ -37,7 +38,7 @@ def test_grid_helpers():
     grid = Gtk.Grid()
     widget = Gtk.Entry()
 
-    row = grid_add_labeled(grid, 0, "Label", widget, label_valign=Gtk.Align.CENTER)
+    row = grid_add_labeled(grid, 0, "Label", widget, label=LabelOptions(valign=Gtk.Align.CENTER))
     assert row == 1
 
     row = grid_add_labeled(grid, 1, "Label 2", Gtk.Entry())
@@ -63,7 +64,6 @@ def test_make_scrolled_grid():
 def test_box_helpers():
     box = Gtk.Box()
     apply_margins(box, 10)
-    # In GTK4 margins are properties
     assert box.get_margin_top() == 10
 
     box_append_label(box, "Test Label", italic=False)
@@ -104,11 +104,8 @@ def test_create_info_box():
 
     box = create_info_box("Title", "Content")
     assert isinstance(box, Gtk.Box)
-    # Check if title and content are there
-    # First child should be title label
     title_label = box.get_first_child()
     assert "Title" in title_label.get_label()
-    # Second child should be content label
     content_label = title_label.get_next_sibling()
     assert content_label.get_label() == "Content"
 
@@ -138,13 +135,8 @@ def test_categorize_backup_type():
 
 
 def test_dialog_helpers():
-    # These might be hard to test without a main loop, but we can try to call them
-    # and see if they don't crash.
-    # Note: create_error_dialog etc. usually create a Gtk.MessageDialog or Adw.MessageDialog
-
-    # We skip these if they require a real display or complex setup that fails here
+    # Best-effort: en CI/headless, Gtk.Window peut échouer.
     try:
-        # Mocking Gtk.Window for parent
         parent = Gtk.Window()
         create_error_dialog("Error", parent=parent)
         create_success_dialog("Success", parent=parent)

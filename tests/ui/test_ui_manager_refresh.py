@@ -71,18 +71,24 @@ class GrubConfigManagerFull(GrubConfigManager):
         
         # theme_config_controller with proper mocks
         self.theme_config_controller = MagicMock()
-        self.theme_config_controller.theme_switch = MagicMock()
-        self.theme_config_controller.theme_switch.get_active.return_value = True
-        self.theme_config_controller.bg_image_entry = MagicMock()
-        self.theme_config_controller.bg_image_entry.get_text.return_value = ""
-        self.theme_config_controller.normal_fg_combo = MagicMock()
-        self.theme_config_controller.normal_fg_combo.get_selected.return_value = -1
-        self.theme_config_controller.normal_bg_combo = MagicMock()
-        self.theme_config_controller.normal_bg_combo.get_selected.return_value = -1
-        self.theme_config_controller.highlight_fg_combo = MagicMock()
-        self.theme_config_controller.highlight_fg_combo.get_selected.return_value = -1
-        self.theme_config_controller.highlight_bg_combo = MagicMock()
-        self.theme_config_controller.highlight_bg_combo.get_selected.return_value = -1
+        self.theme_config_controller.widgets = MagicMock()
+        self.theme_config_controller.widgets.panels = MagicMock()
+        panels = self.theme_config_controller.widgets.panels
+        panels.theme_switch = MagicMock()
+        panels.theme_switch.get_active.return_value = True
+        panels.simple_config_panel = MagicMock()
+        panels.simple_config_panel.widgets = MagicMock()
+        widgets = panels.simple_config_panel.widgets
+        widgets.bg_image_entry = MagicMock()
+        widgets.bg_image_entry.get_text.return_value = ""
+        widgets.normal_fg_combo = MagicMock()
+        widgets.normal_fg_combo.get_selected.return_value = -1
+        widgets.normal_bg_combo = MagicMock()
+        widgets.normal_bg_combo.get_selected.return_value = -1
+        widgets.highlight_fg_combo = MagicMock()
+        widgets.highlight_fg_combo.get_selected.return_value = -1
+        widgets.highlight_bg_combo = MagicMock()
+        widgets.highlight_bg_combo.get_selected.return_value = -1
         
         # Mock PermissionController
         self.perm_ctrl = MagicMock()

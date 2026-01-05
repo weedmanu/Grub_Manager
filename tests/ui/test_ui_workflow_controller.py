@@ -11,7 +11,7 @@ from gi.repository import Gtk
 
 from ui.ui_infobar_controller import ERROR, INFO, WARNING
 from ui.ui_state import AppState
-from ui.ui_workflow_controller import WorkflowController
+from ui.ui_workflow_controller import WorkflowController, WorkflowDeps
 
 
 def _make_state_manager() -> MagicMock:
@@ -38,11 +38,13 @@ def _make_controller(
     controller = WorkflowController(
         window=MagicMock(),
         state_manager=sm,
-        save_btn=save_btn,
-        reload_btn=reload_btn,
-        load_config_cb=load_config_cb,
-        read_model_cb=read_model_cb,
-        show_info_cb=show_info_cb,
+        deps=WorkflowDeps(
+            save_btn=save_btn,
+            reload_btn=reload_btn,
+            load_config_cb=load_config_cb,
+            read_model_cb=read_model_cb,
+            show_info_cb=show_info_cb,
+        ),
     )
     return controller, load_config_cb, read_model_cb, show_info_cb, sm
 

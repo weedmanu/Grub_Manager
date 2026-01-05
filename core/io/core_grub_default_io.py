@@ -368,16 +368,11 @@ def restore_grub_default_backup(backup_path: str, target_path: str = GRUB_DEFAUL
     if not os.path.exists(backup_path):
         raise FileNotFoundError(f"Archive de sauvegarde introuvable: {backup_path}")
 
-    # Détection simple: si le fichier ne finit pas par .tar.gz, on suppose que c'est un simple fichier texte (legacy)
     if not backup_path.endswith(".tar.gz"):
-        logger.info(f"[restore_grub_default_backup] Détection format legacy (texte simple) pour {backup_path}")
-        try:
-            shutil.copy2(backup_path, target_path)
-            logger.success(f"[restore_grub_default_backup] Restauration legacy réussie: {target_path}")
-            return
-        except OSError as e:
-            logger.error(f"[restore_grub_default_backup] ERREUR legacy: {e}")
-            raise GrubBackupError(f"Échec de la restauration legacy: {e}") from e
+        raise GrubBackupError(
+            "Format de sauvegarde non supporté (attendu .tar.gz). "
+            "Utilisez une sauvegarde créée par l'onglet Sauvegardes."
+        )
 
     try:
         with tarfile.open(backup_path, "r:gz") as tar:

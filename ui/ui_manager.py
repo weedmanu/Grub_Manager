@@ -26,7 +26,7 @@ from ui.ui_gtk_imports import Gtk
 from ui.ui_infobar_controller import ERROR, INFO, WARNING, InfoBarController
 from ui.ui_model_mapper import ModelWidgetMapper
 from ui.ui_state import AppState, AppStateManager
-from ui.ui_workflow_controller import WorkflowController
+from ui.ui_workflow_controller import WorkflowController, WorkflowDeps
 
 __all__ = [
     "ActiveThemeManager",
@@ -58,6 +58,28 @@ class GrubConfigManager(Gtk.ApplicationWindow):
     infobar: InfoBarController | None = None
     workflow: WorkflowController | None = None
 
+    # Membres initialisés par les onglets (références remplies par build_*_tab() lors de create_ui())
+    timeout_dropdown: Gtk.DropDown | None = None
+    default_dropdown: Gtk.DropDown | None = None
+    hidden_timeout_check: Gtk.Switch | None = None
+    cmdline_dropdown: Gtk.DropDown | None = None
+    gfxmode_dropdown: Gtk.DropDown | None = None
+    gfxpayload_dropdown: Gtk.DropDown | None = None
+    disable_os_prober_check: Gtk.Switch | None = None
+    hide_advanced_options_check: Gtk.Switch | None = None
+    hide_memtest_check: Gtk.Switch | None = None
+    entries_listbox: Gtk.ListBox | None = None
+
+    # Contrôleur de l'onglet Thème
+    theme_config_controller: TabThemeConfig | None = None
+
+    # Widgets créés par UIBuilder
+    info_revealer: Gtk.Revealer | None = None
+    info_box: Gtk.Box | None = None
+    info_label: Gtk.Label | None = None
+    reload_btn: Gtk.Button | None = None
+    save_btn: Gtk.Button | None = None
+
     def __init__(self, application: Gtk.Application):
         """Initialise la fenêtre.
 
@@ -68,38 +90,6 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         title = "Gestionnaire de Configuration GRUB"
         super().__init__(application=application, title=title)
         self.set_default_size(850, 700)
-
-        # Membres initialisés par les onglets (déclarés ici pour la lisibilité et pylint).
-        # DEV: Ces références sont remplies par build_*_tab() lors de create_ui()
-        self.timeout_dropdown: Gtk.DropDown | None = None
-        self.default_dropdown: Gtk.DropDown | None = None
-        self.hidden_timeout_check: Gtk.Switch | None = None
-        self.cmdline_dropdown: Gtk.DropDown | None = None
-
-        self.gfxmode_dropdown: Gtk.DropDown | None = None
-        self.gfxpayload_dropdown: Gtk.DropDown | None = None
-
-        self.disable_os_prober_check: Gtk.Switch | None = None
-
-        # Options globales de masquage (via hidden_entries.json + post-traitement grub.cfg)
-        self.hide_advanced_options_check: Gtk.Switch | None = None
-        self.hide_memtest_check: Gtk.Switch | None = None
-
-        self.entries_listbox: Gtk.ListBox | None = None
-
-        # Contrôleur de l'onglet Thème
-        self.theme_config_controller: TabThemeConfig | None = None
-
-        # Widgets créés par UIBuilder
-        self.info_revealer: Gtk.Revealer | None = None
-        self.info_box: Gtk.Box | None = None
-        self.info_label: Gtk.Label | None = None
-        self.reload_btn: Gtk.Button | None = None
-        self.save_btn: Gtk.Button | None = None
-
-        # Contrôleurs délégués
-        self.infobar: InfoBarController | None = None
-        self.workflow: WorkflowController | None = None
         self.state_manager = AppStateManager()
 
         # Contrôleurs SRP (Single Responsibility)
@@ -240,7 +230,7 @@ class GrubConfigManager(Gtk.ApplicationWindow):
             return "0"
         try:
             return self.state_manager.get_default_choice_ids()[int(idx)]
-        except Exception:
+        except (IndexError, RuntimeError, TypeError, ValueError):
             return "0"
 
     def set_default_choice(self, value: str) -> None:
@@ -266,7 +256,7 @@ class GrubConfigManager(Gtk.ApplicationWindow):
                 self.state_manager.update_default_choice_ids(updated_ids)
                 self.default_dropdown.set_selected(len(updated_ids) - 1)
                 return
-            except Exception:
+            except (AttributeError, RuntimeError, TypeError, ValueError):
                 pass
 
         self.default_dropdown.set_selected(0)
@@ -294,11 +284,13 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         self.workflow = WorkflowController(
             window=self,
             state_manager=self.state_manager,
-            save_btn=self.save_btn,
-            reload_btn=self.reload_btn,
-            load_config_cb=self.load_config,
-            read_model_cb=self.read_model_from_ui,
-            show_info_cb=self.show_info,
+            deps=WorkflowDeps(
+                save_btn=self.save_btn,
+                reload_btn=self.reload_btn,
+                load_config_cb=self.load_config,
+                read_model_cb=self.read_model_from_ui,
+                show_info_cb=self.show_info,
+            ),
         )
         self.state_manager.apply_state(AppState.CLEAN, self.save_btn, self.reload_btn)
 

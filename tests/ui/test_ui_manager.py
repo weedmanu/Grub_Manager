@@ -127,21 +127,27 @@ class GrubConfigManagerFull(GrubConfigManager):
         
         # theme_config_controller with proper color combo mocks
         self.theme_config_controller = MagicMock()
-        self.theme_config_controller.theme_switch = MagicMock()
-        self.theme_config_controller.theme_switch.get_active.return_value = True
-        self.theme_config_controller.bg_image_entry = MagicMock()
-        self.theme_config_controller.bg_image_entry.get_text.return_value = ""
+        self.theme_config_controller.widgets = MagicMock()
+        self.theme_config_controller.widgets.panels = MagicMock()
+        panels = self.theme_config_controller.widgets.panels
+        panels.theme_switch = MagicMock()
+        panels.theme_switch.get_active.return_value = True
+        panels.simple_config_panel = MagicMock()
+        panels.simple_config_panel.widgets = MagicMock()
+        widgets = panels.simple_config_panel.widgets
+        widgets.bg_image_entry = MagicMock()
+        widgets.bg_image_entry.get_text.return_value = ""
         
         # Color combos - must return integers for get_selected()
-        self.theme_config_controller.normal_fg_combo = MagicMock()
-        self.theme_config_controller.normal_fg_combo.get_selected.return_value = -1  # No selection
-        self.theme_config_controller.normal_bg_combo = MagicMock()
-        self.theme_config_controller.normal_bg_combo.get_selected.return_value = -1
+        widgets.normal_fg_combo = MagicMock()
+        widgets.normal_fg_combo.get_selected.return_value = -1  # No selection
+        widgets.normal_bg_combo = MagicMock()
+        widgets.normal_bg_combo.get_selected.return_value = -1
         
-        self.theme_config_controller.highlight_fg_combo = MagicMock()
-        self.theme_config_controller.highlight_fg_combo.get_selected.return_value = -1
-        self.theme_config_controller.highlight_bg_combo = MagicMock()
-        self.theme_config_controller.highlight_bg_combo.get_selected.return_value = -1
+        widgets.highlight_fg_combo = MagicMock()
+        widgets.highlight_fg_combo.get_selected.return_value = -1
+        widgets.highlight_bg_combo = MagicMock()
+        widgets.highlight_bg_combo.get_selected.return_value = -1
 
         # Contrôleurs SRP (Single Responsibility)
         from ui.controllers import PermissionController
@@ -711,7 +717,7 @@ def test_get_default_choice_edge_cases(manager):
     assert manager.get_default_choice() == "0"
 
     manager.default_dropdown.get_selected.return_value = 0
-    manager.state_manager.get_default_choice_ids = MagicMock(side_effect=Exception("Mock"))
+    manager.state_manager.get_default_choice_ids = MagicMock(side_effect=RuntimeError("Mock"))
     assert manager.get_default_choice() == "0"
 
 
@@ -748,7 +754,7 @@ def test_set_default_choice_branches(manager):
     assert manager.state_manager.update_default_choice_ids.called
 
     # Case 4: Exception during append
-    model.append.side_effect = Exception("Error")
+    model.append.side_effect = RuntimeError("Error")
     manager.set_default_choice("error_id")
     manager.default_dropdown.set_selected.assert_called_with(0)
 

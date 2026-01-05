@@ -103,18 +103,8 @@ class ThemeScriptsList(Gtk.Box):
 
         if script.is_executable == is_active:
             self.state_manager.pending_script_changes.pop(key_str, None)
-            # compat: éventuelles anciennes clés Path
-            self.state_manager.pending_script_changes.pop(script_path, None)
 
         # AppStateManager.update_model attend un modèle; on repasse le modèle courant
         # pour déclencher la synchronisation des états UI (boutons, etc.).
-        model = self.state_manager.get_model() if hasattr(self.state_manager, "get_model") else None
-        try:
-            if model is not None:
-                self.state_manager.update_model(model)
-            else:
-                # Fallback pour d'éventuels mocks/implémentations anciennes.
-                self.state_manager.update_model()
-        except TypeError:
-            # Compat: certains doubles de test peuvent avoir une signature différente.
-            self.state_manager.update_model()
+        model = self.state_manager.get_model()
+        self.state_manager.update_model(model)

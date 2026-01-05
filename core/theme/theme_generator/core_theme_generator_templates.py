@@ -163,7 +163,10 @@ terminal-border: "0"
         desktop_image_props = properties.get("desktop_image", {})
         return ThemeTemplateBuilder.GLOBAL_PROPS.format(
             background_color=desktop_image_props.get("background_color", colors.get("background", "#000000")),
-            terminal_font=fonts.get("terminal_font", f"Terminus Regular {resolution_config.terminal_font_size}"),
+            terminal_font=fonts.get(
+                "terminal_font",
+                f"Terminus Regular {resolution_config.terminal.font_size}",
+            ),
             desktop_image=desktop_image_props.get("file", "background.jpg").split("/")[-1],
             scale_method=desktop_image_props.get("scale_method", "stretch"),
             h_align=desktop_image_props.get("h_align", "center"),
@@ -193,7 +196,10 @@ terminal-border: "0"
             top=boot_menu_props.get("top", 30),
             width=boot_menu_props.get("width", 40),
             height=boot_menu_props.get("height", 40),
-            item_font=fonts.get("item_font", f"Unifont Regular {resolution_config.item_font_size}"),
+            item_font=fonts.get(
+                "item_font",
+                f"Unifont Regular {resolution_config.item.font_size}",
+            ),
             item_color=colors.get("text", "#cccccc"),
             selected_item_color=colors.get("selected", "#ffffff"),
             icon_size=icon_size,
@@ -235,7 +241,10 @@ terminal-border: "0"
             top=timeout_props.get("top", 82),
             text=timeout_props.get("text", "Booting in %d seconds"),
             color=colors.get("label", colors.get("text", "#cccccc")),
-            font=fonts.get("item_font", f"Unifont Regular {resolution_config.item_font_size}"),
+            font=fonts.get(
+                "item_font",
+                f"Unifont Regular {resolution_config.item.font_size}",
+            ),
         )
 
     @staticmethod
@@ -297,5 +306,8 @@ terminal-border: "0"
                 "color",
                 colors.get("label", colors.get("text", "#aaaaaa")),
             ),
-            font=fonts.get("item_font", f"Unifont Regular {resolution_config.item_font_size}"),
+            font=fonts.get(
+                "item_font",
+                f"Unifont Regular {resolution_config.item.font_size}",
+            ),
         )

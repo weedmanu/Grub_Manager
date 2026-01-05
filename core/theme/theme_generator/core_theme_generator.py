@@ -181,8 +181,8 @@ class ThemeGenerator:
                     "label": label_color,
                 },
                 "fonts": {
-                    "item_font": f"Unifont Regular {res_config.item_font_size}",
-                    "terminal_font": f"Terminus Regular {res_config.terminal_font_size}",
+                    "item_font": f"Unifont Regular {res_config.item.font_size}",
+                    "terminal_font": f"Terminus Regular {res_config.terminal.font_size}",
                 },
             },
         }

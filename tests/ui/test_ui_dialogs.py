@@ -295,5 +295,5 @@ def test_confirm_action(mock_dialog_class, mock_controller):
     callback.assert_not_called()
 
     # Case 3: Exception
-    mock_dialog.choose_finish.side_effect = Exception("Err")
+    mock_dialog.choose_finish.side_effect = TypeError("Err")
     on_response(mock_dialog, MagicMock(spec=Gio.AsyncResult))  # Should not crash

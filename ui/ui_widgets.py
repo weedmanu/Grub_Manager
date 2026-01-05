@@ -6,8 +6,21 @@ Fournit des utilitaires réutilisables pour la construction d'interfaces.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from gi.repository import Gtk, Pango
 from loguru import logger
+
+from ui.ui_exceptions import UiWidgetError
+
+
+@dataclass(frozen=True, slots=True)
+class LabelOptions:
+    """Options de présentation pour les labels dans un Grid."""
+
+    xalign: float = 0
+    valign: Gtk.Align | None = None
+
 
 # ============================================================================
 # CRÉATION DE WIDGETS
@@ -79,8 +92,7 @@ def grid_add_labeled(
     label_text: str,
     widget: Gtk.Widget,
     *,
-    label_xalign: float = 0,
-    label_valign: Gtk.Align | None = None,
+    label: LabelOptions | None = None,
 ) -> int:
     """Ajoute une ligne Label + Widget à un Grid.
 
@@ -95,11 +107,14 @@ def grid_add_labeled(
     Returns:
         Prochain index de ligne
     """
+    if widget is None:
+        raise UiWidgetError("grid_add_labeled: widget ne doit pas être None")
     logger.debug(f"[grid_add_labeled] Ligne {row}: {label_text[:30]} + {widget.__class__.__name__}")
-    label = Gtk.Label(label=label_text, xalign=label_xalign)
-    if label_valign is not None:
-        label.set_valign(label_valign)
-    grid.attach(label, 0, row, 1, 1)
+    label_opts = label or LabelOptions()
+    label_widget = Gtk.Label(label=label_text, xalign=label_opts.xalign)
+    if label_opts.valign is not None:
+        label_widget.set_valign(label_opts.valign)
+    grid.attach(label_widget, 0, row, 1, 1)
     grid.attach(widget, 1, row, 1, 1)
     return row + 1
 
@@ -171,6 +186,8 @@ def box_append_label(
     Returns:
         Label créé
     """
+    if box is None:
+        raise UiWidgetError("box_append_label: box ne doit pas être None")
     logger.debug(f"[box_append_label] Label: {text[:30]} (italic={italic})")
     label = Gtk.Label()
     if italic:
@@ -198,6 +215,8 @@ def box_append_section_title(box: Gtk.Box, text: str) -> Gtk.Label:
     Returns:
         Label créé
     """
+    if box is None:
+        raise UiWidgetError("box_append_section_title: box ne doit pas être None")
     logger.debug(f"[box_append_section_title] Titre: {text}")
     label = Gtk.Label()
     label.set_markup(f"<b>{text}</b>")
@@ -244,6 +263,8 @@ def apply_margins(widget: Gtk.Widget, margin: int = 12) -> None:
         widget: Widget cible
         margin: Taille de la marge en pixels
     """
+    if widget is None:
+        raise UiWidgetError("apply_margins: widget ne doit pas être None")
     logger.debug(f"[apply_margins] margin={margin} pour {widget.__class__.__name__}")
     widget.set_margin_top(margin)
     widget.set_margin_bottom(margin)

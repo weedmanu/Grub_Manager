@@ -581,24 +581,13 @@ class TestRestoreGrubDefaultBackup:
         with pytest.raises(GrubBackupError, match="Échec de la restauration"):
             restore_grub_default_backup(str(archive_path))
 
-    def test_restore_backup_legacy_text_file(self, tmp_path):
-        """Test restauration d'un backup legacy (fichier texte simple)."""
+    def test_restore_backup_non_tar_gz_is_rejected(self, tmp_path):
+        """Les backups non .tar.gz ne sont plus supportés."""
         backup_path = tmp_path / "grub.backup"
         backup_path.write_text("GRUB_TIMEOUT=42")
-        target_path = tmp_path / "grub_restored"
 
-        restore_grub_default_backup(str(backup_path), str(target_path))
-
-        assert target_path.read_text() == "GRUB_TIMEOUT=42"
-
-    def test_restore_backup_legacy_copy_error(self, tmp_path):
-        """Test erreur lors de la restauration legacy."""
-        backup_path = tmp_path / "grub.backup"
-        backup_path.write_text("content")
-
-        with patch("shutil.copy2", side_effect=OSError("Disk full")):
-            with pytest.raises(GrubBackupError, match="Échec de la restauration legacy"):
-                restore_grub_default_backup(str(backup_path), "/target")
+        with pytest.raises(GrubBackupError, match="Format de sauvegarde non supporté"):
+            restore_grub_default_backup(str(backup_path), str(tmp_path / "grub_restored"))
 
     def test_restore_backup_os_error_during_copy(self, tmp_path):
         """Test échec lors de la copie des fichiers extraits."""

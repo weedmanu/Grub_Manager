@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from loguru import logger
@@ -27,6 +28,17 @@ if TYPE_CHECKING:
     from ui.ui_state import AppStateManager
 
 
+@dataclass(frozen=True, slots=True)
+class WorkflowDeps:
+    """Dépendances injectées dans le contrôleur (UI + callbacks)."""
+
+    save_btn: Gtk.Button | None
+    reload_btn: Gtk.Button | None
+    load_config_cb: Callable[[], None]
+    read_model_cb: Callable[[], GrubUiModel]
+    show_info_cb: Callable[[str, str], None]
+
+
 class WorkflowController:
     """Gère l'orchestration des actions de sauvegarde et recharge."""
 
@@ -34,12 +46,7 @@ class WorkflowController:
         self,
         window: Gtk.Window,
         state_manager: AppStateManager,
-        *,
-        save_btn: Gtk.Button | None,
-        reload_btn: Gtk.Button | None,
-        load_config_cb: Callable[[], None],
-        read_model_cb: Callable[[], GrubUiModel],
-        show_info_cb: Callable[[str, str], None],
+        deps: WorkflowDeps,
     ):
         """Initialise le contrôleur de workflow.
 
@@ -54,11 +61,74 @@ class WorkflowController:
         """
         self.window = window
         self.state_manager = state_manager
-        self.save_btn = save_btn
-        self.reload_btn = reload_btn
-        self.load_config_cb = load_config_cb
-        self.read_model_cb = read_model_cb
-        self.show_info_cb = show_info_cb
+        self.save_btn = deps.save_btn
+        self.reload_btn = deps.reload_btn
+        self.load_config_cb = deps.load_config_cb
+        self.read_model_cb = deps.read_model_cb
+        self.show_info_cb = deps.show_info_cb
+
+    def _maybe_create_last_modif_backup(self, apply_now: bool) -> None:
+        if not apply_now:
+            return
+        try:
+            create_last_modif_backup()
+        except OSError as e:
+            logger.warning(f"Impossible de créer le backup last_modif: {e}")
+
+    def _verify_written_config(self, *, model: GrubUiModel) -> None:
+        try:
+            verified_config = read_grub_default()
+            matches = (
+                verified_config.get("GRUB_TIMEOUT") == str(model.timeout)
+                and verified_config.get("GRUB_DEFAULT") == model.default
+            )
+            logger.debug(f"[WorkflowController._verify_written_config] matches={matches}")
+            if not matches:
+                logger.warning("[WorkflowController._verify_written_config] ATTENTION: Valeurs écrites incohérentes")
+        except (OSError, RuntimeError, ValueError, TypeError) as e:
+            logger.warning(f"[WorkflowController._verify_written_config] Impossible de vérifier: {e}")
+
+    def _apply_hidden_entries_if_needed(self, *, msg: str, apply_now: bool) -> tuple[str, str]:
+        msg_type = INFO
+
+        if apply_now:
+            if self.state_manager.hidden_entry_ids:
+                try:
+                    used_path, masked = apply_hidden_entries_to_grub_cfg(self.state_manager.hidden_entry_ids)
+                    self.state_manager.entries_visibility_dirty = False
+                    msg += f"\nEntrées masquées: {masked} ({used_path})"
+                except (OSError, RuntimeError, ValueError, TypeError) as e:
+                    logger.error(f"[WorkflowController._apply_hidden_entries_if_needed] ERREUR masquage: {e}")
+                    msg += f"\nAttention: Masquage échoué: {e}"
+                    msg_type = WARNING
+        elif self.state_manager.entries_visibility_dirty:
+            msg += "\n(Masquage non appliqué car update-grub ignoré)"
+
+        return msg, msg_type
+
+    def _handle_apply_success(
+        self,
+        *,
+        result,
+        merged_config: dict[str, str],
+        model: GrubUiModel,
+        apply_now: bool,
+    ) -> None:
+        self.state_manager.pending_script_changes.clear()
+        self._verify_written_config(model=model)
+
+        self.state_manager.update_state_data(
+            GrubUiState(model=model, entries=self.state_manager.state_data.entries, raw_config=merged_config)
+        )
+        self.state_manager.apply_state(AppState.CLEAN, self.save_btn, self.reload_btn)
+
+        msg = result.message
+        if result.details:
+            msg += f"\n{result.details}"
+
+        msg, msg_type = self._apply_hidden_entries_if_needed(msg=msg, apply_now=apply_now)
+        self.show_info_cb(msg, msg_type)
+        self.load_config_cb()
 
     def on_reload(self, _button: Gtk.Button | None = None) -> None:
         """Recharge la configuration GRUB depuis le disque."""
@@ -177,13 +247,7 @@ class WorkflowController:
         self.state_manager.apply_state(AppState.APPLYING, self.save_btn, self.reload_btn)
 
         try:
-            # Créer un backup "last_modif" avant d'appliquer
-            if apply_now:
-                try:
-                    create_last_modif_backup()
-                except OSError as e:
-                    logger.warning(f"Impossible de créer le backup last_modif: {e}")
-                    # On continue quand même, ce n'est pas bloquant pour l'application
+            self._maybe_create_last_modif_backup(apply_now)
 
             model = self.read_model_cb()
             logger.debug(
@@ -202,59 +266,14 @@ class WorkflowController:
                 pending_script_changes=self.state_manager.pending_script_changes,
             )
             logger.info(
-                f"[WorkflowController._perform_save] Passé theme_management_enabled={model.theme_management_enabled} au manager"
+                "[WorkflowController._perform_save] "
+                f"Passé theme_management_enabled={model.theme_management_enabled} au manager"
             )
             logger.debug(f"[WorkflowController._perform_save] Résultat apply: success={result.success}")
 
             if result.success:
                 logger.debug("[WorkflowController._perform_save] Configuration appliquée avec succès")
-
-                # Effacer les changements de scripts en attente car ils ont été appliqués
-                self.state_manager.pending_script_changes.clear()
-
-                # Vérification post-application
-                try:
-                    verified_config = read_grub_default()
-                    matches = (
-                        verified_config.get("GRUB_TIMEOUT") == str(model.timeout)
-                        and verified_config.get("GRUB_DEFAULT") == model.default
-                    )
-                    logger.debug(f"[WorkflowController._perform_save] Vérification: matches={matches}")
-
-                    if not matches:
-                        logger.warning("[WorkflowController._perform_save] ATTENTION: Valeurs écrites incohérentes")
-                except (OSError, RuntimeError, ValueError, TypeError) as e:
-                    logger.warning(f"[WorkflowController._perform_save] Impossible de vérifier: {e}")
-
-                self.state_manager.update_state_data(
-                    GrubUiState(model=model, entries=self.state_manager.state_data.entries, raw_config=merged_config)
-                )
-                self.state_manager.apply_state(AppState.CLEAN, self.save_btn, self.reload_btn)
-
-                msg = result.message
-                msg_type = INFO
-
-                if result.details:
-                    msg += f"\n{result.details}"
-
-                if apply_now:
-                    if self.state_manager.hidden_entry_ids:
-                        try:
-                            used_path, masked = apply_hidden_entries_to_grub_cfg(self.state_manager.hidden_entry_ids)
-                            self.state_manager.entries_visibility_dirty = False
-                            msg += f"\nEntrées masquées: {masked} ({used_path})"
-                        except (OSError, RuntimeError, ValueError, TypeError) as e:
-                            logger.error(f"[WorkflowController._perform_save] ERREUR masquage: {e}")
-                            msg += f"\nAttention: Masquage échoué: {e}"
-                            msg_type = WARNING
-                elif self.state_manager.entries_visibility_dirty and not apply_now:
-                    msg += "\n(Masquage non appliqué car update-grub ignoré)"
-
-                self.show_info_cb(msg, msg_type)
-
-                # Recharger la configuration pour rafraîchir l'interface (ex: liste des scripts)
-                # Cela permet de supprimer les indicateurs "en attente" et de montrer l'état réel
-                self.load_config_cb()
+                self._handle_apply_success(result=result, merged_config=merged_config, model=model, apply_now=apply_now)
             else:
                 self.state_manager.apply_state(AppState.DIRTY, self.save_btn, self.reload_btn)
                 self.show_info_cb(f"Erreur: {result.message}", ERROR)

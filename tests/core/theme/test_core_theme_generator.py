@@ -51,7 +51,7 @@ class TestResolutionConfig:
         config = ResolutionConfig(1920, 1080)
         assert config.width == 1920
         assert config.height == 1080
-        assert config.item_font_size == 16
+        assert config.item.font_size == 16
     
     def test_resolution_config_custom_values(self):
         """Test resolution config with custom values."""
@@ -61,8 +61,8 @@ class TestResolutionConfig:
             item=ItemConfig(font_size=24, icon_width=48),
         )
         assert config.width == 2560
-        assert config.item_font_size == 24
-        assert config.item_icon_width == 48
+        assert config.item.font_size == 24
+        assert config.item.icon_width == 48
 
 
 class TestColorPalette:
@@ -105,8 +105,8 @@ class TestThemeResolutionHelper:
         )
         assert config.width == 1920
         assert config.height == 1080
-        assert config.terminal_font_size == 14
-        assert config.item_font_size == 16
+        assert config.terminal.font_size == 14
+        assert config.item.font_size == 16
     
     def test_get_config_for_2k(self):
         """Test getting config for 2K."""
@@ -115,9 +115,9 @@ class TestThemeResolutionHelper:
         )
         assert config.width == 2560
         assert config.height == 1440
-        assert config.terminal_font_size == 18
-        assert config.item_font_size == 24
-        assert config.item_icon_width == 48
+        assert config.terminal.font_size == 18
+        assert config.item.font_size == 24
+        assert config.item.icon_width == 48
     
     def test_get_config_for_4k(self):
         """Test getting config for 4K."""
@@ -126,26 +126,26 @@ class TestThemeResolutionHelper:
         )
         assert config.width == 3840
         assert config.height == 2160
-        assert config.item_font_size == 32
-        assert config.item_icon_width == 64
+        assert config.item.font_size == 32
+        assert config.item.icon_width == 64
     
     def test_get_custom_resolution_config_1080p(self):
         """Test custom resolution config for 1080p size."""
         config = ThemeResolutionHelper.get_custom_resolution_config(1600, 900)
         # Should scale to 1080p config
-        assert config.item_font_size == 16
+        assert config.item.font_size == 16
     
     def test_get_custom_resolution_config_2k(self):
         """Test custom resolution config for 2K size."""
         config = ThemeResolutionHelper.get_custom_resolution_config(2560, 1440)
         # Should scale to 2K config
-        assert config.item_font_size == 24
+        assert config.item.font_size == 24
     
     def test_get_custom_resolution_config_4k(self):
         """Test custom resolution config for 4K size."""
         config = ThemeResolutionHelper.get_custom_resolution_config(3840, 2160)
         # Should scale to 4K config
-        assert config.item_font_size == 32
+        assert config.item.font_size == 32
 
 
 class TestColorPaletteFactory:

@@ -289,7 +289,7 @@ class TestApplyStatesCoverage:
         # On veut should_be_executable = False
         # Dans ApplyFinalState, c'est script.name in theme_scripts
         context.theme_management_enabled = False
-        context.pending_script_changes = {Path("/etc/grub.d/00_header"): False}
+        context.pending_script_changes = {"/etc/grub.d/00_header": False}
         state = ApplyFinalState(context)
 
         mock_service = MagicMock()

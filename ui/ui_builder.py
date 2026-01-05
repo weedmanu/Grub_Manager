@@ -48,7 +48,7 @@ class UIBuilder:
         window.set_child(main_box)
 
         # === Notebook avec onglets ===
-        UIBuilder._create_notebook(window, main_box)
+        UIBuilder.build_tabs(window, main_box)
 
         # === Séparateur ===
         main_box.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
@@ -57,6 +57,11 @@ class UIBuilder:
         UIBuilder._create_bottom_bar(window, main_box)
 
         logger.success("[UIBuilder.create_main_ui] Interface construite complètement")
+
+    @staticmethod
+    def build_tabs(window: GrubConfigManager, container: Gtk.Box) -> Gtk.Notebook:
+        """Construit les onglets du notebook et retourne le notebook."""
+        return UIBuilder._create_notebook(window, container)
 
     @staticmethod
     def _create_bottom_bar(window: GrubConfigManager, container: Gtk.Box) -> None:

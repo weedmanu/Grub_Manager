@@ -6,14 +6,31 @@ Centralise toute la logique d'état (CLEAN/DIRTY/APPLYING) et les flags mutables
 from __future__ import annotations
 
 import os
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from enum import Enum
 
 from loguru import logger
 
 from core.managers.core_entry_visibility_manager import load_hidden_entry_ids
 from core.system.core_grub_system_commands import GrubUiModel, GrubUiState
-from core.theme.core_active_theme_manager import ActiveThemeManager
+
+# Garder ce symbole exposé (tests patchent ui.ui_state.ActiveThemeManager)
+from core.theme.core_active_theme_manager import ActiveThemeManager as _ActiveThemeManager
+
+ActiveThemeManager = _ActiveThemeManager
+del _ActiveThemeManager
+
+__all__ = [
+    "ActiveThemeManager",
+    "AppState",
+    "AppStateManager",
+]
+
+
+@dataclass(slots=True)
+class _EntryVisibilityState:
+    hidden_entry_ids: set[str]
+    dirty: bool = False
 
 
 class AppState(str, Enum):
@@ -38,22 +55,14 @@ class AppStateManager:
         """Initialise le gestionnaire d'état."""
         logger.debug("[AppStateManager.__init__] Initialisation du gestionnaire d'état")
 
-        # État de l'application
         self.state_data = GrubUiState(model=GrubUiModel(), entries=[], raw_config={})
         self._default_choice_ids: list[str] = ["saved"]
-        self.modified = False
-        self.state = AppState.CLEAN
+        self._state = AppState.CLEAN
         self._loading = False  # Flag pour ignorer les changements UI lors du chargement initial
 
-        # Changements en attente (scripts)
         self.pending_script_changes: dict[str, bool] = {}
 
-        # Gestion des entrées masquées
-        self.hidden_entry_ids: set[str] = load_hidden_entry_ids()
-        self.entries_visibility_dirty = False
-
-        # Système de thème actif
-        self.theme_manager = ActiveThemeManager()
+        self._visibility = _EntryVisibilityState(hidden_entry_ids=load_hidden_entry_ids())
 
         logger.debug("[AppStateManager.__init__] État initialisé")
 
@@ -67,7 +76,6 @@ class AppStateManager:
         """
         logger.debug(f"[AppStateManager.apply_state] Transition: {self.state} → {state}")
         self.state = state
-        self.modified = state == AppState.DIRTY
 
         can_save = (
             (state == AppState.DIRTY) or self.entries_visibility_dirty or bool(self.pending_script_changes)
@@ -115,6 +123,41 @@ class AppStateManager:
         - changements d'état des scripts
         """
         return bool(self.modified or self.entries_visibility_dirty or self.pending_script_changes)
+
+    @property
+    def state(self) -> AppState:
+        """Retourne l'état applicatif courant."""
+        return self._state
+
+    @state.setter
+    def state(self, value: AppState) -> None:
+        """Définit l'état applicatif courant."""
+        self._state = value
+
+    @property
+    def modified(self) -> bool:
+        """Indique si l'application est dans l'état DIRTY."""
+        return self._state == AppState.DIRTY
+
+    @property
+    def hidden_entry_ids(self) -> set[str]:
+        """Retourne l'ensemble des IDs d'entrées masquées."""
+        return self._visibility.hidden_entry_ids
+
+    @hidden_entry_ids.setter
+    def hidden_entry_ids(self, value: set[str]) -> None:
+        """Remplace l'ensemble des IDs d'entrées masquées."""
+        self._visibility.hidden_entry_ids = value
+
+    @property
+    def entries_visibility_dirty(self) -> bool:
+        """Indique si l'état de masquage a été modifié."""
+        return self._visibility.dirty
+
+    @entries_visibility_dirty.setter
+    def entries_visibility_dirty(self, value: bool) -> None:
+        """Définit le flag de modification lié au masquage."""
+        self._visibility.dirty = value
 
     def update_state_data(self, state_data: GrubUiState) -> None:
         """Met à jour les données d'état de l'application.

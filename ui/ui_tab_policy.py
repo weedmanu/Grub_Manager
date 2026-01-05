@@ -9,6 +9,11 @@ class TabPolicy:
     """Définit la politique d'activation des boutons selon l'onglet actif."""
 
     @staticmethod
+    def is_readonly_tab(tab_label: str) -> bool:
+        """Indique si l'onglet est en lecture seule (pas d'édition)."""
+        return tab_label in ("Sauvegardes", "Maintenance")
+
+    @staticmethod
     def get_button_states(tab_label: str, is_dirty: bool) -> tuple[bool, bool]:
         """Détermine l'état (sensible ou non) des boutons Recharger et Appliquer.
 
@@ -20,7 +25,7 @@ class TabPolicy:
             Un tuple (reload_sensitive, save_sensitive).
         """
         # - Sauvegardes/Maintenance: pas d'édition => boutons désactivés.
-        if tab_label in ("Sauvegardes", "Maintenance"):
+        if TabPolicy.is_readonly_tab(tab_label):
             logger.debug(f"[TabPolicy] Boutons désactivés pour l'onglet '{tab_label}'")
             return False, False
 

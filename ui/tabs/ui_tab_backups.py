@@ -101,10 +101,7 @@ def _on_restore_clicked(_btn, controller, dropdown: Gtk.DropDown | None):
             msg = f"✅ Sauvegarde restaurée avec succès:\n{basename}" "\n\nRedémarrez pour appliquer les changements."
             controller.show_info(msg, "info")
             controller.load_config()
-        except (OSError, PermissionError, ValueError, RuntimeError) as e:
-            logger.error(f"[_on_restore_clicked] ERREUR: {e}")
-            controller.show_info(f"❌ Échec de la restauration:\n{e}", "error")
-        except Exception as e:
+        except (FileNotFoundError, OSError, PermissionError, ValueError, RuntimeError, GrubBackupError) as e:
             logger.error(f"[_on_restore_clicked] ERREUR: {e}")
             controller.show_info(f"❌ Échec de la restauration:\n{e}", "error")
 
@@ -142,10 +139,7 @@ def _on_delete_clicked(_btn, controller, dropdown: Gtk.DropDown | None, refresh_
             logger.info(f"[_on_delete_clicked] Suppression réussie de {basename}")
             controller.show_info(f"✅ Sauvegarde supprimée:\n{basename}", "info")
             refresh_callback()
-        except (OSError, PermissionError, ValueError, RuntimeError) as e:
-            logger.error(f"[_on_delete_clicked] ERREUR: {e}")
-            controller.show_info(f"❌ Échec de la suppression:\n{e}", "error")
-        except Exception as e:
+        except (FileNotFoundError, OSError, PermissionError, ValueError, RuntimeError, GrubBackupError) as e:
             logger.error(f"[_on_delete_clicked] ERREUR: {e}")
             controller.show_info(f"❌ Échec de la suppression:\n{e}", "error")
 
@@ -198,24 +192,10 @@ def _refresh_list(controller, dropdown: Gtk.DropDown, empty_label: Gtk.Label, re
         delete_btn.set_sensitive(True)
 
 
-def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> None:
-    """Build the Backups tab (list/create/delete)."""
-    logger.debug("[build_backups_tab] Construction de l'onglet Sauvegardes")
-    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-    apply_margins(root, 12)
-
-    box_append_section_title(root, "Sauvegardes")
-    box_append_label(root, "Gestion des sauvegardes de la configuration GRUB.", italic=True)
-
-    # === Conteneur 2 colonnes ===
-    _, left_section, right_section = create_two_column_layout(root)
-
-    # === COLONNE GAUCHE : Liste des sauvegardes ===
+def _build_backups_selector(controller, left_section: Gtk.Box) -> tuple[Gtk.DropDown, Gtk.Label]:
     box_append_section_title(left_section, "Sauvegardes Disponibles")
-
     box_append_label(left_section, "Sélectionnez une sauvegarde pour la restaurer ou la supprimer.", italic=True)
 
-    # Sélecteur de sauvegardes (liste définie / DropDown)
     list_frame = Gtk.Frame()
     list_frame.set_hexpand(True)
     left_section.append(list_frame)
@@ -234,73 +214,80 @@ def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     selector_box.append(empty_label)
 
     controller.backups_dropdown = backups_dropdown
+    return backups_dropdown, empty_label
 
-    # === COLONNE DROITE : Actions ===
+
+def _build_backups_actions(
+    right_section: Gtk.Box,
+    *,
+    controller,
+    dropdown: Gtk.DropDown,
+    empty_label: Gtk.Label,
+) -> tuple[Gtk.Button, Gtk.Button]:
     create_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-
     box_append_section_title(create_box, "Créer une Sauvegarde")
-
     box_append_label(create_box, "Crée une nouvelle sauvegarde complète.", italic=True)
 
-    # --- Actions sur la sélection ---
     selection_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-
     box_append_section_title(selection_box, "Actions sur la sélection")
-
     box_append_label(selection_box, "Sélectionnez une sauvegarde pour activer ces actions.", italic=True)
 
-    # Bouton Restaurer
     restore_btn = Gtk.Button(label="🔄 Restaurer la sélection")
     restore_btn.set_halign(Gtk.Align.FILL)
     restore_btn.add_css_class("suggested-action")
     restore_btn.set_sensitive(False)
-    restore_btn.connect("clicked", lambda b: _on_restore_clicked(b, controller, backups_dropdown))
+    restore_btn.connect("clicked", lambda b: _on_restore_clicked(b, controller, dropdown))
     selection_box.append(restore_btn)
 
-    # Bouton Supprimer
     delete_btn = Gtk.Button(label="🗑️ Supprimer la sélection")
     delete_btn.set_halign(Gtk.Align.FILL)
     delete_btn.add_css_class("destructive-action")
     delete_btn.set_sensitive(False)
     delete_btn.set_margin_top(4)
-    delete_btn.connect(
-        "clicked",
-        lambda b: _on_delete_clicked(
-            b,
-            controller,
-            backups_dropdown,
-            lambda: _refresh_list(controller, backups_dropdown, empty_label, restore_btn, delete_btn),
-        ),
-    )
+
+    def refresh_cb() -> None:
+        _refresh_list(controller, dropdown, empty_label, restore_btn, delete_btn)
+
+    delete_btn.connect("clicked", lambda b: _on_delete_clicked(b, controller, dropdown, refresh_cb))
     selection_box.append(delete_btn)
 
-    # Bouton Créer (déplacé après pour avoir accès à _refresh_list avec les boutons)
     create_btn = Gtk.Button(label="➕ Créer une sauvegarde")  # noqa: RUF001
     create_btn.set_halign(Gtk.Align.FILL)
     create_btn.add_css_class("suggested-action")
-    create_btn.connect(
-        "clicked",
-        lambda b: _on_create_clicked(
-            b,
-            controller,
-            lambda: _refresh_list(controller, backups_dropdown, empty_label, restore_btn, delete_btn),
-        ),
-    )
+    create_btn.connect("clicked", lambda b: _on_create_clicked(b, controller, refresh_cb))
     create_box.append(create_btn)
 
     right_section.append(create_box)
 
-    # Séparateur
     separator = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
     separator.set_margin_top(12)
     separator.set_margin_bottom(8)
     right_section.append(separator)
-
     right_section.append(selection_box)
+    return restore_btn, delete_btn
+
+
+def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> None:
+    """Build the Backups tab (list/create/delete)."""
+    logger.debug("[build_backups_tab] Construction de l'onglet Sauvegardes")
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+    apply_margins(root, 12)
+
+    box_append_section_title(root, "Sauvegardes")
+    box_append_label(root, "Gestion des sauvegardes de la configuration GRUB.", italic=True)
+
+    # === Conteneur 2 colonnes ===
+    _, left_section, right_section = create_two_column_layout(root)
+
+    backups_dropdown, empty_label = _build_backups_selector(controller, left_section)
+    restore_btn, delete_btn = _build_backups_actions(
+        right_section,
+        controller=controller,
+        dropdown=backups_dropdown,
+        empty_label=empty_label,
+    )
 
     backups_dropdown.connect("notify::selected", _on_selection_changed, controller, restore_btn, delete_btn)
-
-    # Chargement immédiat : affiche la liste sans attendre la boucle GTK
     _refresh_list(controller, backups_dropdown, empty_label, restore_btn, delete_btn)
 
     # === Ajout à l'onglet ===

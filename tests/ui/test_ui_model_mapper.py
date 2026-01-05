@@ -36,18 +36,24 @@ def _make_window() -> MagicMock:
     
     # Add theme_config_controller with proper mocks for color combos
     window.theme_config_controller = MagicMock()
-    window.theme_config_controller.theme_switch = MagicMock()
-    window.theme_config_controller.theme_switch.get_active.return_value = True
-    window.theme_config_controller.bg_image_entry = MagicMock()
-    window.theme_config_controller.bg_image_entry.get_text.return_value = ""
-    window.theme_config_controller.normal_fg_combo = MagicMock()
-    window.theme_config_controller.normal_fg_combo.get_selected.return_value = -1
-    window.theme_config_controller.normal_bg_combo = MagicMock()
-    window.theme_config_controller.normal_bg_combo.get_selected.return_value = -1
-    window.theme_config_controller.highlight_fg_combo = MagicMock()
-    window.theme_config_controller.highlight_fg_combo.get_selected.return_value = -1
-    window.theme_config_controller.highlight_bg_combo = MagicMock()
-    window.theme_config_controller.highlight_bg_combo.get_selected.return_value = -1
+    window.theme_config_controller.widgets = MagicMock()
+    window.theme_config_controller.widgets.panels = MagicMock()
+    panels = window.theme_config_controller.widgets.panels
+    panels.theme_switch = MagicMock()
+    panels.theme_switch.get_active.return_value = True
+    panels.simple_config_panel = MagicMock()
+    panels.simple_config_panel.widgets = MagicMock()
+    widgets = panels.simple_config_panel.widgets
+    widgets.bg_image_entry = MagicMock()
+    widgets.bg_image_entry.get_text.return_value = ""
+    widgets.normal_fg_combo = MagicMock()
+    widgets.normal_fg_combo.get_selected.return_value = -1
+    widgets.normal_bg_combo = MagicMock()
+    widgets.normal_bg_combo.get_selected.return_value = -1
+    widgets.highlight_fg_combo = MagicMock()
+    widgets.highlight_fg_combo.get_selected.return_value = -1
+    widgets.highlight_bg_combo = MagicMock()
+    widgets.highlight_bg_combo.get_selected.return_value = -1
 
     return window
 
@@ -143,25 +149,29 @@ def test_read_model_with_exception_in_color_parsing():
 
     # Theme controller with out-of-range combo indices (negative)
     window.theme_config_controller = MagicMock()
-    window.theme_config_controller.theme_switch = None
-    window.theme_config_controller.bg_image_entry = None
+    window.theme_config_controller.widgets = MagicMock()
+    window.theme_config_controller.widgets.panels = MagicMock()
+    window.theme_config_controller.widgets.panels.theme_switch = None
+    window.theme_config_controller.widgets.panels.simple_config_panel = MagicMock()
+    window.theme_config_controller.widgets.panels.simple_config_panel.widgets = MagicMock()
+    window.theme_config_controller.widgets.panels.simple_config_panel.widgets.bg_image_entry = None
 
     # Create mock combos with proper return values
     normal_fg_combo = MagicMock()
     normal_fg_combo.get_selected = MagicMock(return_value=-1)
-    window.theme_config_controller.normal_fg_combo = normal_fg_combo
+    window.theme_config_controller.widgets.panels.simple_config_panel.widgets.normal_fg_combo = normal_fg_combo
 
     normal_bg_combo = MagicMock()
     normal_bg_combo.get_selected = MagicMock(return_value=-1)
-    window.theme_config_controller.normal_bg_combo = normal_bg_combo
+    window.theme_config_controller.widgets.panels.simple_config_panel.widgets.normal_bg_combo = normal_bg_combo
 
     highlight_fg_combo = MagicMock()
     highlight_fg_combo.get_selected = MagicMock(return_value=-1)
-    window.theme_config_controller.highlight_fg_combo = highlight_fg_combo
+    window.theme_config_controller.widgets.panels.simple_config_panel.widgets.highlight_fg_combo = highlight_fg_combo
 
     highlight_bg_combo = MagicMock()
     highlight_bg_combo.get_selected = MagicMock(return_value=-1)
-    window.theme_config_controller.highlight_bg_combo = highlight_bg_combo
+    window.theme_config_controller.widgets.panels.simple_config_panel.widgets.highlight_bg_combo = highlight_bg_combo
 
     window.state_manager = MagicMock()
     window.state_manager.state_data = MagicMock()
@@ -256,27 +266,15 @@ def test_get_active_theme_path_empty_name_returns_empty(monkeypatch):
 
 def test_read_model_from_ui_color_bounds_checking():
     """Test les vérifications de bornes pour les index de couleur."""
-    window = MagicMock()
-    window.state_manager = MagicMock()
-    
-    ctrl = MagicMock()
-    ctrl.timeout_spin = MagicMock(get_value=MagicMock(return_value=10))
-    ctrl.hidden_timeout_spin = MagicMock(get_value=MagicMock(return_value=0))
-    ctrl.gfxmode_entry = MagicMock(get_text=MagicMock(return_value=""))
-    ctrl.default_combo = MagicMock(get_selected=MagicMock(return_value=0))
-    ctrl.default_switch = MagicMock(get_active=MagicMock(return_value=False))
-    
-    # Test with valid indices to trigger the color building code path
-    ctrl.normal_fg_combo = MagicMock(get_selected=MagicMock(return_value=0))
-    ctrl.normal_bg_combo = MagicMock(get_selected=MagicMock(return_value=1))
-    ctrl.highlight_fg_combo = MagicMock(get_selected=MagicMock(return_value=1))
-    ctrl.highlight_bg_combo = MagicMock(get_selected=MagicMock(return_value=0))
-    
-    window.theme_config_controller = ctrl
-    window.entries_renderer = MagicMock()
-    window.entries_renderer.hidden_entries = []
-    
-    # This should trigger the valid path and return a model
+    window = _make_window()
+    ctrl = window.theme_config_controller
+    panel = ctrl.widgets.panels.simple_config_panel
+
+    panel.widgets.normal_fg_combo.get_selected.return_value = 0
+    panel.widgets.normal_bg_combo.get_selected.return_value = 1
+    panel.widgets.highlight_fg_combo.get_selected.return_value = 1
+    panel.widgets.highlight_bg_combo.get_selected.return_value = 0
+
     model = ModelWidgetMapper.read_model_from_ui(window)
     assert model is not None
     # Verify color normal was set (not empty)
@@ -286,27 +284,15 @@ def test_read_model_from_ui_color_bounds_checking():
 
 def test_read_model_from_ui_invalid_bg_index():
     """Test when background color index is out of bounds."""
-    window = MagicMock()
-    window.state_manager = MagicMock()
-    
-    ctrl = MagicMock()
-    ctrl.timeout_spin = MagicMock(get_value=MagicMock(return_value=10))
-    ctrl.hidden_timeout_spin = MagicMock(get_value=MagicMock(return_value=0))
-    ctrl.gfxmode_entry = MagicMock(get_text=MagicMock(return_value=""))
-    ctrl.default_combo = MagicMock(get_selected=MagicMock(return_value=0))
-    ctrl.default_switch = MagicMock(get_active=MagicMock(return_value=False))
-    
-    # Valid fg index, but invalid bg index (out of bounds)
-    ctrl.normal_fg_combo = MagicMock(get_selected=MagicMock(return_value=0))
-    ctrl.normal_bg_combo = MagicMock(get_selected=MagicMock(return_value=999))  # Out of bounds
-    ctrl.highlight_fg_combo = MagicMock(get_selected=MagicMock(return_value=0))
-    ctrl.highlight_bg_combo = MagicMock(get_selected=MagicMock(return_value=-1))  # Negative
-    
-    window.theme_config_controller = ctrl
-    window.entries_renderer = MagicMock()
-    window.entries_renderer.hidden_entries = []
-    
-    # Should handle invalid indices gracefully
+    window = _make_window()
+    ctrl = window.theme_config_controller
+    panel = ctrl.widgets.panels.simple_config_panel
+
+    panel.widgets.normal_fg_combo.get_selected.return_value = 0
+    panel.widgets.normal_bg_combo.get_selected.return_value = 999  # Out of bounds
+    panel.widgets.highlight_fg_combo.get_selected.return_value = 0
+    panel.widgets.highlight_bg_combo.get_selected.return_value = -1  # Negative
+
     model = ModelWidgetMapper.read_model_from_ui(window)
     assert model is not None
     # Color fields should be empty strings when indices are invalid
@@ -322,8 +308,9 @@ def test_read_model_from_ui_bg_index_out_of_range_executes_bg_check():
     ctrl = window.theme_config_controller
     ctrl.theme_switch.get_active.return_value = True
 
-    ctrl.normal_fg_combo.get_selected.return_value = 0
-    ctrl.normal_bg_combo.get_selected.return_value = len(GRUB_COLORS)  # out of range
+    panel = ctrl.widgets.panels.simple_config_panel
+    panel.widgets.normal_fg_combo.get_selected.return_value = 0
+    panel.widgets.normal_bg_combo.get_selected.return_value = len(GRUB_COLORS)  # out of range
 
     model = ModelWidgetMapper.read_model_from_ui(window)
     assert model.grub_color_normal == ""
@@ -341,12 +328,15 @@ def test_read_model_from_ui_executes_bg_idx_line_with_stub_combos():
 
     window = _make_window()
     ctrl = window.theme_config_controller
+    panel = ctrl.widgets.panels.simple_config_panel
+
+    assert panel.widgets is not None
 
     # Replace mocks with plain objects to ensure coverage tracks lines reliably
-    ctrl.normal_fg_combo = _Combo(0)
-    ctrl.normal_bg_combo = _Combo(0)
-    ctrl.highlight_fg_combo = _Combo(0)
-    ctrl.highlight_bg_combo = _Combo(0)
+    panel.widgets.normal_fg_combo = _Combo(0)
+    panel.widgets.normal_bg_combo = _Combo(0)
+    panel.widgets.highlight_fg_combo = _Combo(0)
+    panel.widgets.highlight_bg_combo = _Combo(0)
 
     model = ModelWidgetMapper.read_model_from_ui(window)
     assert isinstance(model.grub_color_normal, str)
@@ -356,61 +346,35 @@ def test_read_model_from_ui_calls_bg_combo_get_selected():
     """Make sure bg combo get_selected is called (covers bg_idx assignment line)."""
     window = _make_window()
     ctrl = window.theme_config_controller
+    panel = ctrl.widgets.panels.simple_config_panel
 
     # Keep only the normal color path for a deterministic call count
-    ctrl.highlight_fg_combo = None
-    ctrl.highlight_bg_combo = None
+    panel.widgets.highlight_fg_combo = None
+    panel.widgets.highlight_bg_combo = None
 
-    ctrl.normal_fg_combo.get_selected.return_value = 0
-    ctrl.normal_bg_combo.get_selected.return_value = 0
+    panel.widgets.normal_fg_combo.get_selected.return_value = 0
+    panel.widgets.normal_bg_combo.get_selected.return_value = 0
 
     ModelWidgetMapper.read_model_from_ui(window)
 
-    assert ctrl.normal_fg_combo.get_selected.called
-    assert ctrl.normal_bg_combo.get_selected.called
-
-
-def test_read_model_from_ui_grub_colors_importerror_path(monkeypatch):
-    """Trigger the ImportError branch when importing GRUB_COLORS."""
-    window = _make_window()
-
-    real_import = __import__
-
-    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
-        if name == "ui.tabs.ui_tab_theme_config":
-            raise ImportError("forced")
-        return real_import(name, globals, locals, fromlist, level)
-
-    monkeypatch.setattr("builtins.__import__", fake_import)
-
-    model = ModelWidgetMapper.read_model_from_ui(window)
-    assert model is not None
+    assert panel.widgets.normal_fg_combo.get_selected.called
+    assert panel.widgets.normal_bg_combo.get_selected.called
 
 
 def test_read_model_from_ui_theme_switch_disabled():
     """Test reading model when theme_switch is disabled."""
-    window = MagicMock()
-    window.state_manager = MagicMock()
+    window = _make_window()
     window.state_manager.state_data = None
-    
-    ctrl = MagicMock()
-    ctrl.timeout_spin = MagicMock(get_value=MagicMock(return_value=10))
-    ctrl.hidden_timeout_spin = MagicMock(get_value=MagicMock(return_value=0))
-    ctrl.gfxmode_entry = MagicMock(get_text=MagicMock(return_value=""))
-    ctrl.default_combo = MagicMock(get_selected=MagicMock(return_value=0))
-    ctrl.default_switch = MagicMock(get_active=MagicMock(return_value=False))
-    ctrl.theme_switch = MagicMock(get_active=MagicMock(return_value=False))  # Disabled
-    ctrl.bg_image_entry = MagicMock(get_text=MagicMock(return_value=""))
 
-    # Important: prevent MagicMock truthiness from triggering _get_color
-    ctrl.normal_fg_combo = None
-    ctrl.normal_bg_combo = None
-    ctrl.highlight_fg_combo = None
-    ctrl.highlight_bg_combo = None
-    
-    window.theme_config_controller = ctrl
-    window.entries_renderer = MagicMock()
-    window.entries_renderer.hidden_entries = []
+    ctrl = window.theme_config_controller
+    ctrl.widgets.panels.theme_switch.get_active.return_value = False
+
+    panel = ctrl.widgets.panels.simple_config_panel
+    panel.widgets.bg_image_entry.get_text.return_value = ""
+    panel.widgets.normal_fg_combo = None
+    panel.widgets.normal_bg_combo = None
+    panel.widgets.highlight_fg_combo = None
+    panel.widgets.highlight_bg_combo = None
     
     # Should work even with theme disabled
     model = ModelWidgetMapper.read_model_from_ui(window)
@@ -423,25 +387,14 @@ def test_read_model_from_ui_theme_switch_disabled():
 
 def test_read_model_from_ui_missing_color_widgets():
     """Test quand les widgets de couleur sont None."""
-    window = MagicMock()
-    window.state_manager = MagicMock()
-    
-    ctrl = MagicMock()
-    ctrl.timeout_spin = MagicMock(get_value=MagicMock(return_value=10))
-    ctrl.hidden_timeout_spin = MagicMock(get_value=MagicMock(return_value=0))
-    ctrl.gfxmode_entry = MagicMock(get_text=MagicMock(return_value=""))
-    ctrl.default_combo = MagicMock(get_selected=MagicMock(return_value=0))
-    ctrl.default_switch = MagicMock(get_active=MagicMock(return_value=False))
-    
-    # Widgets None
-    ctrl.normal_fg_combo = None
-    ctrl.normal_bg_combo = None
-    ctrl.highlight_fg_combo = None
-    ctrl.highlight_bg_combo = None
-    
-    window.theme_config_controller = ctrl
-    window.entries_renderer = MagicMock()
-    window.entries_renderer.hidden_entries = []
+    window = _make_window()
+    ctrl = window.theme_config_controller
+    panel = ctrl.widgets.panels.simple_config_panel
+
+    panel.widgets.normal_fg_combo = None
+    panel.widgets.normal_bg_combo = None
+    panel.widgets.highlight_fg_combo = None
+    panel.widgets.highlight_bg_combo = None
     
     model = ModelWidgetMapper.read_model_from_ui(window)
     assert model is not None

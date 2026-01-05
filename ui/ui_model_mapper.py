@@ -9,6 +9,7 @@ from loguru import logger
 from core.config.core_paths import get_grub_themes_dir
 from core.system.core_grub_system_commands import GrubUiModel
 from core.theme.core_active_theme_manager import ActiveThemeManager
+from ui.ui_constants import GRUB_COLORS
 from ui.ui_gtk_helpers import GtkHelper
 
 if TYPE_CHECKING:
@@ -25,6 +26,8 @@ class ModelWidgetMapper:
             return ""
         fg_idx = fg_combo.get_selected()
         bg_idx = bg_combo.get_selected()
+        if not isinstance(fg_idx, int) or not isinstance(bg_idx, int):
+            return ""
         if fg_idx < 0 or fg_idx >= len(grub_colors):
             return ""
         if bg_idx < 0 or bg_idx >= len(grub_colors):
@@ -99,24 +102,124 @@ class ModelWidgetMapper:
     @staticmethod
     def _sync_global_hiding_switches(window: GrubConfigManager, entries: list[GrubDefaultChoice]) -> None:
         """Synchronise les switches de masquage global basés sur les IDs masqués."""
+
+        def _menu_id(entry: GrubDefaultChoice) -> str:
+            return (getattr(entry, "menu_id", "") or "").strip()
+
+        def _title(entry: GrubDefaultChoice) -> str:
+            return (getattr(entry, "title", "") or "").lower()
+
+        def _source(entry: GrubDefaultChoice) -> str:
+            return (getattr(entry, "source", "") or "").lower()
+
+        def _collect_ids(predicate) -> set[str]:
+            ids: set[str] = set()
+            for entry in entries or []:
+                mid = _menu_id(entry)
+                if not mid:
+                    continue
+                if predicate(entry):
+                    ids.add(mid)
+            return ids
+
         hide_adv = getattr(window, "hide_advanced_options_check", None)
         if hide_adv is not None:
-            adv_ids = {
-                (e.menu_id or "").strip()
-                for e in (entries or [])
-                if (e.menu_id or "").strip() and ("advanced options" in (e.title or "").lower())
-            }
+            adv_ids = _collect_ids(lambda e: "advanced options" in _title(e))
             hide_adv.set_active(bool(adv_ids) and adv_ids.issubset(window.state_manager.hidden_entry_ids))
 
         hide_mem = getattr(window, "hide_memtest_check", None)
         if hide_mem is not None:
-            mem_ids = {
-                (e.menu_id or "").strip()
-                for e in (entries or [])
-                if (e.menu_id or "").strip()
-                and (("memtest" in (e.title or "").lower()) or ("memtest" in ((e.source or "").lower())))
-            }
+            mem_ids = _collect_ids(lambda e: ("memtest" in _title(e)) or ("memtest" in _source(e)))
             hide_mem.set_active(bool(mem_ids) and mem_ids.issubset(window.state_manager.hidden_entry_ids))
+
+    @staticmethod
+    def _read_simple_config_from_controller(
+        controller,
+        *,
+        default_bg: str,
+        default_color_normal: str,
+        default_color_highlight: str,
+    ) -> tuple[str, str, str]:
+        panels = getattr(controller, "widgets", None)
+        panel = getattr(getattr(panels, "panels", None), "simple_config_panel", None)
+        if panel is None:
+            return default_bg, default_color_normal, default_color_highlight
+
+        widgets = getattr(panel, "widgets", None)
+        if widgets is None:
+            return default_bg, default_color_normal, default_color_highlight
+
+        bg = default_bg
+        if getattr(widgets, "bg_image_entry", None) is not None:
+            bg = widgets.bg_image_entry.get_text()
+
+        color_normal = default_color_normal
+        if (
+            getattr(widgets, "normal_fg_combo", None) is not None
+            and getattr(widgets, "normal_bg_combo", None) is not None
+        ):
+            color_normal = ModelWidgetMapper._get_color_from_combos(
+                widgets.normal_fg_combo, widgets.normal_bg_combo, GRUB_COLORS
+            )
+
+        color_highlight = default_color_highlight
+        if (
+            getattr(widgets, "highlight_fg_combo", None) is not None
+            and getattr(widgets, "highlight_bg_combo", None) is not None
+        ):
+            color_highlight = ModelWidgetMapper._get_color_from_combos(
+                widgets.highlight_fg_combo,
+                widgets.highlight_bg_combo,
+                GRUB_COLORS,
+            )
+
+        return bg, color_normal, color_highlight
+
+    @staticmethod
+    def _read_graphics_from_ui(window: GrubConfigManager) -> tuple[str, str]:
+        gfxmode = (
+            (GtkHelper.dropdown_get_value(window.gfxmode_dropdown) or "").strip()
+            if window.gfxmode_dropdown is not None
+            else ""
+        )
+        gfxpayload = (
+            (GtkHelper.dropdown_get_value(window.gfxpayload_dropdown) or "").strip()
+            if window.gfxpayload_dropdown is not None
+            else ""
+        )
+        return gfxmode, gfxpayload
+
+    @staticmethod
+    def _read_kernel_params_from_ui(window: GrubConfigManager) -> tuple[bool, bool]:
+        cmdline_value = window.get_cmdline_value()
+        return ("quiet" in cmdline_value), ("splash" in cmdline_value)
+
+    @staticmethod
+    def _read_theme_config_from_ui(window: GrubConfigManager) -> tuple[str, bool, str, str, str]:
+        current_model = window.state_manager.state_data.model if window.state_manager.state_data else None
+
+        grub_theme = current_model.grub_theme if current_model else ""
+        theme_enabled = current_model.theme_management_enabled if current_model else True
+        grub_bg = current_model.grub_background if current_model else ""
+        color_normal = current_model.grub_color_normal if current_model else ""
+        color_highlight = current_model.grub_color_highlight if current_model else ""
+
+        ctrl = window.theme_config_controller
+        if ctrl:
+            panels = getattr(getattr(ctrl, "widgets", None), "panels", None)
+            theme_switch = getattr(panels, "theme_switch", None)
+            if theme_switch is not None:
+                theme_enabled = bool(theme_switch.get_active())
+                logger.info(f"[ModelWidgetMapper.read_model_from_ui] Thème management enabled (UI): {theme_enabled}")
+
+            grub_bg, color_normal, color_highlight = ModelWidgetMapper._read_simple_config_from_controller(
+                ctrl,
+                default_bg=grub_bg,
+                default_color_normal=color_normal,
+                default_color_highlight=color_highlight,
+            )
+
+        return grub_theme, theme_enabled, grub_bg, color_normal, color_highlight
 
     @staticmethod
     def read_model_from_ui(window: GrubConfigManager) -> GrubUiModel:
@@ -135,67 +238,19 @@ class ModelWidgetMapper:
         hidden_timeout = (
             bool(window.hidden_timeout_check.get_active()) if window.hidden_timeout_check is not None else False
         )
-
-        gfxmode = (
-            (GtkHelper.dropdown_get_value(window.gfxmode_dropdown) or "").strip()
-            if window.gfxmode_dropdown is not None
-            else ""
-        )
-        gfxpayload = (
-            (GtkHelper.dropdown_get_value(window.gfxpayload_dropdown) or "").strip()
-            if window.gfxpayload_dropdown is not None
-            else ""
-        )
+        gfxmode, gfxpayload = ModelWidgetMapper._read_graphics_from_ui(window)
 
         disable_os_prober = (
             bool(window.disable_os_prober_check.get_active()) if window.disable_os_prober_check is not None else False
         )
-
-        # Paramètres kernel
-        cmdline_value = window.get_cmdline_value()
-        quiet = "quiet" in cmdline_value
-        splash = "splash" in cmdline_value
-
-        # Theme Management & Simple Config
-        # Default values from current model if controller not available
-        current_model = window.state_manager.state_data.model if window.state_manager.state_data else None
-
-        # Thème actif (on le prend du modèle car il est mis à jour par la sélection dans la liste)
-        grub_theme = current_model.grub_theme if current_model else ""
-
-        theme_enabled = current_model.theme_management_enabled if current_model else True
-        grub_bg = current_model.grub_background if current_model else ""
-        color_normal = current_model.grub_color_normal if current_model else ""
-        color_highlight = current_model.grub_color_highlight if current_model else ""
-
-        if window.theme_config_controller:
-            ctrl = window.theme_config_controller
-            if ctrl.theme_switch:
-                theme_enabled = ctrl.theme_switch.get_active()
-                logger.info(f"[ModelWidgetMapper.read_model_from_ui] Thème management enabled (UI): {theme_enabled}")
-
-            # Simple Config
-            if ctrl.bg_image_entry:
-                grub_bg = ctrl.bg_image_entry.get_text()
-                logger.debug(f"[ModelWidgetMapper.read_model_from_ui] Background image: {grub_bg}")
-
-            try:
-                from ui.ui_constants import GRUB_COLORS
-
-                # Only update if widgets are available
-                if ctrl.normal_fg_combo and ctrl.normal_bg_combo:
-                    color_normal = ModelWidgetMapper._get_color_from_combos(
-                        ctrl.normal_fg_combo, ctrl.normal_bg_combo, GRUB_COLORS
-                    )
-                    logger.debug(f"[ModelWidgetMapper.read_model_from_ui] Color normal: {color_normal}")
-
-                if ctrl.highlight_fg_combo and ctrl.highlight_bg_combo:
-                    color_highlight = ModelWidgetMapper._get_color_from_combos(
-                        ctrl.highlight_fg_combo, ctrl.highlight_bg_combo, GRUB_COLORS
-                    )
-                    logger.debug(f"[ModelWidgetMapper.read_model_from_ui] Color highlight: {color_highlight}")
-            except (AttributeError, KeyError, TypeError) as e:
-                logger.warning(f"Impossible de lire la config simple (couleurs): {e}")
+        quiet, splash = ModelWidgetMapper._read_kernel_params_from_ui(window)
+        (
+            grub_theme,
+            theme_enabled,
+            grub_bg,
+            color_normal,
+            color_highlight,
+        ) = ModelWidgetMapper._read_theme_config_from_ui(window)
 
         model = GrubUiModel(
             timeout=timeout_val,

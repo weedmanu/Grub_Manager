@@ -17,6 +17,97 @@ if TYPE_CHECKING:
     from ui.ui_manager import GrubConfigManager
 
 
+def _get_boot_info() -> tuple[str, str]:
+    boot_type = "UEFI" if os.path.exists("/sys/firmware/efi") else "BIOS"
+    boot_icon = "🔷" if boot_type == "UEFI" else "🔶"
+    return boot_type, boot_icon
+
+
+def _build_system_info(root: Gtk.Box, *, boot_type: str, boot_icon: str) -> None:
+    info_frame = Gtk.Frame()
+    info_frame.set_margin_bottom(8)
+    info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+    apply_margins(info_box, 12)
+
+    info_title = Gtk.Label(xalign=0)
+    info_title.set_markup("<b>Informations système</b>")
+    info_box.append(info_title)
+
+    boot_label = Gtk.Label(xalign=0)
+    boot_label.set_markup(f"{boot_icon} <b>Type de démarrage :</b> {boot_type}")
+    info_box.append(boot_label)
+
+    info_frame.set_child(info_box)
+    root.append(info_frame)
+
+
+def _build_consultation_section(
+    consult_section: Gtk.Box,
+    *,
+    controller: GrubConfigManager,
+    boot_type: str,
+) -> None:
+    box_append_section_title(consult_section, "Consultation")
+    box_append_label(consult_section, "Sélectionnez un fichier pour afficher son contenu.", italic=True)
+
+    config_files = _get_config_files()
+    config_dropdown = Gtk.DropDown.new_from_strings([name for name, _ in config_files])
+    config_dropdown.set_halign(Gtk.Align.FILL)
+    consult_section.append(config_dropdown)
+
+    btn_view_config = Gtk.Button(label="📖 Afficher le fichier sélectionné")
+    btn_view_config.add_css_class("suggested-action")
+    btn_view_config.set_halign(Gtk.Align.END)
+    btn_view_config.set_margin_top(8)
+    btn_view_config.connect("clicked", lambda _b: _on_view_config(controller, config_dropdown, config_files))
+    consult_section.append(btn_view_config)
+
+    separator1 = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
+    separator1.set_margin_top(12)
+    separator1.set_margin_bottom(8)
+    consult_section.append(separator1)
+
+    box_append_section_title(consult_section, "Commandes de Diagnostic")
+    box_append_label(consult_section, "Outils de vérification et diagnostic système.", italic=True)
+
+    diag_commands = _get_diagnostic_commands(boot_type)
+    diag_dropdown = Gtk.DropDown.new_from_strings([name for name, _ in diag_commands])
+    diag_dropdown.set_halign(Gtk.Align.FILL)
+    consult_section.append(diag_dropdown)
+
+    btn_exec_diag = Gtk.Button(label="▶️ Exécuter la commande")
+    btn_exec_diag.add_css_class("suggested-action")
+    btn_exec_diag.set_halign(Gtk.Align.END)
+    btn_exec_diag.set_margin_top(8)
+    btn_exec_diag.connect("clicked", lambda _b: _on_exec_diag(controller, diag_dropdown, diag_commands))
+    consult_section.append(btn_exec_diag)
+
+
+def _build_restore_section(
+    restore_section: Gtk.Box,
+    *,
+    controller: GrubConfigManager,
+    boot_type: str,
+    service: MaintenanceService,
+) -> None:
+    box_append_section_title(restore_section, "Restauration et Réinstallation")
+    box_append_label(restore_section, "⚠️ Ces commandes modifient le système.", italic=True)
+
+    restore_commands = _get_restore_commands(service, boot_type)
+    restore_dropdown = Gtk.DropDown.new_from_strings([name for name, _ in restore_commands])
+    restore_dropdown.set_halign(Gtk.Align.FILL)
+    restore_section.append(restore_dropdown)
+
+    btn_exec_restore = Gtk.Button(label="⚙️ Exécuter l'action sélectionnée")
+    btn_exec_restore.add_css_class("destructive-action")
+    btn_exec_restore.set_halign(Gtk.Align.END)
+    btn_exec_restore.set_margin_top(8)
+    btn_exec_restore.connect(
+        "clicked", lambda _b: _on_exec_restore(controller, restore_dropdown, restore_commands, service)
+    )
+    restore_section.append(btn_exec_restore)
+
+
 def build_maintenance_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> None:
     """Build Maintenance tab with repair tools.
 
@@ -35,25 +126,8 @@ def build_maintenance_tab(controller: GrubConfigManager, notebook: Gtk.Notebook)
     box_append_section_title(root, "Maintenance GRUB")
     box_append_label(root, "Outils de diagnostic et réparation. Nécessite les droits root.", italic=True)
 
-    # === Informations système ===
-    info_frame = Gtk.Frame()
-    info_frame.set_margin_bottom(8)
-    info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-    apply_margins(info_box, 12)
-
-    boot_type = "UEFI" if os.path.exists("/sys/firmware/efi") else "Legacy BIOS"
-    boot_icon = "🔷" if boot_type == "UEFI" else "🔶"
-
-    info_title = Gtk.Label(xalign=0)
-    info_title.set_markup("<b>Informations système</b>")
-    info_box.append(info_title)
-
-    boot_label = Gtk.Label(xalign=0)
-    boot_label.set_markup(f"{boot_icon} <b>Type de démarrage :</b> {boot_type}")
-    info_box.append(boot_label)
-
-    info_frame.set_child(info_box)
-    root.append(info_frame)
+    boot_type, boot_icon = _get_boot_info()
+    _build_system_info(root, boot_type=boot_type, boot_icon=boot_icon)
 
     # === Titre des outils ===
     tools_title = box_append_section_title(root, "Outils de Diagnostic et Réparation")
@@ -62,91 +136,8 @@ def build_maintenance_tab(controller: GrubConfigManager, notebook: Gtk.Notebook)
     # === Conteneur 2 colonnes ===
     _, consult_section, restore_section = create_two_column_layout(root)
 
-    # === Section Commandes de consultation/vérification (COLONNE GAUCHE) ===
-    # consult_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8) # Déjà créé
-    # consult_section.set_hexpand(True)
-    # consult_section.set_vexpand(True)
-
-    box_append_section_title(consult_section, "Consultation")
-
-    box_append_label(consult_section, "Sélectionnez un fichier pour afficher son contenu.", italic=True)
-
-    # Détection des scripts et construction de la liste
-    config_files = _get_config_files()
-
-    # Dropdown pour sélectionner le fichier
-    config_dropdown = Gtk.DropDown.new_from_strings([name for name, _ in config_files])
-    config_dropdown.set_halign(Gtk.Align.FILL)
-    consult_section.append(config_dropdown)
-
-    # Bouton pour afficher le fichier sélectionné
-    btn_view_config = Gtk.Button(label="📖 Afficher le fichier sélectionné")
-    btn_view_config.add_css_class("suggested-action")
-    btn_view_config.set_halign(Gtk.Align.END)
-    btn_view_config.set_margin_top(8)
-
-    btn_view_config.connect("clicked", lambda _b: _on_view_config(controller, config_dropdown, config_files))
-    consult_section.append(btn_view_config)
-
-    # Séparateur
-    separator1 = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
-    separator1.set_margin_top(12)
-    separator1.set_margin_bottom(8)
-    consult_section.append(separator1)
-
-    # Sous-section pour autres commandes de diagnostic
-    box_append_section_title(consult_section, "Commandes de Diagnostic")
-
-    box_append_label(consult_section, "Outils de vérification et diagnostic système.", italic=True)
-
-    # Liste des autres commandes de diagnostic
-    diag_commands = _get_diagnostic_commands(boot_type)
-
-    # Dropdown pour sélectionner la commande de diagnostic
-    diag_dropdown = Gtk.DropDown.new_from_strings([name for name, _ in diag_commands])
-    diag_dropdown.set_halign(Gtk.Align.FILL)
-    consult_section.append(diag_dropdown)
-
-    # Bouton exécuter diagnostic
-    btn_exec_diag = Gtk.Button(label="▶️ Exécuter la commande")
-    btn_exec_diag.add_css_class("suggested-action")
-    btn_exec_diag.set_halign(Gtk.Align.END)
-    btn_exec_diag.set_margin_top(8)
-
-    btn_exec_diag.connect("clicked", lambda _b: _on_exec_diag(controller, diag_dropdown, diag_commands))
-    consult_section.append(btn_exec_diag)
-
-    # two_columns.append(consult_section) # Déjà ajouté par create_two_column_layout
-
-    # === Section Restauration/Réinstallation (COLONNE DROITE) ===
-    # restore_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8) # Déjà créé
-    # restore_section.set_hexpand(True)
-    # restore_section.set_vexpand(True)
-
-    box_append_section_title(restore_section, "Restauration et Réinstallation")
-
-    box_append_label(restore_section, "⚠️ Ces commandes modifient le système.", italic=True)
-
-    # Liste des commandes de restauration
-    restore_commands = _get_restore_commands(service, boot_type)
-
-    # Dropdown pour sélectionner l'action
-    restore_dropdown = Gtk.DropDown.new_from_strings([name for name, _ in restore_commands])
-    restore_dropdown.set_halign(Gtk.Align.FILL)
-    restore_section.append(restore_dropdown)
-
-    # Bouton exécuter restauration
-    btn_exec_restore = Gtk.Button(label="⚙️ Exécuter l'action sélectionnée")
-    btn_exec_restore.add_css_class("destructive-action")
-    btn_exec_restore.set_halign(Gtk.Align.END)
-    btn_exec_restore.set_margin_top(8)
-
-    btn_exec_restore.connect(
-        "clicked", lambda _b: _on_exec_restore(controller, restore_dropdown, restore_commands, service)
-    )
-    restore_section.append(btn_exec_restore)
-
-    # two_columns.append(restore_section) # Déjà ajouté par create_two_column_layout
+    _build_consultation_section(consult_section, controller=controller, boot_type=boot_type)
+    _build_restore_section(restore_section, controller=controller, boot_type=boot_type, service=service)
 
     # Pas de ScrolledWindow externe - tout tient dans la fenêtre
     notebook.append_page(root, Gtk.Label(label="Maintenance"))

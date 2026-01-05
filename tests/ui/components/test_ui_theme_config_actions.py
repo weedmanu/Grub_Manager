@@ -13,7 +13,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 import pytest
 
-from ui.components.ui_theme_config_actions import build_theme_config_right_column
+from ui.components.ui_theme_config_actions import ThemeConfigCallbacks, build_theme_config_right_column
 
 
 class TestBuildThemeConfigRightColumn:
@@ -66,16 +66,18 @@ class TestBuildThemeConfigRightColumn:
         on_open_editor = MagicMock()
 
         parts = build_theme_config_right_column(
-            on_preview=on_preview,
-            on_activate_theme=on_activate_theme,
-            on_deactivate_theme=on_deactivate_theme,
-            on_edit=on_edit,
-            on_delete=on_delete,
-            on_open_editor=on_open_editor,
+            callbacks=ThemeConfigCallbacks(
+                on_preview=on_preview,
+                on_activate_theme=on_activate_theme,
+                on_deactivate_theme=on_deactivate_theme,
+                on_edit=on_edit,
+                on_delete=on_delete,
+                on_open_editor=on_open_editor,
+            )
         )
 
         # Vérifier que la structure est correcte
-        assert parts.preview_btn is mock_gtk["preview_btn"]
+        assert parts.buttons.preview_btn is mock_gtk["preview_btn"]
         
         # Les callbacks sont branchés internement via connect("clicked", handler)
         assert mock_gtk["preview_btn"].connect.called
@@ -110,17 +112,19 @@ class TestBuildThemeConfigRightColumn:
 
             handlers = [MagicMock() for _ in range(6)]
             parts = build_theme_config_right_column(
-                on_preview=handlers[0],
-                on_activate_theme=handlers[1],
-                on_deactivate_theme=handlers[2],
-                on_edit=handlers[3],
-                on_delete=handlers[4],
-                on_open_editor=handlers[5],
+                callbacks=ThemeConfigCallbacks(
+                    on_preview=handlers[0],
+                    on_activate_theme=handlers[1],
+                    on_deactivate_theme=handlers[2],
+                    on_edit=handlers[3],
+                    on_delete=handlers[4],
+                    on_open_editor=handlers[5],
+                )
             )
 
             # Verify all parts returned
-            assert parts.preview_btn is buttons[0]
-            assert parts.activate_theme_btn is buttons[1]
-            assert parts.deactivate_theme_btn is buttons[2]
-            assert parts.edit_btn is buttons[3]
-            assert parts.delete_btn is buttons[4]
+            assert parts.buttons.preview_btn is buttons[0]
+            assert parts.buttons.activate_theme_btn is buttons[1]
+            assert parts.buttons.deactivate_theme_btn is buttons[2]
+            assert parts.buttons.edit_btn is buttons[3]
+            assert parts.buttons.delete_btn is buttons[4]
