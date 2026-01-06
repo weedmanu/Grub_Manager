@@ -11,14 +11,11 @@ from gi.repository import Gtk
 from loguru import logger
 
 from ui.builders.ui_builders_widgets import (
-    LabelOptions,
     apply_margins,
-    box_append_blue_section_grid,
-    box_append_section_grid,
     create_info_box,
     create_tab_grid_layout,
-    grid_add_labeled,
 )
+from ui.helpers.ui_helpers_gtk import GtkHelper
 
 if TYPE_CHECKING:
     from ui.controllers.ui_controllers_manager import GrubConfigManager
@@ -35,19 +32,14 @@ def build_display_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
     apply_margins(root, 12)
 
-    root.append(
-        create_info_box(
-            "Affichage:",
-            "Options de résolution et mode terminal GRUB.",
-            css_class="info-box",
-        )
-    )
-
     # === Conteneur principal (Grid pour alignement par ligne) ===
     main_grid = create_tab_grid_layout(root)
+    main_grid.set_row_spacing(26)
 
-    _build_menu_options(controller, main_grid)
-    _build_kernel_options(controller, main_grid)
+    # Utilisé par _on_terminal_mode_changed pour masquer/afficher l'onglet Thèmes.
+    controller.notebook = notebook
+
+    _build_display_options(controller, main_grid)
 
     # ScrolledWindow pour l'ensemble
     scroll = Gtk.ScrolledWindow()
@@ -59,15 +51,33 @@ def build_display_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     logger.success("[build_display_tab] Onglet Affichage construit")
 
 
-def _build_menu_options(controller: GrubConfigManager, main_grid: Gtk.Grid) -> None:
-    """Construit la section des options du menu GRUB."""
-    # --- LIGNE 0 : Section Menu GRUB ---
-    left_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-    grid_menu = box_append_blue_section_grid(left_box, "Menu GRUB")
-
+def _build_display_options(controller: GrubConfigManager, main_grid: Gtk.Grid) -> None:
+    """Construit les options d'affichage, 1 option = 1 ligne (note en face, hors bloc)."""
     row = 0
 
-    # === Résolution graphique ===
+    gfxmode_frame, gfxmode_note = _build_gfxmode_row(controller)
+    main_grid.attach(gfxmode_frame, 0, row, 1, 1)
+    main_grid.attach(gfxmode_note, 1, row, 1, 1)
+    row += 1
+
+    terminal_frame, terminal_note = _build_terminal_row(controller)
+    main_grid.attach(terminal_frame, 0, row, 1, 1)
+    main_grid.attach(terminal_note, 1, row, 1, 1)
+    row += 1
+
+    payload_frame, payload_note = _build_payload_row(controller)
+    main_grid.attach(payload_frame, 0, row, 1, 1)
+    main_grid.attach(payload_note, 1, row, 1, 1)
+
+    _wire_display_dynamic_notes(
+        controller=controller,
+        gfxmode_note=gfxmode_note,
+        terminal_note=terminal_note,
+        payload_note=payload_note,
+    )
+
+
+def _build_gfxmode_row(controller: GrubConfigManager) -> tuple[Gtk.Frame, Gtk.Widget]:
     logger.debug("[build_display_tab] Création dropdown Gfxmode")
     controller.gfxmode_dropdown = Gtk.DropDown.new_from_strings(
         [
@@ -85,15 +95,26 @@ def _build_menu_options(controller: GrubConfigManager, main_grid: Gtk.Grid) -> N
     controller.gfxmode_dropdown.connect("notify::selected", controller.on_modified)
     controller.gfxmode_dropdown.set_halign(Gtk.Align.FILL)
     controller.gfxmode_dropdown.set_hexpand(True)
-    row = grid_add_labeled(
-        grid_menu,
-        row,
-        "Résolution:",
-        controller.gfxmode_dropdown,
-        label=LabelOptions(css_class="label-blue"),
+    controller.gfxmode_dropdown.set_valign(Gtk.Align.START)
+
+    frame = GtkHelper.build_option_frame(
+        frame_css_class="blue-frame",
+        label_markup="<b>Résolution (menu):</b>",
+        widget=controller.gfxmode_dropdown,
     )
 
-    # === Mode Terminal ===
+    note = create_info_box(
+        "Résolution (menu):",
+        "Définit GRUB_GFXMODE.",
+        css_class="success-box compact-card",
+    )
+    note.set_valign(Gtk.Align.START)
+    note.set_vexpand(False)
+    note.set_hexpand(False)
+    return frame, note
+
+
+def _build_terminal_row(controller: GrubConfigManager) -> tuple[Gtk.Frame, Gtk.Widget]:
     logger.debug("[build_display_tab] Création dropdown Terminal")
     controller.grub_terminal_dropdown = Gtk.DropDown.new_from_strings(
         [
@@ -104,36 +125,29 @@ def _build_menu_options(controller: GrubConfigManager, main_grid: Gtk.Grid) -> N
         ]
     )
     controller.grub_terminal_dropdown.connect("notify::selected", controller.on_modified)
-    controller.grub_terminal_dropdown.connect("notify::selected", lambda _w, _: _on_terminal_mode_changed(controller))
+    controller.grub_terminal_dropdown.connect("notify::selected", lambda *_: _on_terminal_mode_changed(controller))
     controller.grub_terminal_dropdown.set_halign(Gtk.Align.FILL)
     controller.grub_terminal_dropdown.set_hexpand(True)
-    row = grid_add_labeled(
-        grid_menu,
-        row,
+    controller.grub_terminal_dropdown.set_valign(Gtk.Align.START)
+
+    frame = GtkHelper.build_option_frame(
+        frame_css_class="blue-frame",
+        label_markup="<b>Mode terminal:</b>",
+        widget=controller.grub_terminal_dropdown,
+    )
+
+    note = create_info_box(
         "Mode terminal:",
-        controller.grub_terminal_dropdown,
-        label=LabelOptions(css_class="label-blue"),
+        "Définit GRUB_TERMINAL.",
+        css_class="warning-box compact-card",
     )
+    note.set_valign(Gtk.Align.START)
+    note.set_vexpand(False)
+    note.set_hexpand(False)
+    return frame, note
 
-    main_grid.attach(left_box, 0, 0, 1, 1)
 
-
-def _build_kernel_options(controller: GrubConfigManager, main_grid: Gtk.Grid) -> None:
-    """Construit la section des options du kernel."""
-    # --- LIGNE 1 : Section Kernel (sous Menu GRUB) ---
-    left_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-    grid_kernel = box_append_section_grid(
-        left_box,
-        "Système (Kernel)",
-        row_spacing=12,
-        column_spacing=12,
-        title_class="orange",
-        frame_class="orange-frame",
-    )
-
-    row = 0
-
-    # === Gfxpayload (affichage du kernel) ===
+def _build_payload_row(controller: GrubConfigManager) -> tuple[Gtk.Frame, Gtk.Widget]:
     logger.debug("[build_display_tab] Création dropdown Gfxpayload")
     controller.gfxpayload_dropdown = Gtk.DropDown.new_from_strings(
         [
@@ -150,42 +164,101 @@ def _build_kernel_options(controller: GrubConfigManager, main_grid: Gtk.Grid) ->
     controller.gfxpayload_dropdown.connect("notify::selected", controller.on_modified)
     controller.gfxpayload_dropdown.set_halign(Gtk.Align.FILL)
     controller.gfxpayload_dropdown.set_hexpand(True)
-    row = grid_add_labeled(
-        grid_kernel,
-        row,
-        "Résolution:",
-        controller.gfxpayload_dropdown,
-        label=LabelOptions(css_class="label-orange"),
+    controller.gfxpayload_dropdown.set_valign(Gtk.Align.START)
+
+    frame = GtkHelper.build_option_frame(
+        frame_css_class="orange-frame",
+        label_markup="<b>Résolution (kernel):</b>",
+        widget=controller.gfxpayload_dropdown,
     )
 
-    main_grid.attach(left_box, 0, 1, 1, 1)
-
-    # --- COLONNE DROITE : Notes ---
-    right_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-
-    right_box.append(
-        create_info_box(
-            "Menu:",
-            "Définit la résolution et le mode d'affichage du menu GRUB.\n"
-            "• gfxterm : Mode graphique (thèmes, images)\n"
-            "• console : Mode texte simple\n"
-            "• serial : Sortie série",
-            css_class="info-box compact-card",
-        )
+    note = create_info_box(
+        "Résolution (kernel):",
+        "Définit GRUB_GFXPAYLOAD_LINUX.",
+        css_class="info-box compact-card",
     )
+    note.set_valign(Gtk.Align.START)
+    note.set_vexpand(False)
+    note.set_hexpand(False)
+    return frame, note
 
-    right_box.append(
-        create_info_box(
-            "Kernel:",
-            "Résolution transmise au kernel Linux après le démarrage.\n"
-            "• keep : Garde la résolution du menu GRUB\n"
-            "• text : Force le mode texte\n"
-            "• auto : Laisse le système décider",
-            css_class="info-box compact-card",
-        )
-    )
 
-    main_grid.attach(right_box, 1, 0, 1, 2)
+def _wire_display_dynamic_notes(
+    *,
+    controller: GrubConfigManager,
+    gfxmode_note: Gtk.Widget,
+    terminal_note: Gtk.Widget,
+    payload_note: Gtk.Widget,
+) -> None:
+    gfxmode_note_label = GtkHelper.info_box_text_label(gfxmode_note)
+    terminal_note_label = GtkHelper.info_box_text_label(terminal_note)
+    payload_note_label = GtkHelper.info_box_text_label(payload_note)
+
+    def _is_graphical_terminal_mode() -> bool:
+        mode = GtkHelper.dropdown_selected_text(getattr(controller, "grub_terminal_dropdown", None)).lower()
+        return "gfxterm" in mode
+
+    def _update_terminal_note() -> None:
+        if terminal_note_label is None:
+            return
+        selected = GtkHelper.dropdown_selected_text(getattr(controller, "grub_terminal_dropdown", None)).lower()
+        if selected.startswith("gfxterm") and "console" not in selected:
+            terminal_note_label.set_text("GRUB_TERMINAL=gfxterm : menu graphique (thèmes/images possibles).")
+        elif selected.startswith("console"):
+            terminal_note_label.set_text("GRUB_TERMINAL=console : menu texte (thèmes/images désactivés).")
+        elif selected.startswith("serial"):
+            terminal_note_label.set_text("GRUB_TERMINAL=serial : menu sur port série (utile pour dépannage).")
+        elif "gfxterm" in selected and "console" in selected:
+            terminal_note_label.set_text('GRUB_TERMINAL="gfxterm console" : menu graphique + console disponible.')
+        else:
+            terminal_note_label.set_text("Définit GRUB_TERMINAL : mode d'affichage du menu.")
+
+    def _update_gfxmode_note() -> None:
+        if gfxmode_note_label is None:
+            return
+        if not _is_graphical_terminal_mode():
+            gfxmode_note_label.set_text(
+                "Désactivé : en mode terminal texte, la résolution graphique du menu ne s'applique pas."
+            )
+            return
+
+        selected = GtkHelper.dropdown_selected_text(getattr(controller, "gfxmode_dropdown", None))
+        if selected.startswith("auto"):
+            gfxmode_note_label.set_text(
+                "GRUB_GFXMODE=auto : GRUB choisit automatiquement la meilleure résolution pour le menu."
+            )
+        else:
+            gfxmode_note_label.set_text(f"GRUB_GFXMODE={selected} : affiche le menu GRUB en {selected}.")
+
+    def _update_payload_note() -> None:
+        if payload_note_label is None:
+            return
+        selected = GtkHelper.dropdown_selected_text(getattr(controller, "gfxpayload_dropdown", None))
+        if selected.startswith("auto"):
+            payload_note_label.set_text("Auto : laisse le kernel décider du mode d'affichage pendant le démarrage.")
+        elif selected == "keep":
+            payload_note_label.set_text(
+                "GRUB_GFXPAYLOAD_LINUX=keep : conserve la résolution du menu pour le démarrage du kernel."
+            )
+        elif selected == "text":
+            payload_note_label.set_text("GRUB_GFXPAYLOAD_LINUX=text : force le mode texte pendant le démarrage.")
+        else:
+            payload_note_label.set_text(
+                f"GRUB_GFXPAYLOAD_LINUX={selected} : force la résolution {selected} pendant le démarrage."
+            )
+
+    if getattr(controller, "gfxmode_dropdown", None) is not None:
+        controller.gfxmode_dropdown.connect("notify::selected", lambda *_: _update_gfxmode_note())
+    if getattr(controller, "grub_terminal_dropdown", None) is not None:
+        controller.grub_terminal_dropdown.connect("notify::selected", lambda *_: _update_terminal_note())
+        controller.grub_terminal_dropdown.connect("notify::selected", lambda *_: _update_gfxmode_note())
+    if getattr(controller, "gfxpayload_dropdown", None) is not None:
+        controller.gfxpayload_dropdown.connect("notify::selected", lambda *_: _update_payload_note())
+
+    _on_terminal_mode_changed(controller)
+    _update_terminal_note()
+    _update_gfxmode_note()
+    _update_payload_note()
 
 
 def _on_terminal_mode_changed(controller: GrubConfigManager) -> None:
@@ -245,7 +318,6 @@ def _toggle_theme_tabs_visibility(notebook: Gtk.Notebook, show: bool) -> None:
         # Seul l'onglet "Thèmes" (thèmes graphiques) est masqué en mode texte
         # "Apparence" reste visible car les couleurs sont disponibles en mode texte
         if label_text == "Thèmes":
-            # Masquer/afficher la page
-            notebook.get_page(page).set_property("tab-expand", show)
+            # Masquer/afficher la page (sans altérer le layout des tabs)
             page.set_visible(show)
             logger.debug(f"[_toggle_theme_tabs_visibility] Onglet '{label_text}': visible={show}")

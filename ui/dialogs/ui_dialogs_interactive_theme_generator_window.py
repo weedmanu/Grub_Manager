@@ -17,8 +17,8 @@ from gi.repository import Gtk
 
 from core.models.core_models_theme import GrubTheme
 from core.theme.generator import ThemeGenerator, ThemeResolution
-from ui.dialogs.ui_dialogs_grub_preview import GrubPreviewDialog
 from ui.dialogs.ui_dialogs_interactive_theme_generator import InteractiveThemeGeneratorPanel
+from ui.dialogs.ui_dialogs_theme_preview import GrubThemePreviewDialog as GrubPreviewDialog
 
 logger = logging.getLogger(__name__)
 

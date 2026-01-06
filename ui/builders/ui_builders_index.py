@@ -139,12 +139,15 @@ class UIBuilder:
         notebook = Gtk.Notebook()
         notebook.set_hexpand(True)
         notebook.set_vexpand(True)
+        # Si la barre d'onglets est trop chargée, on scroll (flèches) au lieu
+        # d'agrandir/rétrécir la fenêtre.
+        notebook.set_scrollable(True)
         container.append(notebook)
 
         # DEV: Chaque builder remplit les références de widgets déclarés dans __init__
         build_general_tab(window, notebook)
-        build_entries_tab(window, notebook)
         build_display_tab(window, notebook)
+        build_entries_tab(window, notebook)
 
         # Onglets thème: scindé en 2 pages (Apparence) et (Thèmes)
         theme_config = TabThemeConfig(window.state_manager, window=window)

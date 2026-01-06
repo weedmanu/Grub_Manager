@@ -9,7 +9,6 @@ On évite de créer/afficher des dialogues GTK réels dans ces tests.
 
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import gi
@@ -104,13 +103,16 @@ def test_load_themes_sets_current_theme_and_refreshes(tab_theme_config: TabTheme
 
 
 def test_on_preview_theme_exception_shows_error_dialog(tab_theme_config: TabThemeConfig) -> None:
-    tab_theme_config.data.current_theme = GrubTheme(name="MyTheme")
-    tab_theme_config.data.theme_paths["MyTheme"] = Path("/tmp")
+    # On utilise "Configuration Simple" pour déclencher GrubPreviewDialog (natif)
+    tab_theme_config.data.current_theme = GrubTheme(name="Configuration Simple")
 
     with (
         patch.object(handlers, "GrubPreviewDialog") as MockDialog,
         patch.object(handlers, "create_error_dialog") as mock_error,
     ):
-        MockDialog.return_value.show.side_effect = RuntimeError("boom")
+        # On configure le mock pour simuler une erreur lors de l'affichage
+        MockDialog.return_value.present.side_effect = RuntimeError("boom")
+
         handlers.on_preview_theme(tab_theme_config)
+
         assert mock_error.called

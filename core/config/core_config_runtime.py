@@ -11,9 +11,19 @@ import sys
 from loguru import logger
 
 
-def configure_logging(*, debug: bool) -> None:
-    """Configure Loguru for the whole process."""
+def configure_logging(*, debug: bool, verbose: bool = False) -> None:
+    """Configure Loguru for the whole process.
+
+    Politique:
+    - Sans flag: aucun handler -> pas de logs.
+    - --verbose: INFO.
+    - --debug: DEBUG (+ backtrace/diagnose).
+    """
     logger.remove()
+
+    if not debug and not verbose:
+        return
+
     logger.add(
         sys.stderr,
         level="DEBUG" if debug else "INFO",
@@ -27,16 +37,28 @@ def configure_logging(*, debug: bool) -> None:
 
 
 def parse_debug_flag(argv: list[str]) -> tuple[bool, list[str]]:
-    """Parse argv and extract the optional `--debug` flag.
+    """Compat: conserve l'ancienne API.
+
+    DEV: équivalent à parse_verbosity_flags(argv)[0,2].
+    """
+    debug, _verbose, remaining = parse_verbosity_flags(argv)
+    return debug, remaining
+
+
+def parse_verbosity_flags(argv: list[str]) -> tuple[bool, bool, list[str]]:
+    """Parse argv et extrait `--verbose` et `--debug`.
 
     Returns:
-        (debug_enabled, remaining_argv)
+        (debug_enabled, verbose_enabled, remaining_argv)
     """
     debug = False
+    verbose = False
     remaining: list[str] = []
     for arg in argv:
         if arg == "--debug":
             debug = True
+        elif arg == "--verbose":
+            verbose = True
         else:
             remaining.append(arg)
-    return debug, remaining
+    return debug, verbose, remaining

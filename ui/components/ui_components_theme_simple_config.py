@@ -31,6 +31,12 @@ class ThemeSimpleConfigPanelWidgets:
     highlight_bg_combo: Gtk.DropDown | None = None
 
 
+@dataclass(slots=True)
+class _ThemeSimpleBlocks:
+    background: Gtk.Box | None = None
+    colors: Gtk.Box | None = None
+
+
 class ThemeSimpleConfigPanel(Gtk.Box):
     """Panneau de configuration simple (couleurs et image de fond)."""
 
@@ -52,6 +58,8 @@ class ThemeSimpleConfigPanel(Gtk.Box):
         self._colors_box: Gtk.Box | None = None
         self._colors_note: Gtk.Label | None = None
 
+        self._blocks = _ThemeSimpleBlocks()
+
         self._build_ui()
 
     @property
@@ -68,11 +76,8 @@ class ThemeSimpleConfigPanel(Gtk.Box):
 
         bg_label = Gtk.Label(label="Image de fond", xalign=0)
         bg_label.add_css_class("heading")
+        bg_label.add_css_class("label-blue")
         grid.attach(bg_label, 0, 0, 4, 1)
-
-        bg_desc = Gtk.Label(label="Définit GRUB_BACKGROUND", xalign=0)
-        bg_desc.add_css_class("dim-label")
-        grid.attach(bg_desc, 0, 1, 4, 1)
 
         bg_box = Gtk.Box(orientation=HORIZONTAL, spacing=5)
         widgets.bg_image_entry = Gtk.Entry()
@@ -85,12 +90,9 @@ class ThemeSimpleConfigPanel(Gtk.Box):
         bg_btn.connect("clicked", self._on_select_bg_image)
         bg_box.append(bg_btn)
 
-        grid.attach(bg_box, 0, 2, 4, 1)
+        grid.attach(bg_box, 0, 1, 4, 1)
 
-        separator = Gtk.Separator(orientation=HORIZONTAL)
-        separator.set_margin_top(8)
-        separator.set_margin_bottom(8)
-        grid.attach(separator, 0, 3, 4, 1)
+        # Séparateur supprimé: le bloc "Image de fond" est maintenant autonome.
 
     def _build_color_row(self, colors_grid: Gtk.Grid, row: int, label_text: str, combo_attrs: tuple[str, str]) -> None:
         """Construit une ligne de sélecteurs de couleurs."""
@@ -116,6 +118,35 @@ class ThemeSimpleConfigPanel(Gtk.Box):
         setattr(widgets, combo_attrs[1], bg_combo)
         colors_grid.attach(bg_combo, 3, row, 1, 1)
 
+    def _ensure_color_widgets(self) -> None:
+        """Crée les dropdowns de couleurs si nécessaire (une seule fois)."""
+        widgets = self._widgets_view()
+        if (
+            widgets.normal_fg_combo
+            and widgets.normal_bg_combo
+            and widgets.highlight_fg_combo
+            and widgets.highlight_bg_combo
+        ):
+            return
+
+        def _make_combo() -> Gtk.DropDown:
+            combo = Gtk.DropDown.new_from_strings(GRUB_COLORS)
+            combo.connect("notify::selected", self._on_config_changed)
+            return combo
+
+        if widgets.normal_fg_combo is None:
+            widgets.normal_fg_combo = _make_combo()
+            widgets.normal_fg_combo.set_tooltip_text("Couleur du texte")
+        if widgets.normal_bg_combo is None:
+            widgets.normal_bg_combo = _make_combo()
+            widgets.normal_bg_combo.set_tooltip_text("Couleur de fond")
+        if widgets.highlight_fg_combo is None:
+            widgets.highlight_fg_combo = _make_combo()
+            widgets.highlight_fg_combo.set_tooltip_text("Couleur du texte")
+        if widgets.highlight_bg_combo is None:
+            widgets.highlight_bg_combo = _make_combo()
+            widgets.highlight_bg_combo.set_tooltip_text("Couleur de fond")
+
     def _build_colors_section(self) -> Gtk.Box:
         """Construit la section couleurs du menu."""
         colors_box = Gtk.Box(orientation=VERTICAL, spacing=6)
@@ -123,11 +154,8 @@ class ThemeSimpleConfigPanel(Gtk.Box):
 
         colors_title = Gtk.Label(label="Couleurs du menu", xalign=0)
         colors_title.add_css_class("heading")
+        colors_title.add_css_class("label-green")
         colors_box.append(colors_title)
-
-        colors_desc = Gtk.Label(label="Définit GRUB_COLOR_NORMAL et GRUB_COLOR_HIGHLIGHT", xalign=0)
-        colors_desc.add_css_class("dim-label")
-        colors_box.append(colors_desc)
 
         colors_grid = Gtk.Grid()
         colors_grid.set_row_spacing(8)
@@ -139,6 +167,88 @@ class ThemeSimpleConfigPanel(Gtk.Box):
         self._build_color_row(colors_grid, 1, "Entrée sélectionnée", ("highlight_fg_combo", "highlight_bg_combo"))
 
         return colors_box
+
+    def build_background_block(self) -> Gtk.Box:
+        """Construit et retourne le bloc "Image de fond".
+
+        Ce bloc est conçu pour être placé indépendamment du bloc couleurs dans l'onglet.
+        """
+        if self._blocks.background is not None:
+            return self._blocks.background
+
+        block = Gtk.Box(orientation=VERTICAL, spacing=6)
+        grid = Gtk.Grid()
+        grid.set_row_spacing(6)
+        grid.set_column_spacing(10)
+        block.append(grid)
+
+        self._build_background_section(grid)
+        self._blocks.background = block
+        return block
+
+    def build_colors_block(self) -> Gtk.Box:
+        """Construit et retourne le bloc "Couleurs du menu"."""
+        if self._blocks.colors is not None:
+            return self._blocks.colors
+
+        self._blocks.colors = self._build_colors_section()
+        return self._blocks.colors
+
+    def build_color_normal_option_block(self) -> Gtk.Box:
+        """Construit le bloc option pour GRUB_COLOR_NORMAL (une option = un bloc)."""
+        self._ensure_color_widgets()
+        widgets = self._widgets_view()
+
+        block = Gtk.Box(orientation=VERTICAL, spacing=6)
+        title = Gtk.Label(label="Couleur entrée normale", xalign=0)
+        title.add_css_class("heading")
+        title.add_css_class("label-green")
+        block.append(title)
+
+        grid = Gtk.Grid()
+        grid.set_row_spacing(8)
+        grid.set_column_spacing(10)
+        grid.set_margin_top(6)
+        block.append(grid)
+
+        label = Gtk.Label(label="Entrée normale", xalign=0)
+        label.set_width_chars(15)
+        grid.attach(label, 0, 0, 1, 1)
+        grid.attach(widgets.normal_fg_combo, 1, 0, 1, 1)
+        sep = Gtk.Label(label="sur")
+        sep.add_css_class("dim-label")
+        grid.attach(sep, 2, 0, 1, 1)
+        grid.attach(widgets.normal_bg_combo, 3, 0, 1, 1)
+
+        return block
+
+    def build_color_highlight_option_block(self) -> Gtk.Box:
+        """Construit le bloc option pour GRUB_COLOR_HIGHLIGHT (une option = un bloc)."""
+        self._ensure_color_widgets()
+        widgets = self._widgets_view()
+
+        block = Gtk.Box(orientation=VERTICAL, spacing=6)
+        title = Gtk.Label(label="Couleur entrée sélectionnée", xalign=0)
+        title.add_css_class("heading")
+        title.add_css_class("label-green")
+        block.append(title)
+
+        grid = Gtk.Grid()
+        grid.set_row_spacing(8)
+        grid.set_column_spacing(10)
+        grid.set_margin_top(6)
+        block.append(grid)
+
+        label = Gtk.Label(label="Entrée sélectionnée", xalign=0)
+        label.set_width_chars(15)
+        grid.attach(label, 0, 0, 1, 1)
+        grid.attach(widgets.highlight_fg_combo, 1, 0, 1, 1)
+        sep = Gtk.Label(label="sur")
+        sep.add_css_class("dim-label")
+        grid.attach(sep, 2, 0, 1, 1)
+        grid.attach(widgets.highlight_bg_combo, 3, 0, 1, 1)
+
+        return block
 
     def _build_ui(self) -> None:
         """Construit l'interface du panneau."""
@@ -155,15 +265,8 @@ class ThemeSimpleConfigPanel(Gtk.Box):
         self._colors_note = note
         self.append(note)
 
-        # Grid pour l'alignement
-        grid = Gtk.Grid()
-        grid.set_row_spacing(6)
-        grid.set_column_spacing(10)
-        self.append(grid)
-
-        self._build_background_section(grid)
-        colors_box = self._build_colors_section()
-        self.append(colors_box)
+        # Par défaut, on n'impose pas un layout unique: le parent place les blocs.
+        # On garde des helpers publics pour obtenir les deux sections.
 
     def set_colors_section_enabled(self, enabled: bool, *, reason: str | None = None) -> None:
         """Active/désactive la section couleurs.

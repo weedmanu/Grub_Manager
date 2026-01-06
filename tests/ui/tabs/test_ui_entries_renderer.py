@@ -6,7 +6,12 @@ from unittest.mock import MagicMock, patch
 from gi.repository import Gtk
 
 from core.io.core_io_grub_menu_parser import GrubDefaultChoice
-from ui.tabs.ui_tabs_entries_renderer import _entry_display_title, _entry_is_os_prober, _entry_is_recovery, render_entries
+from ui.tabs.ui_tabs_entries_renderer import (
+    _entry_display_title,
+    _entry_is_os_prober,
+    _entry_is_recovery,
+    render_entries,
+)
 
 
 def test_entry_helpers():
@@ -322,7 +327,10 @@ def test_render_entries_switch_toggle(controller):
     controller.state_manager.hidden_entry_ids = set()
 
     # We'll use a real switch but mock the controller methods it calls
-    with patch("ui.tabs.ui_tabs_entries_renderer.save_hidden_entry_ids"), patch("ui.tabs.ui_tabs_entries_renderer.clear_listbox"):
+    with (
+        patch("ui.tabs.ui_tabs_entries_renderer.save_hidden_entry_ids"),
+        patch("ui.tabs.ui_tabs_entries_renderer.clear_listbox"),
+    ):
 
         render_entries(controller)
 

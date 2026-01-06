@@ -201,6 +201,8 @@ def pytest_sessionfinish(session, exitstatus):
 
     Important pour Loguru: arrêter proprement les handlers en fin de session.
     """
+    # satisfy vulture: arguments required by hook signature
+    del session, exitstatus
     try:
         logger.complete()
     except Exception:

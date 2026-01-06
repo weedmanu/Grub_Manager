@@ -2,12 +2,31 @@
 
 from __future__ import annotations
 
-from gi.repository import Gtk
+from gi.repository import GLib, Gtk
 from loguru import logger
 
 
 class GtkHelper:
     """Utilitaires statiques pour manipuler les modèles et widgets GTK."""
+
+    @staticmethod
+    def get_dialog_response(dialog: Gtk.AlertDialog, result) -> int | None:
+        """Récupère la réponse d'un dialogue asynchrone de manière sécurisée.
+
+        Encapsule le pattern try/except GLib.Error autour de choose_finish.
+        """
+        try:
+            return dialog.choose_finish(result)
+        except GLib.Error:
+            return None
+
+    @staticmethod
+    def present_dialog(dialog: Gtk.Widget) -> None:
+        """Affiche un dialogue en gérant la compatibilité (present() vs show())."""
+        if hasattr(dialog, "present"):
+            dialog.present()
+        elif hasattr(dialog, "show"):
+            dialog.show()
 
     @staticmethod
     def resolve_parent_window(*widgets: Gtk.Widget | None, fallback: Gtk.Window | None = None) -> Gtk.Window | None:
@@ -126,6 +145,82 @@ class GtkHelper:
                 dropdown.set_selected(i)
                 return
         dropdown.set_selected(0)
+
+    @staticmethod
+    def dropdown_selected_text(dropdown: Gtk.DropDown | None) -> str:
+        """Retourne le texte de l'item sélectionné (supporte None).
+
+        Utilise `get_selected_item()` car certains tests/mocks ne fournissent pas un
+        modèle compatible `get_model().get_string()`.
+        """
+        if dropdown is None:
+            return ""
+        item = dropdown.get_selected_item()
+        if item is None:
+            return ""
+        try:
+            return str(item.get_string())
+        except (AttributeError, TypeError):  # pragma: no cover
+            return str(item)
+
+    @staticmethod
+    def info_box_text_label(box: Gtk.Box) -> Gtk.Label | None:
+        """Retourne le label de texte d'une `create_info_box()`.
+
+        La factory `create_info_box()` retourne un Gtk.Box contenant au moins un
+        Gtk.Label pour le texte. On récupère le dernier label rencontré afin de
+        pouvoir mettre à jour le texte dynamiquement sans reconstruire le widget.
+        """
+        last_label: Gtk.Label | None = None
+        child = box.get_first_child()
+        while child is not None:
+            if isinstance(child, Gtk.Label):
+                last_label = child
+            child = child.get_next_sibling()
+        return last_label
+
+    @staticmethod
+    def format_size_bytes(size: int) -> str:
+        """Formate une taille en octets pour l'affichage UI."""
+        if size < 1024:
+            return f"{size} o"
+        if size < 1024 * 1024:
+            return f"{size / 1024:.1f} Ko"
+        if size < 1024 * 1024 * 1024:
+            return f"{size / (1024 * 1024):.1f} Mo"
+        return f"{size / (1024 * 1024 * 1024):.1f} Go"
+
+    @staticmethod
+    def build_option_frame(*, frame_css_class: str, label_markup: str, widget: Gtk.Widget) -> Gtk.Frame:
+        """Construit une ligne d'option (label + widget) encapsulée dans un Gtk.Frame.
+
+        Ce helper centralise le layout commun utilisé dans plusieurs onglets.
+        """
+        row_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        row_box.set_hexpand(True)
+        row_box.set_vexpand(False)
+        row_box.set_valign(Gtk.Align.START)
+        row_box.set_margin_top(10)
+        row_box.set_margin_bottom(10)
+        row_box.set_margin_start(12)
+        row_box.set_margin_end(12)
+
+        label = Gtk.Label(xalign=0)
+        label.set_markup(label_markup)
+        label.set_hexpand(True)
+        label.set_valign(Gtk.Align.START)
+        row_box.append(label)
+
+        widget.set_valign(Gtk.Align.START)
+        row_box.append(widget)
+
+        frame = Gtk.Frame()
+        frame.add_css_class(frame_css_class)
+        frame.set_hexpand(True)
+        frame.set_vexpand(False)
+        frame.set_valign(Gtk.Align.START)
+        frame.set_child(row_box)
+        return frame
 
     @staticmethod
     def stringlist_replace_all(model, items: list[str]) -> None:

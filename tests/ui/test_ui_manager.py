@@ -1073,7 +1073,9 @@ def test_load_config_parsing_error(manager):
 
     with (
         patch("ui.controllers.ui_controllers_manager.check_grub_sync", return_value=sync_status),
-        patch("ui.controllers.ui_controllers_manager.load_grub_ui_state", side_effect=GrubParsingError("Invalid config")),
+        patch(
+            "ui.controllers.ui_controllers_manager.load_grub_ui_state", side_effect=GrubParsingError("Invalid config")
+        ),
     ):
         manager.load_config()
         # Should show error info

@@ -68,19 +68,28 @@ class GrubPreviewDataLoader:
 
             menu_entries = self.grub_service.get_menu_entries()
 
-            # Limiter à 10 entrées max pour un ratio réaliste
-            if len(menu_entries) > 10:
-                menu_entries = menu_entries[:10]
+            # En mode système: préserver la liste réelle (c'est la fidélité recherchée).
+            # En mode non-système: on peut compléter uniquement si on est clairement en fallback.
+            is_fallback = (
+                len(menu_entries) == 1
+                and menu_entries[0].title == "Ubuntu"
+                and (menu_entries[0].id in {"", "gnulinux"})
+            )
 
-            # Si moins de 5 entrées, en créer des supplémentaires pour le ratio
-            while len(menu_entries) < 8:
-                idx = len(menu_entries)
-                menu_entries.append(
-                    MenuEntry(
-                        title=f"Ubuntu (option {idx + 1})",
-                        id=f"gnulinux-{idx}",
-                    )
-                )
+            if self.use_system_files:
+                # On garde toutes les entrées (dans la limite d'une taille raisonnable pour l'UI)
+                if len(menu_entries) > 20:
+                    menu_entries = menu_entries[:20]
+            else:
+                if is_fallback:
+                    while len(menu_entries) < 8:
+                        idx = len(menu_entries)
+                        menu_entries.append(
+                            MenuEntry(
+                                title=f"Ubuntu (option {idx + 1})",
+                                id=f"gnulinux-{idx}",
+                            )
+                        )
 
             return timeout, default_entry, menu_entries
         except (OSError, RuntimeError) as e:
@@ -174,7 +183,7 @@ class GrubPreviewDataLoader:
     def _try_load_theme_from_default_grub(self) -> None:
         """Essaie de charger le thème depuis /etc/default/grub."""
         try:
-            cfg = GrubService.read_current_config()
+            cfg = GrubService().read_current_config()
         except (OSError, RuntimeError, ValueError):
             return
 
@@ -247,7 +256,7 @@ class GrubPreviewDataLoader:
         if not self.use_system_files:
             return None
         try:
-            cfg = GrubService.read_current_config()
+            cfg = GrubService().read_current_config()
             n_fg, n_bg = GrubConfigParser.parse_grub_color_pair(
                 cfg.grub_color_normal, default_fg="white", default_bg="black"
             )
@@ -349,11 +358,11 @@ class GrubPreviewDataLoader:
         if self._system_menu_colors is not None:
             smc = self._system_menu_colors
             colors = PreviewColors(
-                fg_color=smc.normal_fg,
-                bg_color=smc.normal_bg,
-                hl_fg=smc.highlight_fg,
-                hl_bg=smc.highlight_bg,
-                title_color=smc.normal_fg,
+                fg_color=GrubConfigParser.parse_grub_color(smc.normal_fg, "white"),
+                bg_color=GrubConfigParser.parse_grub_color(smc.normal_bg, "black"),
+                hl_fg=GrubConfigParser.parse_grub_color(smc.highlight_fg, "black"),
+                hl_bg=GrubConfigParser.parse_grub_color(smc.highlight_bg, "#D3D3D3"),
+                title_color=GrubConfigParser.parse_grub_color(smc.normal_fg, "white"),
             )
             if is_text_mode:
                 fonts, layout = self._get_text_mode_fonts_layout()
@@ -413,7 +422,26 @@ class GrubPreviewDataLoader:
         if self._system_menu_colors:
             return self._system_menu_colors.normal_bg
 
-        return "#8C8C8C"
+        return "#000000"
+
+    def get_desktop_image_path(self) -> str | None:
+        """Retourne un chemin image (desktop-image) résolu si disponible."""
+        ov = self._system_theme_overrides
+        if not ov or not ov.desktop_image:
+            return None
+
+        raw = ov.desktop_image.strip().strip('"').strip("'")
+        if not raw:
+            return None
+
+        p = Path(raw)
+        if not p.is_absolute() and self._system_theme_dir is not None:
+            p = self._system_theme_dir / raw
+
+        try:
+            return str(p) if p.exists() else None
+        except OSError:
+            return None
 
     def get_item_dimensions(self) -> tuple[int, int, int]:
         """Retourne les dimensions des items (padding, spacing, height).

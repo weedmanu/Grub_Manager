@@ -40,6 +40,7 @@ def _build_script_row(
     on_toggle: Callable[[Any, Any, Any | None], None],
 ) -> Any:
     horizontal = gtk_module.Orientation.HORIZONTAL
+    vertical = gtk_module.Orientation.VERTICAL
 
     row = gtk_module.ListBoxRow()
     row.set_selectable(False)
@@ -50,11 +51,22 @@ def _build_script_row(
     script_box.set_margin_start(10)
     script_box.set_margin_end(10)
 
+    # Colonne gauche: nom uniquement (les notes sont affichées à droite au niveau de l'onglet)
+    left_col = gtk_module.Box(orientation=vertical, spacing=4)
+    left_col.set_hexpand(True)
+
     name_label = gtk_module.Label(label=script_name)
     name_label.set_halign(gtk_module.Align.START)
     name_label.set_hexpand(True)
+    # Empêche un nom long d'augmenter la largeur minimale du Notebook.
+    try:
+        name_label.set_max_width_chars(40)
+    except AttributeError:  # pragma: no cover
+        pass
     name_label.add_css_class("title-4")
-    script_box.append(name_label)
+    left_col.append(name_label)
+
+    script_box.append(left_col)
 
     state_label = gtk_module.Label(label="actif" if is_executable else "inactif")
     state_label.set_margin_end(10)

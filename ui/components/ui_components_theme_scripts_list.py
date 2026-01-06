@@ -40,13 +40,14 @@ class ThemeScriptsList(Gtk.Box):
         # Box horizontale pour liste + actions
         scripts_container = Gtk.Box(orientation=HORIZONTAL, spacing=8)
         scripts_container.set_margin_top(4)
+        scripts_container.set_vexpand(True)
         self.append(scripts_container)
 
-        scrolled_scripts = Gtk.ScrolledWindow()
-        scrolled_scripts.set_child(self.scripts_list_box)
-        scrolled_scripts.set_min_content_height(90)
-        scrolled_scripts.set_hexpand(True)
-        scripts_container.append(scrolled_scripts)
+        # UX: pas de scroll interne sur la liste des scripts.
+        # La page/onglet gère déjà le scroll global.
+        self.scripts_list_box.set_hexpand(True)
+        self.scripts_list_box.set_vexpand(True)
+        scripts_container.append(self.scripts_list_box)
 
     def refresh(self) -> None:
         """Scanne et affiche les scripts GRUB."""

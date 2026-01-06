@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -20,6 +21,7 @@ from core.managers.core_managers_entry_visibility import apply_hidden_entries_to
 from core.models.core_models_grub_ui import merged_config_from_model
 from core.system.core_system_grub_commands import GrubUiState
 from ui.controllers.ui_controllers_infobar import ERROR, INFO, WARNING
+from ui.helpers.ui_helpers_gtk import GtkHelper
 from ui.helpers.ui_helpers_gtk_imports import GLib, Gtk
 from ui.models.ui_models_state import AppState
 
@@ -165,11 +167,7 @@ class WorkflowController:
             dialog.set_default_button(1)
 
             def _on_choice(dlg, result):
-                idx = None
-                try:
-                    idx = dlg.choose_finish(result)
-                except GLib.Error:
-                    pass
+                idx = GtkHelper.get_dialog_response(dlg, result)
 
                 if idx == 1:
                     # Si confirmé, on vérifie ensuite si on veut restaurer le backup
@@ -201,11 +199,7 @@ class WorkflowController:
         dialog.choose(self.window, None, lambda dlg, res: self._handle_restore_choice(dlg, res, backup_path))
 
     def _handle_restore_choice(self, dlg, result, backup_path: str) -> None:
-        idx = None
-        try:
-            idx = dlg.choose_finish(result)
-        except GLib.Error:
-            pass
+        idx = GtkHelper.get_dialog_response(dlg, result)
 
         if idx == 1:  # Recharger actuel
             self.load_config_cb()
@@ -244,12 +238,8 @@ class WorkflowController:
         dialog.set_default_button(1)
 
         def _on_response(dlg, result):
-            idx = None
-            try:
-                idx = dlg.choose_finish(result)
-                logger.debug(f"[WorkflowController.on_save._on_response] Résultat dialogue: {idx}")
-            except GLib.Error as e:
-                logger.debug(f"[WorkflowController.on_save._on_response] Dialogue annulé: {e}")
+            idx = GtkHelper.get_dialog_response(dlg, result)
+            logger.debug(f"[WorkflowController.on_save._on_response] Résultat dialogue: {idx}")
 
             if idx == 1:
                 logger.debug("[WorkflowController.on_save._on_response] Confirmation utilisateur")
@@ -258,9 +248,15 @@ class WorkflowController:
         dialog.choose(self.window, None, _on_response)
 
     def perform_save(self, apply_now: bool) -> None:
-        """Exécute le workflow de sauvegarde via ApplyManager."""
+        """Exécute la sauvegarde et l'application (en tâche de fond)."""
         logger.info(f"[WorkflowController.perform_save] Début (apply_now={apply_now})")
+
+        if self.state_manager.is_loading():
+            logger.warning("[WorkflowController.perform_save] Ignoré: déjà en chargement")
+            return
+
         self._apply_state(AppState.APPLYING)
+        self.show_info_cb("Application des changements en cours...", INFO)
 
         try:
             self._maybe_create_last_modif_backup(apply_now)
@@ -269,32 +265,46 @@ class WorkflowController:
             logger.debug(
                 f"[WorkflowController.perform_save] Modèle lu: timeout={model.timeout}, default={model.default}"
             )
-            logger.info(f"[WorkflowController.perform_save] theme_management_enabled={model.theme_management_enabled}")
-
+            # Capture state for thread
             merged_config = merged_config_from_model(self.state_manager.state_data.raw_config, model)
-            logger.debug(f"[WorkflowController._perform_save] Config fusionnée, apply_now={apply_now}")
+            pending_changes = self.state_manager.pending_script_changes.copy()
+            theme_mgmt = model.theme_management_enabled
 
-            manager = GrubApplyManager()
-            result = manager.apply_configuration(
-                merged_config,
-                apply_changes=apply_now,
-                theme_management_enabled=model.theme_management_enabled,
-                pending_script_changes=self.state_manager.pending_script_changes,
-            )
-            logger.info(
-                "[WorkflowController._perform_save] "
-                f"Passé theme_management_enabled={model.theme_management_enabled} au manager"
-            )
-            logger.debug(f"[WorkflowController._perform_save] Résultat apply: success={result.success}")
+            def _worker():
+                try:
+                    manager = GrubApplyManager()
+                    result = manager.apply_configuration(
+                        merged_config,
+                        apply_changes=apply_now,
+                        theme_management_enabled=theme_mgmt,
+                        pending_script_changes=pending_changes,
+                    )
+                    GLib.idle_add(self._on_save_worker_complete, result, merged_config, model, apply_now)
+                except (OSError, RuntimeError, ValueError, TypeError) as exc:
+                    logger.exception("[WorkflowController._worker] ERREUR inattendue dans le thread")
+                    GLib.idle_add(self._on_save_worker_error, exc)
 
-            if result.success:
-                logger.debug("[WorkflowController._perform_save] Configuration appliquée avec succès")
-                self._handle_apply_success(result=result, merged_config=merged_config, model=model, apply_now=apply_now)
-            else:
-                self._apply_state(AppState.DIRTY)
-                self.show_info_cb(f"Erreur: {result.message}", ERROR)
+            threading.Thread(target=_worker, name="GrubApplyWorker", daemon=True).start()
 
         except (OSError, RuntimeError, ValueError, TypeError) as e:
             logger.exception("[WorkflowController._perform_save] ERREUR inattendue")
             self._apply_state(AppState.DIRTY)
             self.show_info_cb(f"Erreur inattendue: {e}", ERROR)
+
+    def _on_save_worker_complete(self, result, merged_config, model, apply_now):
+        """Callback MainThread après succès/échec du worker."""
+        logger.debug(f"[WorkflowController._on_save_worker_complete] Résultat apply: success={result.success}")
+
+        if result.success:
+            logger.debug("[WorkflowController] Configuration appliquée avec succès")
+            self._handle_apply_success(result=result, merged_config=merged_config, model=model, apply_now=apply_now)
+        else:
+            self._apply_state(AppState.DIRTY)
+            self.show_info_cb(f"Erreur: {result.message}", ERROR)
+        return False
+
+    def _on_save_worker_error(self, exc):
+        """Callback MainThread en cas d'erreur du worker."""
+        self._apply_state(AppState.DIRTY)
+        self.show_info_cb(f"Erreur inattendue: {exc}", ERROR)
+        return False

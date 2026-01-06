@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import tarfile
+from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -21,9 +22,11 @@ from ui.builders.ui_builders_widgets import (
     apply_margins,
     box_append_section_grid,
     create_info_box,
-    create_two_column_layout,
+    create_tab_grid_layout,
+    create_titled_frame,
 )
 from ui.dialogs.ui_dialogs_index import confirm_action
+from ui.helpers.ui_helpers_gtk import GtkHelper
 
 
 def _format_size(size: int) -> str:
@@ -155,16 +158,81 @@ if TYPE_CHECKING:
     from ui.controllers.ui_controllers_manager import GrubConfigManager
 
 
-def _on_selection_changed(dropdown: Gtk.DropDown, _pspec, controller, restore_btn, delete_btn):
-    """Active/désactive les boutons selon la sélection."""
+@dataclass(slots=True)
+class _BackupsUiRefs:
+    dropdown: Gtk.DropDown
+    empty_label: Gtk.Label
+    restore_btn: Gtk.Button
+    delete_btn: Gtk.Button
+    selection_note_label: Gtk.Label | None
+
+
+@dataclass(slots=True)
+class _ActionRowSpec:
+    row: int
+    title: str
+    button: Gtk.Button
+    title_class: str
+    frame_class: str
+    note: tuple[str, str, str]
+
+
+def _update_selection_note(*, controller, ui: _BackupsUiRefs) -> None:
+    if ui.selection_note_label is None:
+        return
+
+    selected = ui.dropdown.get_selected()
+    backup_paths = getattr(controller, "backup_paths", [])
+    if not backup_paths or selected == Gtk.INVALID_LIST_POSITION or selected >= len(backup_paths):
+        ui.selection_note_label.set_label("Aucune sauvegarde sélectionnée.")
+        return
+
+    backup_path = backup_paths[selected]
+    ui.selection_note_label.set_label("Sauvegarde sélectionnée :\n" f"{_format_backup_label(backup_path)}")
+
+
+def _on_selection_changed_impl(
+    dropdown: Gtk.DropDown,
+    _pspec,
+    controller,
+    ui: _BackupsUiRefs,
+):
+    """Active/désactive les boutons et met à jour la note de sélection."""
     selected = dropdown.get_selected()
     backup_paths = getattr(controller, "backup_paths", [])
     has_selection = selected != Gtk.INVALID_LIST_POSITION and selected < len(backup_paths)
-    restore_btn.set_sensitive(has_selection)
-    delete_btn.set_sensitive(has_selection)
+    ui.restore_btn.set_sensitive(has_selection)
+    ui.delete_btn.set_sensitive(has_selection)
+    _update_selection_note(controller=controller, ui=ui)
 
 
-def _refresh_list(controller, dropdown: Gtk.DropDown, empty_label: Gtk.Label, restore_btn=None, delete_btn=None):
+def _on_selection_changed(
+    dropdown: Gtk.DropDown,
+    pspec,
+    controller,
+    restore_btn_or_ui,
+    delete_btn=None,
+):
+    """Compat + impl.
+
+    - Ancien appel tests: `_on_selection_changed(dropdown, pspec, controller, btn_restore, btn_delete)`
+    - Nouvel appel interne: `_on_selection_changed(dropdown, pspec, controller, ui)`
+    """
+    if isinstance(restore_btn_or_ui, _BackupsUiRefs):
+        _on_selection_changed_impl(dropdown, pspec, controller, restore_btn_or_ui)
+        return
+
+    ui = _BackupsUiRefs(
+        dropdown=dropdown,
+        empty_label=Gtk.Label(),
+        restore_btn=restore_btn_or_ui,
+        delete_btn=delete_btn or Gtk.Button(),
+        selection_note_label=None,
+    )
+    _on_selection_changed_impl(dropdown, pspec, controller, ui)
+
+
+def _refresh_list_impl(*, controller, ui: _BackupsUiRefs):
     """Rafraîchit l'affichage de la liste."""
     try:
         backups = list_grub_default_backups()
@@ -177,24 +245,112 @@ def _refresh_list(controller, dropdown: Gtk.DropDown, empty_label: Gtk.Label, re
     controller.backup_paths = backups
 
     if not backups:
-        dropdown.set_sensitive(False)
-        dropdown.set_model(Gtk.StringList.new([]))
-        dropdown.set_selected(Gtk.INVALID_LIST_POSITION)
-        empty_label.set_visible(True)
-        if restore_btn:
-            restore_btn.set_sensitive(False)
-        if delete_btn:
-            delete_btn.set_sensitive(False)
+        ui.dropdown.set_sensitive(False)
+        ui.dropdown.set_model(Gtk.StringList.new([]))
+        ui.dropdown.set_selected(Gtk.INVALID_LIST_POSITION)
+        ui.empty_label.set_visible(True)
+        ui.restore_btn.set_sensitive(False)
+        ui.delete_btn.set_sensitive(False)
+        if ui.selection_note_label is not None:
+            ui.selection_note_label.set_label("Aucune sauvegarde disponible.")
         return
 
-    empty_label.set_visible(False)
-    dropdown.set_sensitive(True)
-    dropdown.set_model(Gtk.StringList.new([_format_backup_label(p) for p in backups]))
-    dropdown.set_selected(0)
-    if restore_btn:
-        restore_btn.set_sensitive(True)
-    if delete_btn:
-        delete_btn.set_sensitive(True)
+    ui.empty_label.set_visible(False)
+    ui.dropdown.set_sensitive(True)
+    ui.dropdown.set_model(Gtk.StringList.new([_format_backup_label(p) for p in backups]))
+    ui.dropdown.set_selected(0)
+    ui.restore_btn.set_sensitive(True)
+    ui.delete_btn.set_sensitive(True)
+    _update_selection_note(controller=controller, ui=ui)
+
+
+def _refresh_list(
+    controller=None,
+    dropdown: Gtk.DropDown | None = None,
+    empty_label: Gtk.Label | None = None,
+    restore_btn=None,
+    delete_btn=None,
+    *,
+    ui: _BackupsUiRefs | None = None,
+) -> None:
+    # pylint: disable=too-many-arguments
+    """Compat + impl.
+
+    - Ancien appel tests: `_refresh_list(controller, dropdown, empty_label, btn_restore, btn_delete)`
+    - Nouvel appel interne: `_refresh_list(controller=..., ui=...)`
+    """
+    if controller is None:
+        raise TypeError("_refresh_list() missing required argument: controller")
+
+    if ui is None:
+        if dropdown is None or empty_label is None:
+            raise TypeError("_refresh_list() requires either ui=... or (dropdown, empty_label)")
+        ui = _BackupsUiRefs(
+            dropdown=dropdown,
+            empty_label=empty_label,
+            restore_btn=restore_btn or Gtk.Button(),
+            delete_btn=delete_btn or Gtk.Button(),
+            selection_note_label=None,
+        )
+
+    _refresh_list_impl(controller=controller, ui=ui)
+
+
+def _build_selection_row(
+    *,
+    controller: GrubConfigManager,
+    main_grid: Gtk.Grid,
+    row: int,
+) -> tuple[Gtk.DropDown, Gtk.Label, Gtk.Label | None]:
+    left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+    left.set_hexpand(True)
+    left.set_vexpand(False)
+    left.set_valign(Gtk.Align.START)
+    main_grid.attach(left, 0, row, 1, 1)
+
+    dropdown, empty_label = _build_backups_selector(controller, left)
+
+    selection_note = create_info_box(
+        "Sélection:",
+        "Choisissez une sauvegarde dans la liste.",
+        css_class="info-box compact-card",
+    )
+    selection_note.set_hexpand(False)
+    selection_note.set_vexpand(False)
+    selection_note.set_valign(Gtk.Align.START)
+    selection_note_label = GtkHelper.info_box_text_label(selection_note)
+    main_grid.attach(selection_note, 1, row, 1, 1)
+    return dropdown, empty_label, selection_note_label
+
+
+def _build_action_row(
+    *,
+    main_grid: Gtk.Grid,
+    spec: _ActionRowSpec,
+) -> None:
+    left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+    apply_margins(left, 12)
+    left.set_hexpand(True)
+    left.set_vexpand(False)
+    left.set_valign(Gtk.Align.START)
+    left.append(spec.button)
+
+    block = create_titled_frame(
+        spec.title,
+        left,
+        title_class=spec.title_class,
+        frame_class=spec.frame_class,
+    )
+    block.set_vexpand(False)
+    block.set_valign(Gtk.Align.START)
+    main_grid.attach(block, 0, spec.row, 1, 1)
+
+    note_title, note_text, note_css = spec.note
+    note = create_info_box(note_title, note_text, css_class=note_css)
+    note.set_hexpand(False)
+    note.set_vexpand(False)
+    note.set_valign(Gtk.Align.START)
+    main_grid.attach(note, 1, spec.row, 1, 1)
 
 
 def _build_backups_selector(controller, left_section: Gtk.Box) -> tuple[Gtk.DropDown, Gtk.Label]:
@@ -216,78 +372,8 @@ def _build_backups_selector(controller, left_section: Gtk.Box) -> tuple[Gtk.Drop
     empty_label.set_visible(False)
     grid.attach(empty_label, 0, 1, 2, 1)
 
-    left_section.append(
-        create_info_box(
-            "Restauration:",
-            "La restauration remplace votre configuration actuelle par celle de la sauvegarde sélectionnée.",
-            css_class="info-box compact-card",
-        )
-    )
-
     controller.backups_dropdown = backups_dropdown
     return backups_dropdown, empty_label
-
-
-def _build_backups_actions(
-    right_section: Gtk.Box,
-    *,
-    controller,
-    dropdown: Gtk.DropDown,
-    empty_label: Gtk.Label,
-) -> tuple[Gtk.Button, Gtk.Button]:
-    # --- Section Création ---
-    grid_create = box_append_section_grid(
-        right_section,
-        "Créer une sauvegarde",
-        row_spacing=12,
-        column_spacing=12,
-        title_class="green",
-        frame_class="green-frame",
-    )
-
-    create_btn = Gtk.Button(label="Créer une sauvegarde")
-    create_btn.set_halign(Gtk.Align.FILL)
-    create_btn.add_css_class("suggested-action")
-
-    def refresh_cb() -> None:
-        _refresh_list(controller, dropdown, empty_label, restore_btn, delete_btn)
-
-    create_btn.connect("clicked", lambda b: _on_create_clicked(b, controller, refresh_cb))
-    grid_create.attach(create_btn, 0, 0, 2, 1)
-
-    right_section.append(
-        create_info_box(
-            "Sécurité:",
-            "Il est recommandé de créer une sauvegarde avant toute modification importante.",
-            css_class="success-box compact-card",
-        )
-    )
-
-    # --- Section Actions ---
-    grid_actions = box_append_section_grid(
-        right_section,
-        "Actions sur la sélection",
-        row_spacing=12,
-        column_spacing=12,
-        title_class="orange",
-        frame_class="orange-frame",
-    )
-
-    restore_btn = Gtk.Button(label="Restaurer la sélection")
-    restore_btn.set_halign(Gtk.Align.FILL)
-    restore_btn.add_css_class("suggested-action")
-    restore_btn.set_sensitive(False)
-    restore_btn.connect("clicked", lambda b: _on_restore_clicked(b, controller, dropdown))
-    grid_actions.attach(restore_btn, 0, 0, 2, 1)
-
-    delete_btn = Gtk.Button(label="Supprimer la sélection")
-    delete_btn.set_halign(Gtk.Align.FILL)
-    delete_btn.add_css_class("destructive-action")
-    delete_btn.set_sensitive(False)
-    delete_btn.connect("clicked", lambda b: _on_delete_clicked(b, controller, dropdown, refresh_cb))
-    grid_actions.attach(delete_btn, 0, 1, 2, 1)
-
-    return restore_btn, delete_btn
 
 
 def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> None:
@@ -296,27 +382,96 @@ def build_backups_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
     apply_margins(root, 12)
 
-    root.append(
-        create_info_box(
-            "Sauvegardes:",
-            "Gestion des sauvegardes de la configuration GRUB.",
-            css_class="info-box",
-        )
+    # === Template comme Général/Affichage: grille 2 colonnes (options à gauche, notes à droite) ===
+    main_grid = create_tab_grid_layout(root)
+
+    backups_dropdown, empty_label, selection_note_label = _build_selection_row(
+        controller=controller,
+        main_grid=main_grid,
+        row=0,
     )
 
-    # === Conteneur 2 colonnes ===
-    _, left_section, right_section = create_two_column_layout(root, spacing=12)
+    create_btn = Gtk.Button(label="Créer une sauvegarde")
+    create_btn.set_halign(Gtk.Align.FILL)
+    create_btn.add_css_class("suggested-action")
+    _build_action_row(
+        main_grid=main_grid,
+        spec=_ActionRowSpec(
+            row=1,
+            title="Créer une sauvegarde",
+            button=create_btn,
+            title_class="green",
+            frame_class="green-frame",
+            note=(
+                "Créer:",
+                "Crée une nouvelle sauvegarde de /etc/default/grub.",
+                "success-box compact-card",
+            ),
+        ),
+    )
 
-    backups_dropdown, empty_label = _build_backups_selector(controller, left_section)
-    restore_btn, delete_btn = _build_backups_actions(
-        right_section,
-        controller=controller,
+    restore_btn = Gtk.Button(label="Restaurer la sélection")
+    restore_btn.set_halign(Gtk.Align.FILL)
+    restore_btn.add_css_class("suggested-action")
+    restore_btn.set_sensitive(False)
+    _build_action_row(
+        main_grid=main_grid,
+        spec=_ActionRowSpec(
+            row=2,
+            title="Restaurer",
+            button=restore_btn,
+            title_class="blue",
+            frame_class="blue-frame",
+            note=(
+                "Restaurer:",
+                "Restaure la sauvegarde sélectionnée (droits administrateur requis).",
+                "info-box compact-card",
+            ),
+        ),
+    )
+
+    delete_btn = Gtk.Button(label="Supprimer la sélection")
+    delete_btn.set_halign(Gtk.Align.FILL)
+    delete_btn.add_css_class("destructive-action")
+    delete_btn.set_sensitive(False)
+    _build_action_row(
+        main_grid=main_grid,
+        spec=_ActionRowSpec(
+            row=3,
+            title="Supprimer",
+            button=delete_btn,
+            title_class="red",
+            frame_class="red-frame",
+            note=(
+                "Supprimer:",
+                "Supprime définitivement la sauvegarde sélectionnée (droits administrateur requis).",
+                "error-box compact-card",
+            ),
+        ),
+    )
+
+    ui = _BackupsUiRefs(
         dropdown=backups_dropdown,
         empty_label=empty_label,
+        restore_btn=restore_btn,
+        delete_btn=delete_btn,
+        selection_note_label=selection_note_label,
     )
 
-    backups_dropdown.connect("notify::selected", _on_selection_changed, controller, restore_btn, delete_btn)
-    _refresh_list(controller, backups_dropdown, empty_label, restore_btn, delete_btn)
+    def refresh_cb() -> None:
+        _refresh_list(controller=controller, ui=ui)
+
+    create_btn.connect("clicked", lambda b: _on_create_clicked(b, controller, refresh_cb))
+    restore_btn.connect("clicked", lambda b: _on_restore_clicked(b, controller, backups_dropdown))
+    delete_btn.connect("clicked", lambda b: _on_delete_clicked(b, controller, backups_dropdown, refresh_cb))
+
+    backups_dropdown.connect(
+        "notify::selected",
+        _on_selection_changed,
+        controller,
+        ui,
+    )
+    _refresh_list(controller=controller, ui=ui)
 
     # === Ajout à l'onglet ===
     label = Gtk.Label(label="Sauvegardes")

@@ -23,13 +23,11 @@ class ThemeService:
         """Initialise le service de thèmes."""
         logger.debug("[ThemeService] Initialisé")
 
-    def is_theme_enabled_in_grub(self) -> bool:
-        """Vérifie si un thème est configuré dans GRUB.
+    def get_active_theme_path(self) -> str | None:
+        """Récupère le chemin du thème actif (via config ou grub.cfg).
 
-        Vérifie d'abord /etc/default/grub, puis le fichier grub.cfg généré.
-
-        Returns:
-            True si un thème est configuré, False sinon
+        Cherche d'abord dans /etc/default/grub, puis dans grub.cfg.
+        Retourne le chemin brut (peut contenir ${prefix}).
         """
         # 1. Vérifier /etc/default/grub
         try:
@@ -37,7 +35,7 @@ class ThemeService:
             theme_value = grub_config.get("GRUB_THEME", "").strip().strip('"').strip("'")
             if theme_value:
                 logger.debug(f"[ThemeService] Thème trouvé dans /etc/default/grub: {theme_value}")
-                return True
+                return theme_value
         except (OSError, ValueError) as e:
             logger.warning(f"[ThemeService] Erreur lecture /etc/default/grub: {e}")
 
@@ -49,16 +47,32 @@ class ThemeService:
                     continue
                 content = grub_cfg.read_text(encoding="utf-8", errors="ignore")
                 for line in content.split("\n"):
-                    if "set theme=" in line.lower() or "theme=" in line.lower():
-                        theme_path = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    clean_line = line.strip()
+                    # On cherche "set theme=..." ou "theme=..."
+                    # Note: dans grub.cfg, c'est souvent indented.
+                    if not ("set theme=" in clean_line or clean_line.startswith("theme=")):
+                        continue
+
+                    if "theme=" in clean_line:
+                        parts = clean_line.split("theme=", 1)
+                        theme_path = parts[1].strip().strip('"').strip("'")
                         if theme_path:
                             logger.debug(f"[ThemeService] Thème trouvé dans {grub_cfg_path}: {theme_path}")
-                            return True
+                            return theme_path
             except (OSError, PermissionError) as e:
                 logger.debug(f"[ThemeService] Impossible de lire {grub_cfg_path}: {e}")
 
-        logger.debug("[ThemeService] Aucun thème détecté")
-        return False
+        return None
+
+    def is_theme_enabled_in_grub(self) -> bool:
+        """Vérifie si un thème est configuré dans GRUB.
+
+        Vérifie d'abord /etc/default/grub, puis le fichier grub.cfg généré.
+
+        Returns:
+            True si un thème est configuré, False sinon
+        """
+        return self.get_active_theme_path() is not None
 
     def scan_system_themes(self) -> dict[str, tuple[GrubTheme, Path]]:
         """Scanne les répertoires système pour trouver les thèmes valides.

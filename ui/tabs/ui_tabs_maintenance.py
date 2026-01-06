@@ -12,12 +12,12 @@ from loguru import logger
 from core.services.core_services_maintenance import MaintenanceService
 from ui.builders.ui_builders_widgets import (
     apply_margins,
-    box_append_section_grid,
     create_info_box,
+    create_tab_grid_layout,
     create_titled_frame,
-    create_two_column_layout,
 )
 from ui.dialogs.ui_dialogs_index import run_command_popup
+from ui.helpers.ui_helpers_gtk import GtkHelper
 
 if TYPE_CHECKING:
     from ui.controllers.ui_controllers_manager import GrubConfigManager
@@ -27,93 +27,170 @@ def _get_boot_info() -> str:
     return "UEFI" if os.path.exists("/sys/firmware/efi") else "BIOS"
 
 
-def _build_system_info(root: Gtk.Box, *, boot_type: str) -> None:
-    grid = box_append_section_grid(
-        root,
-        "Informations système",
-        row_spacing=8,
-        column_spacing=12,
-        title_class="orange",
-        frame_class="orange-frame",
+def _update_consultation_note(
+    dropdown: Gtk.DropDown,
+    config_files: list[tuple[str, str]],
+    note_label: Gtk.Label | None,
+) -> None:
+    if note_label is None:
+        return
+    selected_idx = dropdown.get_selected()
+    if selected_idx == Gtk.INVALID_LIST_POSITION or selected_idx >= len(config_files):
+        note_label.set_label("Sélectionnez un fichier GRUB à afficher.")
+        return
+    file_name, file_path = config_files[selected_idx]
+
+    # Éviter un doublon visuel quand le "nom" est déjà le chemin.
+    display_name = str(file_name)
+    display_path = str(file_path)
+    if display_name.strip() == display_path.strip():
+        display = display_path
+    else:
+        display = f"{display_name}\n{display_path}"
+
+    note_label.set_label("Fichier sélectionné :\n" f"{display}\n\n" 'Cliquez sur "Afficher le fichier" pour l\'ouvrir.')
+
+
+def _update_diag_note(
+    dropdown: Gtk.DropDown,
+    diag_commands: list[tuple[str, list[str]]],
+    note_label: Gtk.Label | None,
+) -> None:
+    if note_label is None:
+        return
+    selected_idx = dropdown.get_selected()
+    if selected_idx == Gtk.INVALID_LIST_POSITION or selected_idx >= len(diag_commands):
+        note_label.set_label("Choisissez une commande de diagnostic.")
+        return
+    cmd_name, cmd_data = diag_commands[selected_idx]
+    cmd_str = " ".join(cmd_data)
+    note_label.set_label(
+        "Commande sélectionnée :\n"
+        f"{cmd_name}\n\n"
+        f"{cmd_str}\n\n"
+        'Cliquez sur "Exécuter la commande" pour la lancer.'
     )
+
+
+def _update_restore_note(
+    dropdown: Gtk.DropDown,
+    restore_commands: list[tuple[str, any]],
+    note_label: Gtk.Label | None,
+) -> None:
+    if note_label is None:
+        return
+    selected_idx = dropdown.get_selected()
+    if selected_idx == Gtk.INVALID_LIST_POSITION or selected_idx >= len(restore_commands):
+        note_label.set_label("Choisissez une action de restauration/réinstallation.")
+        return
+    cmd_name, cmd_data = restore_commands[selected_idx]
+
+    if isinstance(cmd_data, list):
+        cmd_str = " ".join(str(x) for x in cmd_data)
+    else:
+        cmd_str = str(cmd_data)
+
+    note_label.set_label(
+        "Action sélectionnée :\n"
+        f"{cmd_name}\n\n"
+        f"{cmd_str}\n\n"
+        "Attention : certaines actions nécessitent les droits root et peuvent affecter le démarrage."
+    )
+
+
+def _build_system_info_block(*, boot_type: str) -> Gtk.Frame:
+    content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+    apply_margins(content, 12)
 
     boot_label = Gtk.Label(xalign=0)
     boot_label.set_markup(f"<b>Type de démarrage :</b> {boot_type}")
-    grid.attach(boot_label, 0, 0, 2, 1)
+    content.append(boot_label)
+
+    return create_titled_frame(
+        "Informations système",
+        content,
+        title_class="green",
+        frame_class="green-frame",
+    )
 
 
-def _build_consultation_section(
-    consult_section: Gtk.Box,
+def _build_consultation_block(
     *,
     controller: GrubConfigManager,
-    boot_type: str,
-) -> None:
-    # --- Consultation ---
-    grid_consult = box_append_section_grid(
-        consult_section,
-        "Consultation",
-        row_spacing=12,
-        column_spacing=12,
-        title_class="blue",
-        frame_class="blue-frame",
-    )
+) -> tuple[Gtk.Frame, Gtk.DropDown, list[tuple[str, str]]]:
+    content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+    apply_margins(content, 12)
 
     config_files = _get_config_files()
     config_dropdown = Gtk.DropDown.new_from_strings([name for name, _ in config_files])
     config_dropdown.set_halign(Gtk.Align.FILL)
     config_dropdown.set_hexpand(True)
-    grid_consult.attach(config_dropdown, 0, 0, 2, 1)
+    content.append(config_dropdown)
 
     btn_view_config = Gtk.Button(label="Afficher le fichier")
     btn_view_config.add_css_class("suggested-action")
     btn_view_config.set_halign(Gtk.Align.FILL)
     btn_view_config.connect("clicked", lambda _b: _on_view_config(controller, config_dropdown, config_files))
-    grid_consult.attach(btn_view_config, 0, 1, 2, 1)
+    content.append(btn_view_config)
 
-    # --- Diagnostic ---
-    grid_diag = box_append_section_grid(
-        consult_section,
-        "Commandes de diagnostic",
-        row_spacing=12,
-        column_spacing=12,
-        title_class="orange",
-        frame_class="orange-frame",
+    return (
+        create_titled_frame(
+            "Consultation",
+            content,
+            title_class="blue",
+            frame_class="blue-frame",
+        ),
+        config_dropdown,
+        config_files,
     )
+
+
+def _build_diagnostic_block(
+    *,
+    controller: GrubConfigManager,
+    boot_type: str,
+) -> tuple[Gtk.Frame, Gtk.DropDown, list[tuple[str, list[str]]]]:
+    content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+    apply_margins(content, 12)
 
     diag_commands = _get_diagnostic_commands(boot_type)
     diag_dropdown = Gtk.DropDown.new_from_strings([name for name, _ in diag_commands])
     diag_dropdown.set_halign(Gtk.Align.FILL)
     diag_dropdown.set_hexpand(True)
-    grid_diag.attach(diag_dropdown, 0, 0, 2, 1)
+    content.append(diag_dropdown)
 
     btn_exec_diag = Gtk.Button(label="Exécuter la commande")
     btn_exec_diag.add_css_class("suggested-action")
     btn_exec_diag.set_halign(Gtk.Align.FILL)
     btn_exec_diag.connect("clicked", lambda _b: _on_exec_diag(controller, diag_dropdown, diag_commands))
-    grid_diag.attach(btn_exec_diag, 0, 1, 2, 1)
+    content.append(btn_exec_diag)
+
+    return (
+        create_titled_frame(
+            "Commandes de diagnostic",
+            content,
+            title_class="orange",
+            frame_class="orange-frame",
+        ),
+        diag_dropdown,
+        diag_commands,
+    )
 
 
-def _build_restore_section(
-    restore_section: Gtk.Box,
+def _build_restore_block(
     *,
     controller: GrubConfigManager,
     boot_type: str,
     service: MaintenanceService,
-) -> None:
-    grid_restore = box_append_section_grid(
-        restore_section,
-        "Restauration et réinstallation",
-        row_spacing=12,
-        column_spacing=12,
-        title_class="red",
-        frame_class="red-frame",
-    )
+) -> tuple[Gtk.Frame, Gtk.DropDown, list[tuple[str, any]]]:
+    content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+    apply_margins(content, 12)
 
     restore_commands = _get_restore_commands(service, boot_type)
     restore_dropdown = Gtk.DropDown.new_from_strings([name for name, _ in restore_commands])
     restore_dropdown.set_halign(Gtk.Align.FILL)
     restore_dropdown.set_hexpand(True)
-    grid_restore.attach(restore_dropdown, 0, 0, 2, 1)
+    content.append(restore_dropdown)
 
     btn_exec_restore = Gtk.Button(label="Exécuter l'action")
     btn_exec_restore.add_css_class("destructive-action")
@@ -121,14 +198,126 @@ def _build_restore_section(
     btn_exec_restore.connect(
         "clicked", lambda _b: _on_exec_restore(controller, restore_dropdown, restore_commands, service)
     )
-    grid_restore.attach(btn_exec_restore, 0, 1, 2, 1)
+    content.append(btn_exec_restore)
 
-    restore_section.append(
-        create_info_box(
-            "Attention:",
-            "La réinstallation de GRUB peut affecter le démarrage d'autres systèmes.",
-            css_class="error-box compact-card",
-        )
+    return (
+        create_titled_frame(
+            "Restauration et réinstallation",
+            content,
+            title_class="red",
+            frame_class="red-frame",
+        ),
+        restore_dropdown,
+        restore_commands,
+    )
+
+
+def _attach_system_row(*, main_grid: Gtk.Grid, boot_type: str) -> None:
+    system_block = _build_system_info_block(boot_type=boot_type)
+    system_block.set_valign(Gtk.Align.START)
+    system_block.set_vexpand(False)
+    main_grid.attach(system_block, 0, 0, 1, 1)
+
+    system_note = create_info_box(
+        "Démarrage détecté:",
+        f"Votre système semble démarrer en mode {boot_type}.",
+        css_class="success-box compact-card",
+    )
+    system_note.set_valign(Gtk.Align.START)
+    system_note.set_vexpand(False)
+    system_note.set_hexpand(False)
+    main_grid.attach(system_note, 1, 0, 1, 1)
+
+
+def _attach_consultation_row(*, controller: GrubConfigManager, main_grid: Gtk.Grid, row: int) -> None:
+    consult_block, config_dropdown, config_files = _build_consultation_block(controller=controller)
+    consult_block.set_valign(Gtk.Align.START)
+    consult_block.set_vexpand(False)
+    main_grid.attach(consult_block, 0, row, 1, 1)
+
+    consult_note = create_info_box(
+        "Consultation:",
+        "Sélectionnez un fichier GRUB à afficher.",
+        css_class="info-box compact-card",
+    )
+    consult_note.set_valign(Gtk.Align.START)
+    consult_note.set_vexpand(False)
+    consult_note.set_hexpand(False)
+    consult_note_label = GtkHelper.info_box_text_label(consult_note)
+    main_grid.attach(consult_note, 1, row, 1, 1)
+
+    _update_consultation_note(config_dropdown, config_files, consult_note_label)
+    config_dropdown.connect(
+        "notify::selected",
+        lambda dd, _ps: _update_consultation_note(dd, config_files, consult_note_label),
+    )
+
+
+def _attach_diagnostic_row(
+    *,
+    controller: GrubConfigManager,
+    main_grid: Gtk.Grid,
+    row: int,
+    boot_type: str,
+) -> None:
+    diag_block, diag_dropdown, diag_commands = _build_diagnostic_block(
+        controller=controller,
+        boot_type=boot_type,
+    )
+    diag_block.set_valign(Gtk.Align.START)
+    diag_block.set_vexpand(False)
+    main_grid.attach(diag_block, 0, row, 1, 1)
+
+    diag_note = create_info_box(
+        "Diagnostic:",
+        "Choisissez une commande de diagnostic.",
+        css_class="warning-box compact-card",
+    )
+    diag_note.set_valign(Gtk.Align.START)
+    diag_note.set_vexpand(False)
+    diag_note.set_hexpand(False)
+    main_grid.attach(diag_note, 1, row, 1, 1)
+
+    diag_note_label = GtkHelper.info_box_text_label(diag_note)
+    _update_diag_note(diag_dropdown, diag_commands, diag_note_label)
+    diag_dropdown.connect(
+        "notify::selected",
+        lambda dd, _ps: _update_diag_note(dd, diag_commands, diag_note_label),
+    )
+
+
+def _attach_restore_row(
+    *,
+    controller: GrubConfigManager,
+    main_grid: Gtk.Grid,
+    row: int,
+    boot_type: str,
+    service: MaintenanceService,
+) -> None:
+    restore_block, restore_dropdown, restore_commands = _build_restore_block(
+        controller=controller,
+        boot_type=boot_type,
+        service=service,
+    )
+    restore_block.set_valign(Gtk.Align.START)
+    restore_block.set_vexpand(False)
+    main_grid.attach(restore_block, 0, row, 1, 1)
+
+    restore_note = create_info_box(
+        "Restauration:",
+        "Choisissez une action de restauration/réinstallation.",
+        css_class="error-box compact-card",
+    )
+    restore_note.set_valign(Gtk.Align.START)
+    restore_note.set_vexpand(False)
+    restore_note.set_hexpand(False)
+    main_grid.attach(restore_note, 1, row, 1, 1)
+
+    restore_note_label = GtkHelper.info_box_text_label(restore_note)
+    _update_restore_note(restore_dropdown, restore_commands, restore_note_label)
+    restore_dropdown.connect(
+        "notify::selected",
+        lambda dd, _ps: _update_restore_note(dd, restore_commands, restore_note_label),
     )
 
 
@@ -146,25 +335,23 @@ def build_maintenance_tab(controller: GrubConfigManager, notebook: Gtk.Notebook)
     root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
     apply_margins(root, 12)
 
-    root.append(
-        create_info_box(
-            "Maintenance:",
-            "Outils de diagnostic et réparation. Nécessite les droits root.",
-            css_class="info-box",
-        )
-    )
+    # Template comme Général/Affichage: grille 2 colonnes (outils à gauche, notes à droite)
+    main_grid = create_tab_grid_layout(root)
+    main_grid.set_row_spacing(26)
 
     boot_type = _get_boot_info()
-    _build_system_info(root, boot_type=boot_type)
 
-    tools_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-    _, consult_section, restore_section = create_two_column_layout(tools_box, spacing=12)
-    root.append(create_titled_frame("Outils de diagnostic et réparation", tools_box))
+    _attach_system_row(main_grid=main_grid, boot_type=boot_type)
+    _attach_consultation_row(controller=controller, main_grid=main_grid, row=1)
+    _attach_diagnostic_row(controller=controller, main_grid=main_grid, row=2, boot_type=boot_type)
+    _attach_restore_row(
+        controller=controller,
+        main_grid=main_grid,
+        row=3,
+        boot_type=boot_type,
+        service=service,
+    )
 
-    _build_consultation_section(consult_section, controller=controller, boot_type=boot_type)
-    _build_restore_section(restore_section, controller=controller, boot_type=boot_type, service=service)
-
-    # Pas de ScrolledWindow externe - tout tient dans la fenêtre
     notebook.append_page(root, Gtk.Label(label="Maintenance"))
     logger.success("[build_maintenance_tab] Onglet Maintenance construit")
 
@@ -292,7 +479,16 @@ def _get_config_files() -> list[tuple[str, str]]:
     for script_name, script_path in sorted(grub_d_scripts):
         config_files.append((f"{script_name}", script_path))
 
-    return config_files
+    # Éviter les doublons (observé sur certaines distros / montages)
+    unique: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for item in config_files:
+        if item in seen:
+            continue
+        seen.add(item)
+        unique.append(item)
+
+    return unique
 
 
 def _get_diagnostic_commands(boot_type: str) -> list[tuple[str, list[str]]]:

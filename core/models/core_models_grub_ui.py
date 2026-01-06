@@ -83,6 +83,28 @@ _MANAGED_KEYS: Final[set[str]] = {
 }
 
 
+def _normalize_grub_terminal_value(value: str) -> str:
+    """Normalise une valeur terminal GRUB issue de l'UI/config.
+
+    GRUB attend des valeurs comme: gfxterm, console, serial ou "gfxterm console".
+    L'UI peut contenir des libellés annotés (ex: "gfxterm (graphique)").
+    """
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+
+    if "(" in raw:
+        raw = raw.split("(", 1)[0].strip()
+
+    normalized = " ".join(raw.lower().split())
+
+    if normalized in {"gfxterm", "console", "serial", "gfxterm console"}:
+        return normalized
+
+    # Valeur inconnue: on renvoie une version nettoyée (sans parenthèses)
+    return normalized
+
+
 def _as_bool(config: dict[str, str], key: str, true_values: set[str]) -> bool:
     """Return True if config[key] is in the true_values set.
 
@@ -120,7 +142,9 @@ def model_from_config(config: dict[str, str], theme_scripts_enabled: bool = True
         hidden_timeout=hidden_timeout,
         gfxmode=config.get("GRUB_GFXMODE", ""),
         gfxpayload_linux=config.get("GRUB_GFXPAYLOAD_LINUX", ""),
-        grub_terminal=config.get("GRUB_TERMINAL_OUTPUT", config.get("GRUB_TERMINAL", "")),
+        grub_terminal=_normalize_grub_terminal_value(
+            config.get("GRUB_TERMINAL_OUTPUT", config.get("GRUB_TERMINAL", ""))
+        ),
         disable_os_prober=_as_bool(config, "GRUB_DISABLE_OS_PROBER", {"true"}),
         grub_theme=config.get("GRUB_THEME", ""),
         grub_background=config.get("GRUB_BACKGROUND", ""),
@@ -166,7 +190,7 @@ def merged_config_from_model(base_config: dict[str, str], model: GrubUiModel) ->
     for key, value in (
         ("GRUB_GFXMODE", model.gfxmode),
         ("GRUB_GFXPAYLOAD_LINUX", model.gfxpayload_linux),
-        ("GRUB_TERMINAL_OUTPUT", model.grub_terminal),
+        ("GRUB_TERMINAL_OUTPUT", _normalize_grub_terminal_value(model.grub_terminal)),
         ("GRUB_BACKGROUND", model.grub_background),
         ("GRUB_COLOR_NORMAL", model.grub_color_normal),
         ("GRUB_COLOR_HIGHLIGHT", model.grub_color_highlight),

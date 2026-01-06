@@ -1,214 +1,263 @@
-"""Dialog pour afficher un aperçu réaliste du menu GRUB.
+"""Dialog pour afficher un aperçu réaliste du menu GRUB (Native)."""
 
-Architecture modulaire SOLID :
-- ui_grub_preview_css : Génération CSS (Single Responsibility)
-- ui_grub_preview_parsers : Parsing config GRUB (Single Responsibility)
-- ui_grub_preview_data : Chargement données (Single Responsibility)
-- ui_grub_preview_renderer : Rendu UI (Single Responsibility)
-- ui_grub_preview_dialog : Orchestration (Dependency Inversion)
-"""
-
-from __future__ import annotations
-
+import re
 from pathlib import Path
 
-from gi.repository import Gdk, GLib, Gtk
-from loguru import logger
+import gi
 
-from core.models.core_models_grub_ui import GrubUiModel
-from core.models.core_models_theme import GrubTheme
-from ui.dialogs.preview.ui_dialogs_preview_grub_css import (
-    GrubPreviewCssGenerator,
-    PreviewColors,
-    PreviewFonts,
-)
-from ui.dialogs.preview.ui_dialogs_preview_grub_data import GrubPreviewDataLoader
-from ui.dialogs.preview.ui_dialogs_preview_grub_renderer import GrubPreviewRenderer
+gi.require_version("Gtk", "4.0")
+gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import Gdk, GdkPixbuf, Gtk  # noqa: E402
 
 
-class GrubPreviewDialog:
-    """Dialog pour prévisualiser un thème GRUB - Orchestrateur."""
+class GrubPreviewDialog(Gtk.Window):
+    """Dialogue pour afficher un aperçu réaliste du menu GRUB."""
 
-    def __init__(
-        self,
-        theme: GrubTheme,
-        model: GrubUiModel | None = None,
-        theme_name: str = "",
-        *,
-        theme_txt_path: str | Path | None = None,
-        use_system_files: bool = False,
-    ) -> None:
-        """Initialise le dialog de preview.
+    def __init__(self, grub_config: str, model=None) -> None:
+        """Initialise le dialogue d'aperçu.
 
         Args:
-            theme: Thème à prévisualiser
-            model: Modèle UI actuel (optionnel)
-            theme_name: Nom du thème pour le titre
-            theme_txt_path: Chemin explicite vers theme.txt
-            use_system_files: Si True, lit les fichiers système
+            grub_config: Contenu du fichier grub.cfg
+            model: Modèle de configuration UI actuel
         """
-        self.theme = theme
+        super().__init__(title="Aperçu GRUB")
+        self.set_default_size(1500, 900)
         self.model = model
-        self.theme_name = theme_name or (theme.name if theme else "Preview")
 
-        # Data loader (Dependency Injection)
-        self.data_loader = GrubPreviewDataLoader(
-            use_system_files=use_system_files,
-            model=model,
-            theme=theme,
-            theme_txt_path=Path(theme_txt_path) if theme_txt_path else None,
+        # Parse the GRUB config
+        self.entries = self.parse_grub_config(grub_config)
+        self.timeout = self.get_timeout(grub_config)
+        self.selected_index = 0
+
+        # Main container
+        overlay = Gtk.Overlay()
+        self.set_child(overlay)
+
+        # Background
+        self.drawing_area = Gtk.DrawingArea()
+        self.drawing_area.set_draw_func(self.draw_background)
+        overlay.set_child(self.drawing_area)
+
+        # Content box
+        content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        content_box.set_valign(Gtk.Align.FILL)
+        content_box.set_halign(Gtk.Align.FILL)
+        content_box.set_margin_start(0)
+        content_box.set_margin_end(0)
+        content_box.set_margin_top(60)
+        content_box.set_margin_bottom(60)
+        overlay.add_overlay(content_box)
+
+        # Title
+        title_label = Gtk.Label()
+        title_label.set_markup('<span foreground="white" size="small">GNU GRUB  version 2.12</span>')
+        title_label.set_halign(Gtk.Align.CENTER)
+        title_label.set_margin_bottom(20)
+        content_box.append(title_label)
+
+        # Menu frame
+        frame = Gtk.Frame()
+        frame.set_vexpand(True)
+        frame.set_hexpand(False)
+        frame.set_halign(Gtk.Align.CENTER)
+        frame.set_size_request(1450, -1)
+        frame.add_css_class("grub-frame")
+        content_box.append(frame)
+
+        # Menu box
+        menu_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        menu_box.set_margin_start(5)
+        menu_box.set_margin_end(5)
+        menu_box.set_margin_top(15)
+        menu_box.set_margin_bottom(15)
+        frame.set_child(menu_box)
+
+        # Add menu entries
+        for i, entry in enumerate(self.entries):
+            label = Gtk.Label(label=entry)
+            label.set_xalign(0)
+            label.set_margin_top(3)
+            label.set_margin_bottom(3)
+            label.set_margin_start(10)
+
+            if i == self.selected_index:
+                label.add_css_class("grub-selected")
+            else:
+                label.add_css_class("grub-normal")
+
+            menu_box.append(label)
+
+        # Bottom instructions
+        instructions = Gtk.Label()
+        instructions.set_markup(
+            '<span foreground="white" size="x-small">'
+            "Utilisez les touches ↑ et ↓ pour sélectionner une entrée.\n"
+            "Appuyez sur Entrée pour démarrer le système sélectionné, e o p pour éditer les commandes avant de démarrer ou c b p pour obtenir une invite de commandes. Échap pour revenir au menu précédent.\n"
+            "Appuyez sur Entrée pour démarrer le système sélectionné."
+            "</span>"
         )
+        instructions.set_halign(Gtk.Align.START)
+        instructions.set_margin_start(25)
+        instructions.set_margin_top(30)
+        instructions.set_wrap(True)
+        instructions.set_justify(Gtk.Justification.LEFT)
+        content_box.append(instructions)
 
-    @property
-    def is_text_mode(self) -> bool:
-        """Retourne True si mode texte/console."""
-        overrides = self.data_loader.load_system_theme_overrides()
-        if self.data_loader.use_system_files:
-            return overrides is None
-        return self.theme is None
+        # Apply CSS
+        self.apply_css()
 
-    def _apply_preview_styles(self, colors: PreviewColors, fonts: PreviewFonts) -> None:
-        """Applique les styles CSS au preview.
+        # Key press handling
+        key_controller = Gtk.EventControllerKey()
+        key_controller.connect("key-pressed", self.on_key_pressed)
+        self.add_controller(key_controller)
 
-        Args:
-            colors: Couleurs du thème
-            fonts: Polices du thème
-        """
-        # Mode texte : polices fixes
-        if self.is_text_mode:
-            normalized_fonts = PreviewFonts(title_font="Monospace 10px", entry_font="Monospace 9px")
-        else:
-            # Normaliser les polices pour GTK
-            normalized_fonts = PreviewFonts(
-                title_font=GrubPreviewCssGenerator.normalize_font_for_gtk(fonts.title_font),
-                entry_font=GrubPreviewCssGenerator.normalize_font_for_gtk(fonts.entry_font),
-            )
+    def get_timeout(self, config: str) -> int:
+        """Extrait le timeout de la configuration GRUB."""
+        match = re.search(r"GRUB_TIMEOUT=(\d+)", config)
+        return int(match.group(1)) if match else 10
 
-        # Récupérer les dimensions et couleur desktop
-        desktop_color = self.data_loader.get_desktop_color()
-        item_padding, item_spacing, item_height = self.data_loader.get_item_dimensions()
+    def parse_grub_config(self, config: str) -> list[str]:
+        """Extrait les entrées de menu de la config GRUB."""
+        entries = []
+        if not config:
+            return entries
 
-        # Construire la config CSS selon le mode
-        if self.is_text_mode:
-            css_config = GrubPreviewCssGenerator.build_css_config_for_text_mode(
-                desktop_color=desktop_color, fg_color=colors.fg_color
-            )
-        else:
-            css_config = GrubPreviewCssGenerator.build_css_config_for_gfx_mode(desktop_color=desktop_color)
+        lines = config.split("\n")
 
-        # Appliquer les dimensions personnalisées
-        css_config.item_padding = item_padding
-        css_config.item_spacing = item_spacing
-        css_config.item_height = item_height
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
 
-        # Générer et appliquer le CSS
-        css = GrubPreviewCssGenerator.generate_css(colors=colors, fonts=normalized_fonts, config=css_config)
+            # Check if previous line marks this as hidden
+            if i > 0 and "### GRUB_MANAGER_HIDDEN" in lines[i - 1]:
+                i += 1
+                continue
+
+            # Match menuentry
+            if line.startswith("menuentry "):
+                match = re.match(r"menuentry\s+'([^']+)'", line)
+                if match:
+                    title = match.group(1)
+                    entries.append(title)
+
+            # Match submenu
+            elif line.startswith("submenu "):
+                match = re.match(r"submenu\s+'([^']+)'", line)
+                if match:
+                    title = match.group(1)
+                    entries.append(title)
+
+            i += 1
+
+        return entries
+
+    def draw_background(self, _area: Gtk.DrawingArea, cr, width: int, height: int) -> None:
+        """Dessine l'arrière-plan."""
+        # 1. Background Image from Model (GRUB_BACKGROUND)
+        if self.model and self.model.grub_background:
+            bg_path = Path(self.model.grub_background)
+            if bg_path.exists() and bg_path.is_file():
+                try:
+                    # Load pixbuf scaled to window size
+                    pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(str(bg_path), width, height, False)
+
+                    # Draw pixbuf using Cairo
+                    Gdk.cairo_set_source_pixbuf(cr, pixbuf, 0, 0)
+                    cr.paint()
+                    return
+                except Exception as e:
+                    print(f"Error loading background image: {e}")
+
+        # 2. Fallback to Background Color (Black)
+        # Note: GRUB defaults to black if no image is set
+        cr.set_source_rgb(0, 0, 0)
+        cr.rectangle(0, 0, width, height)
+        cr.fill()
+
+    def apply_css(self) -> None:
+        """Applique le style CSS personnalisé."""
+        # Default colors
+        normal_color = "white"
+        selected_bg = "white"
+        selected_fg = "black"
+
+        # Helper to map GRUB color names to CSS
+        def map_color(grub_color_name):
+            mapping = {
+                "black": "black",
+                "blue": "blue",
+                "brown": "brown",
+                "cyan": "cyan",
+                "dark-gray": "darkgray",
+                "green": "green",
+                "light-blue": "lightblue",
+                "light-cyan": "lightcyan",
+                "light-gray": "lightgray",
+                "light-green": "lightgreen",
+                "light-magenta": "violet",
+                "light-red": "pink",
+                "magenta": "magenta",
+                "red": "red",
+                "white": "white",
+                "yellow": "yellow",
+            }
+            return mapping.get(grub_color_name, grub_color_name)
+
+        # Override from model if available
+        if self.model:
+            if self.model.grub_color_normal:
+                # "fg/bg" -> "white/black"
+                parts = self.model.grub_color_normal.split("/")
+                if len(parts) >= 1:
+                    normal_color = map_color(parts[0])
+
+            if self.model.grub_color_highlight:
+                # "fg/bg" -> "black/white"
+                parts = self.model.grub_color_highlight.split("/")
+                if len(parts) >= 1:
+                    selected_fg = map_color(parts[0])
+                if len(parts) >= 2:
+                    selected_bg = map_color(parts[1])
 
         css_provider = Gtk.CssProvider()
-        try:
-            css_provider.load_from_data(css.encode())
-            Gtk.StyleContext.add_provider_for_display(
-                Gdk.Display.get_default(),
-                css_provider,
-                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
-            )
-        except GLib.Error as e:
-            logger.warning(f"[GrubPreviewDialog] Erreur CSS: {e}")
+        css = f"""
+            .grub-frame {{
+                border: 2px solid rgba(255, 255, 255, 0.9);
+                background-color: rgba(0, 0, 0, 0.85);
+                border-radius: 0px;
+            }}
 
-    def show(self) -> None:
-        """Affiche le dialog de preview."""
-        # Créer la fenêtre
-        dialog = Gtk.Window()
-        dialog.set_title(f"Preview - {self.theme_name}")
-        dialog.set_default_size(1100, 700)
-        dialog.set_modal(True)
+            .grub-normal {{
+                color: {normal_color};
+                font-family: monospace;
+                font-size: 11pt;
+                padding: 4px;
+            }}
 
-        # Container principal
-        main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        main_box.set_margin_top(24)
-        main_box.set_margin_bottom(24)
-        main_box.set_margin_start(24)
-        main_box.set_margin_end(24)
+            .grub-selected {{
+                color: {selected_fg};
+                background-color: {selected_bg};
+                font-family: monospace;
+                font-size: 11pt;
+                font-weight: bold;
+                padding: 4px;
+            }}
+        """
+        css_provider.load_from_data(css.encode())
 
-        # Titre
-        title_label = Gtk.Label()
-        title_label.set_markup(f"<b>Aperçu du thème : {self.theme_name}</b>")
-        title_label.set_margin_bottom(16)
-        main_box.append(title_label)
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(), css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
 
-        # Charger les données et le style
-        timeout, default_entry, menu_entries = self.data_loader.load_preview_data()
-        colors, fonts, _layout = self.data_loader.resolve_preview_style(is_text_mode=self.is_text_mode)
-
-        # Appliquer les styles CSS
-        self._apply_preview_styles(colors, fonts)
-
-        # Créer le container du preview GRUB
-        if self.is_text_mode:
-            # Mode texte : cadre blanc avec contenu qui s'étire
-            grub_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-            grub_section.set_vexpand(True)
-            grub_section.set_hexpand(True)
-            grub_section.add_css_class("grub-screen-frame")
-            grub_section.add_css_class("grub-menu-container")
-
-            # Rendu du preview
-            GrubPreviewRenderer.render_preview(
-                container=grub_section,
-                timeout=timeout,
-                default_entry=default_entry,
-                menu_entries=menu_entries,
-                is_text_mode=True,
-            )
-
-            main_box.append(grub_section)
-
-            # Footer externe au cadre
-            footer_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-            footer_box.set_margin_top(12)
-            help_label = Gtk.Label(label=GrubPreviewRenderer.build_help_text(timeout=timeout))
-            help_label.set_justify(Gtk.Justification.LEFT)
-            help_label.add_css_class("grub-info")
-            help_label.set_halign(Gtk.Align.START)
-            footer_box.append(help_label)
-            main_box.append(footer_box)
-        else:
-            # Mode graphique : fond + cadre
-            preview_bg = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-            preview_bg.set_vexpand(True)
-            preview_bg.set_hexpand(True)
-            preview_bg.add_css_class("preview-bg-fallback")
-
-            grub_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-            grub_box.set_valign(Gtk.Align.CENTER)
-            grub_box.set_halign(Gtk.Align.CENTER)
-            grub_box.add_css_class("grub-screen-frame")
-
-            grub_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-            grub_container.add_css_class("grub-menu-container")
-
-            # Rendu du preview
-            GrubPreviewRenderer.render_preview(
-                container=grub_container,
-                timeout=timeout,
-                default_entry=default_entry,
-                menu_entries=menu_entries,
-                is_text_mode=False,
-            )
-
-            grub_box.append(grub_container)
-            preview_bg.append(grub_box)
-            main_box.append(preview_bg)
-
-        # Bouton de fermeture
-        close_button = Gtk.Button(label="Fermer")
-        close_button.add_css_class("suggested-action")
-        close_button.connect("clicked", lambda _: dialog.close())
-        close_button.set_margin_top(16)
-        main_box.append(close_button)
-
-        # Afficher
-        dialog.set_child(main_box)
-        dialog.present()
-
-        logger.debug(f"[GrubPreviewDialog] Preview affiché - {len(menu_entries)} entrées")
+    def on_key_pressed(self, _controller, keyval, _keycode, _state) -> bool | None:
+        """Gère la navigation au clavier."""
+        if keyval == Gdk.KEY_Escape:
+            self.close()
+            return True
+        elif keyval == Gdk.KEY_Up:
+            # Move selection up (visual only for now)
+            return True
+        elif keyval == Gdk.KEY_Down:
+            # Move selection down (visual only for now)
+            return True
+        return False

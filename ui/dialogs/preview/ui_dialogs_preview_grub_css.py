@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 
@@ -42,6 +43,7 @@ class PreviewCssConfig:
     item_padding: int
     item_spacing: int
     item_height: int
+    entry_padding_y: int
     screen_border: str
     screen_shadow: str
     menu_frame_border: str
@@ -49,10 +51,55 @@ class PreviewCssConfig:
     menu_frame_margin: str
     container_padding: str
     title_separator_color: str
+    info_color: str
+    selected_entry_border_radius: str
 
 
 class GrubPreviewCssGenerator:
     """Génère le CSS pour le preview GRUB selon le mode et la configuration."""
+
+    _HEX_RE = re.compile(r"^(?:#|0x)?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+    _RGB_TUPLE_RE = re.compile(r"^\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*$")
+
+    @classmethod
+    def _sanitize_css_color(cls, value: str, *, default: str) -> str:
+        v = (value or "").strip().strip('"').strip("'")
+        if not v:
+            return default
+
+        # Certains fichiers peuvent contenir fg/bg: on prend le bg (dernier segment)
+        if "/" in v:
+            v = v.split("/")[-1].strip()
+
+        # Mappings GRUB -> CSS
+        grub_to_css = {
+            "light-gray": "#D3D3D3",
+            "light-grey": "#D3D3D3",
+            "dark-gray": "#A9A9A9",
+            "dark-grey": "#A9A9A9",
+        }
+        v = grub_to_css.get(v.lower(), v)
+
+        # rgb tuple: "R,G,B" -> rgb(R,G,B)
+        m = cls._RGB_TUPLE_RE.match(v)
+        if m:
+            r, g, b = (max(0, min(255, int(x))) for x in m.groups())
+            return f"rgb({r},{g},{b})"
+
+        # #RRGGBB / 0xRRGGBB / RRGGBB
+        m = cls._HEX_RE.match(v)
+        if m:
+            return f"#{m.group(1)}"
+
+        # rgb()/rgba() ou couleur nommée simple
+        low = v.lower()
+        if low.startswith("rgb(") or low.startswith("rgba("):
+            return v
+
+        if re.fullmatch(r"[a-zA-Z-]+", v):
+            return v
+
+        return default
 
     @staticmethod
     def normalize_font_for_gtk(font_desc: str) -> str:
@@ -120,8 +167,9 @@ class GrubPreviewCssGenerator:
         return PreviewCssConfig(
             desktop_color=desktop_color,
             item_padding=10,
-            item_spacing=4,
+            item_spacing=0,
             item_height=0,
+            entry_padding_y=0,
             screen_border="2px solid white",
             screen_shadow="none",
             menu_frame_border="none",
@@ -129,6 +177,8 @@ class GrubPreviewCssGenerator:
             menu_frame_margin="0",
             container_padding="0",
             title_separator_color=fg_color,
+            info_color=fg_color,
+            selected_entry_border_radius="0",
         )
 
     @staticmethod
@@ -139,6 +189,7 @@ class GrubPreviewCssGenerator:
             item_padding=10,
             item_spacing=4,
             item_height=0,
+            entry_padding_y=4,
             screen_border="2px solid rgba(255, 255, 255, 0.75)",
             screen_shadow="inset 0 0 0 1px rgba(255, 255, 255, 0.35)",
             menu_frame_border="none",
@@ -146,6 +197,8 @@ class GrubPreviewCssGenerator:
             menu_frame_margin="0",
             container_padding="18px 24px",
             title_separator_color="transparent",
+            info_color="rgba(255, 255, 255, 0.7)",
+            selected_entry_border_radius="2px",
         )
 
     @classmethod
@@ -172,12 +225,20 @@ class GrubPreviewCssGenerator:
         item_height_rule = f"min-height: {config.item_height}px;" if config.item_height > 0 else ""
         item_margin = max(0, int(config.item_spacing / 2))
 
+        desktop_color = cls._sanitize_css_color(config.desktop_color, default="#000000")
+        fg_color = cls._sanitize_css_color(colors.fg_color, default="white")
+        hl_fg = cls._sanitize_css_color(colors.hl_fg, default="black")
+        hl_bg = cls._sanitize_css_color(colors.hl_bg, default="#D3D3D3")
+        title_color = cls._sanitize_css_color(colors.title_color, default="white")
+        info_color = cls._sanitize_css_color(config.info_color, default="rgba(255, 255, 255, 0.7)")
+        title_sep = cls._sanitize_css_color(config.title_separator_color, default="white")
+
         return f"""
             .preview-bg {{
                 background-color: black;
             }}
             .preview-bg-fallback {{
-                background-color: {config.desktop_color};
+                background-color: {desktop_color};
             }}
             .grub-screen-frame {{
                 border: {config.screen_border};
@@ -198,32 +259,32 @@ class GrubPreviewCssGenerator:
                 margin-bottom: {config.menu_frame_margin};
             }}
             .grub-entry {{
-                color: {colors.fg_color};
+                color: {fg_color};
 {entry_font_rules}
-                padding: 4px {config.item_padding}px;
+                padding: {config.entry_padding_y}px {config.item_padding}px;
                 margin: {item_margin}px 0;
                 {item_height_rule}
             }}
             .grub-entry-selected {{
-                color: {colors.hl_fg};
-                background-color: {colors.hl_bg};
+                color: {hl_fg};
+                background-color: {hl_bg};
                 font-weight: bold;
-                border-radius: 2px;
+                border-radius: {config.selected_entry_border_radius};
             }}
             .grub-title {{
-                color: {colors.title_color};
+                color: {title_color};
 {title_font_rules}
                 margin: 12px 16px 8px 16px;
                 font-weight: bold;
             }}
             .grub-info {{
-                color: rgba(255, 255, 255, 0.7);
+                color: {info_color};
 {entry_font_rules}
                 font-size: 0.8em;
                 margin-top: 8px;
             }}
             .grub-title-separator {{
-                background-color: {config.title_separator_color};
+                background-color: {title_sep};
                 min-height: 2px;
                 margin: 4px 0 12px 0;
             }}

@@ -68,7 +68,7 @@ class TestMainCoverage:
 
     @patch("main._reexec_as_root_once")
     @patch("main.configure_logging")
-    @patch("main.parse_debug_flag")
+    @patch("main.parse_verbosity_flags")
     @patch("main.ensure_initial_grub_default_backup")
     @patch("gi.repository.Gtk.Application")
     @patch("main.sys.exit")
@@ -76,7 +76,7 @@ class TestMainCoverage:
         """Test the main() function execution."""
         from main import main as main_func
 
-        mock_debug.return_value = (False, [])
+        mock_debug.return_value = (False, False, [])
         mock_app_instance = MagicMock()
         mock_gtk_app.return_value = mock_app_instance
         mock_app_instance.run.return_value = 0
@@ -102,7 +102,7 @@ class TestMainCoverage:
         assert mock_gtk_app.called
         assert mock_app_instance.run.called
 
-    @patch("main.parse_debug_flag")
+    @patch("main.parse_verbosity_flags")
     def test_main_critical_error(self, mock_parse):
         """Test main() handles critical errors during startup."""
         from main import main as main_func
@@ -173,7 +173,7 @@ class TestMainCoverage:
         """Test main execution with missing backup and missing CSS."""
         with (
             patch("main._reexec_as_root_once"),
-            patch("main.parse_debug_flag", return_value=(False, [])),
+            patch("main.parse_verbosity_flags", return_value=(False, False, [])),
             patch("main.configure_logging"),
             patch("gi.repository.Gdk.Display.get_default"),
         ):

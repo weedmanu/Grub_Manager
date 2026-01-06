@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from loguru import logger
 
 from core.config.core_config_paths import get_grub_themes_dir
+from core.models.core_models_grub_ui import _normalize_grub_terminal_value
 from core.system.core_system_grub_commands import GrubUiModel
 from core.theme.core_theme_active_manager import ActiveThemeManager
 from ui.config.ui_config_constants import GRUB_COLORS
@@ -20,6 +21,21 @@ if TYPE_CHECKING:
 
 class ModelWidgetMapper:
     """Gère la synchronisation bidirectionnelle entre GrubUiModel et les widgets GTK."""
+
+    @staticmethod
+    def _normalize_grub_terminal_from_ui(label: str) -> str:
+        """Convertit un libellé UI (potentiellement annoté) en valeur GRUB valide."""
+        return _normalize_grub_terminal_value(label)
+
+    @staticmethod
+    def _label_grub_terminal_for_ui(value: str) -> str:
+        """Convertit une valeur GRUB en libellé présent dans le dropdown UI."""
+        normalized = " ".join((value or "").strip().lower().split())
+        return {
+            "gfxterm": "gfxterm (graphique)",
+            "console": "console (texte)",
+            "serial": "serial (série)",
+        }.get(normalized, value)
 
     @staticmethod
     def _get_color_from_combos(fg_combo, bg_combo, grub_colors: list[str]) -> str:
@@ -80,7 +96,10 @@ class ModelWidgetMapper:
             if window.gfxpayload_dropdown is not None:
                 GtkHelper.dropdown_set_value(window.gfxpayload_dropdown, model.gfxpayload_linux)
             if window.grub_terminal_dropdown is not None:
-                GtkHelper.dropdown_set_value(window.grub_terminal_dropdown, model.grub_terminal)
+                GtkHelper.dropdown_set_value(
+                    window.grub_terminal_dropdown,
+                    ModelWidgetMapper._label_grub_terminal_for_ui(model.grub_terminal),
+                )
                 # Mettre à jour la visibilité des onglets thème selon le mode terminal
                 _on_terminal_mode_changed(window)
 
@@ -213,7 +232,9 @@ class ModelWidgetMapper:
             else ""
         )
         grub_terminal = (
-            (GtkHelper.dropdown_get_value(window.grub_terminal_dropdown) or "").strip()
+            ModelWidgetMapper._normalize_grub_terminal_from_ui(
+                (GtkHelper.dropdown_get_value(window.grub_terminal_dropdown) or "").strip()
+            )
             if window.grub_terminal_dropdown is not None
             else ""
         )

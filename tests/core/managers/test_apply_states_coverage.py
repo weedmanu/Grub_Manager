@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from core.io.core_io_grub_validation import ValidationResult
+from core.managers.core_managers_apply import GrubApplyManager
 from core.managers.core_managers_apply_states import (
     ApplyFinalState,
     BackupState,
@@ -15,7 +16,6 @@ from core.managers.core_managers_apply_states import (
     GrubValidationError,
     ValidateState,
 )
-from core.managers.core_managers_apply import GrubApplyManager
 
 
 class TestApplyStatesCoverage:

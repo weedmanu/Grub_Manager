@@ -19,6 +19,7 @@ from core.models.core_models_theme import GrubTheme
 from ui.builders.ui_builders_widgets import create_error_dialog, create_success_dialog
 from ui.dialogs.ui_dialogs_grub_preview import GrubPreviewDialog
 from ui.dialogs.ui_dialogs_interactive_theme_generator_window import InteractiveThemeGeneratorWindow
+from ui.dialogs.ui_dialogs_theme_preview import GrubThemePreviewDialog
 from ui.helpers.ui_helpers_gtk import GtkHelper
 
 
@@ -50,12 +51,59 @@ def on_activate_theme(_button: Any, tab: Any) -> None:
 def on_deactivate_theme(_button: Any, tab: Any) -> None:
     """Désactive le thème (revient à 'Aucun')."""
     current_model = tab.state_manager.get_model()
+
+    # Si la configuration est déjà sur "Aucun" (pas de thème explicite),
+    # mais qu'un thème système est détecté comme actif, c'est qu'un script impose le thème.
+    # On propose alors de désactiver ce script.
+    system_forced = getattr(tab.data, "system_active_theme_path", None)
+    if not current_model.grub_theme and system_forced:
+        _confirm_disable_theme_scripts(tab)
+        return
+
     new_model = replace(current_model, grub_theme="")
 
     tab.state_manager.update_model(new_model)
     tab.mark_dirty()
 
     tab.refresh()
+
+
+def _confirm_disable_theme_scripts(tab: Any) -> None:
+    """Propose de désactiver les scripts responsables du thème forcé."""
+    dialog = Gtk.AlertDialog()
+    dialog.set_message("Désactiver le thème imposé ?")
+    dialog.set_detail(
+        "Ce thème est imposé par un script système (probablement 05_debian_theme) "
+        "malgré votre configuration.\n\n"
+        "Voulez-vous désactiver ce script pour retrouver le style par défaut ou vos couleurs personnalisées ?"
+    )
+    dialog.set_buttons(["Annuler", "Désactiver le script"])
+    dialog.set_cancel_button(0)
+    dialog.set_default_button(1)
+
+    def _on_response(dlg, result):
+        idx = GtkHelper.get_dialog_response(dlg, result)
+
+        if idx == 1:
+            try:
+                scripts = tab.services.script_service.scan_theme_scripts()
+                found = False
+                for script in scripts:
+                    # On cible principalement 05_debian_theme qui est le coupable habituel
+                    if "05_debian_theme" in str(script.path):
+                        tab.state_manager.pending_script_changes[str(script.path)] = False
+                        logger.info(f"Script {script.path} marqué pour désactivation")
+                        found = True
+
+                if found:
+                    tab.mark_dirty()
+                    tab.refresh()
+            except (OSError, RuntimeError) as e:
+                logger.error(f"Erreur lors de la désactivation du script: {e}")
+
+    parent = tab.parent_window
+    if parent:
+        dialog.choose(parent, None, _on_response)
 
 
 def on_theme_selected(_list_box: Any, row: Any, tab: Any) -> None:
@@ -88,10 +136,25 @@ def on_theme_selected(_list_box: Any, row: Any, tab: Any) -> None:
     model = tab.state_manager.get_model()
     is_none = tab.data.current_theme.name == "Aucun (GRUB par défaut)"
     theme_txt_path = (theme_path / "theme.txt") if theme_path else None
-    is_active = (str(theme_txt_path) == model.grub_theme) if theme_txt_path else (is_none and not model.grub_theme)
 
-    _set_sensitive(actions.activate_theme_btn, not is_active)
-    _set_sensitive(actions.deactivate_theme_btn, is_active and not is_none)
+    # Est-ce le thème configuré ?
+    is_config_active = (
+        (str(theme_txt_path) == model.grub_theme) if theme_txt_path else (is_none and not model.grub_theme)
+    )
+
+    # Est-ce le thème système forcé ?
+    is_system_active = False
+    system_forced = getattr(tab.data, "system_active_theme_path", None)
+    if system_forced and theme_path:
+        is_system_active = str(theme_txt_path) == system_forced
+
+    _set_sensitive(actions.activate_theme_btn, not is_config_active)
+    # On peut désactiver si :
+    # 1. C'est le thème configuré (et ce n'est pas "Aucun")
+    # 2. OU C'est un thème système forcé (qu'on peut vouloir désactiver via les scripts)
+    can_deactivate = (is_config_active and not is_none) or is_system_active
+
+    _set_sensitive(actions.deactivate_theme_btn, can_deactivate)
 
 
 def on_theme_switch_toggled(switch: Any, _param: Any, tab: Any) -> None:
@@ -192,17 +255,36 @@ def on_preview_theme(
     if theme is None:
         theme = GrubTheme(name="Configuration Simple")
 
+    is_simple = theme.name in ["Configuration Simple", "Aucun (GRUB par défaut)", ""]
+
     try:
-        theme_txt_path = None
+        if is_simple:
+            # Aperçu natif (style test_preview_grub.py)
+            grub_cfg_content = ""
+            for p in ["/boot/grub/grub.cfg", "/boot/grub2/grub.cfg"]:
+                path = Path(p)
+                if path.exists():
+                    try:
+                        grub_cfg_content = path.read_text(encoding="utf-8", errors="ignore")
+                        break
+                    except OSError as e:
+                        logger.warning(f"Erreur lecture {p}: {e}")
 
-        # Si un thème est sélectionné et correspond à un répertoire, on utilise son theme.txt.
-        if theme is not None and getattr(theme, "name", "") and theme.name != "Configuration Simple":
-            theme_path = tab.data.theme_paths.get(theme.name)
-            if theme_path:
-                theme_txt_path = theme_path / "theme.txt"
+            dialog = GrubPreviewDialog(grub_cfg_content, model=model)
+            dialog.present()
+        else:
+            # Aperçu de thème (style existant)
+            theme_txt_path = None
 
-        dialog = GrubPreviewDialog(theme, model=model, theme_txt_path=theme_txt_path)
-        dialog.show()
+            # Si un thème est sélectionné et correspond à un répertoire, on utilise son theme.txt.
+            if theme is not None and getattr(theme, "name", "") and theme.name != "Configuration Simple":
+                theme_path = tab.data.theme_paths.get(theme.name)
+                if theme_path:
+                    theme_txt_path = theme_path / "theme.txt"
+
+            dialog = GrubThemePreviewDialog(theme, model=model, theme_txt_path=theme_txt_path)
+            GtkHelper.present_dialog(dialog)
+
     except (OSError, RuntimeError) as exc:
         logger.error(f"[on_preview_theme] Erreur: {exc}")
         create_error_dialog(f"Erreur lors de l'aperçu:\n{exc}")

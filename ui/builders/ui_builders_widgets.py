@@ -345,6 +345,10 @@ def create_tab_grid_layout(root: Gtk.Box) -> Gtk.Grid:
     main_grid = Gtk.Grid()
     main_grid.set_column_spacing(12)
     main_grid.set_row_spacing(12)
+    # Onglets comme Général/Affichage utilisent 2 colonnes (gauche + aide à droite).
+    # On force une proportion stable (50/50) pour éviter des rendus différents.
+    main_grid.set_column_homogeneous(True)
+    main_grid.set_hexpand(True)
     root.append(main_grid)
     return main_grid
 
@@ -481,17 +485,35 @@ def create_info_box(title: str, text: str, css_class: str = "info-box") -> Gtk.B
         Widget Gtk.Box contenant l'info
     """
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-    box.add_css_class(css_class)
+    # Gtk.Widget.add_css_class() n'accepte qu'une classe à la fois.
+    # On supporte donc "warning-box compact-card" etc.
+    classes = [cls for cls in str(css_class).split() if cls]
+    for cls in classes:
+        if cls:
+            box.add_css_class(cls)
     # UI compacte: éviter une grosse marge verticale systématique.
     box.set_margin_top(6)
 
-    if title:
+    # UX: une "note" compacte ne doit afficher que le contenu.
+    # On garde le paramètre `title` pour compatibilité, mais on ne l'affiche
+    # pas quand la note est marquée comme compacte.
+    is_compact_note = "compact-card" in classes
+
+    if is_compact_note:
+        # Largeur fixe gérée par CSS (.compact-card). On évite l'expansion horizontale
+        # pour garder des notes de largeur identique.
+        box.set_hexpand(False)
+        box.set_halign(Gtk.Align.START)
+        box.set_vexpand(False)
+
+    if title and not is_compact_note:
         lbl_title = Gtk.Label(xalign=0)
         lbl_title.set_markup(f"<b>{title}</b>")
         box.append(lbl_title)
 
     lbl_text = Gtk.Label(xalign=0, label=text)
     lbl_text.set_wrap(True)
+    lbl_text.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
     box.append(lbl_text)
 
     return box

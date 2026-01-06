@@ -2,8 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
-from ui.controllers.ui_controllers_permission import PermissionController
 from ui.controllers.ui_controllers_infobar import WARNING
+from ui.controllers.ui_controllers_permission import PermissionController
 
 
 class TestPermissionController:

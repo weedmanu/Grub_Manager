@@ -53,6 +53,23 @@ label.frame-title {
     padding: 6px 10px;
 }
 
+.warning-box.compact-card {
+    padding: 6px 10px;
+}
+
+.success-box.compact-card {
+    padding: 6px 10px;
+}
+
+.error-box.compact-card {
+    padding: 6px 10px;
+}
+
+/* Notes: largeur fixe, hauteur auto (wrap). */
+.compact-card {
+    min-width: 340px;
+}
+
 /* === Frames et conteneurs === */
 frame {
     background-color: #ffffff;
@@ -378,7 +395,8 @@ notebook > header {
 notebook > header > tabs > tab {
     background-color: transparent;
     border: 1px solid transparent;
-    padding: 8px 16px;
+    padding: 6px 12px;
+    min-width: 90px;
     color: #7f8c8d;
     transition: all 0.25s ease;
     font-weight: 500;
@@ -497,6 +515,19 @@ label.title-4 {
 label.caption {
     font-size: 9pt;
     color: #7f8c8d;
+}
+
+/* === Classes utilitaires manquantes === */
+label.heading {
+    font-size: 11pt;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 4px;
+}
+
+listbox.rich-list {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
 }
 
 /* === TextView === */

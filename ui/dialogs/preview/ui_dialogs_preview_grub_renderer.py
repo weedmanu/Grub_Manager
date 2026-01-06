@@ -51,14 +51,11 @@ class GrubPreviewRenderer:
         Returns:
             Widget Gtk.Box représentant l'entrée
         """
-        entry_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        entry_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         entry_box.add_css_class("grub-entry")
 
         if is_selected:
             entry_box.add_css_class("grub-entry-selected")
-            entry_box.append(Gtk.Label(label="*"))
-        else:
-            entry_box.append(Gtk.Label(label=" "))
 
         label = Gtk.Label(label=entry.title)
         label.set_halign(Gtk.Align.START)
@@ -77,9 +74,9 @@ class GrubPreviewRenderer:
             Texte d'aide formaté
         """
         help_text = (
-            "Utilisez les touches ↑ et ↓ pour sélectionner l'entrée en surbrillance.\n"
-            "Appuyez sur Entrée pour démarrer l'OS sélectionné, 'e' pour éditer les\n"
-            "commandes avant le démarrage ou 'c' pour une ligne de commande."
+            "Utilisez les touches ↑ et ↓ pour sélectionner une entrée.\n"
+            "Appuyez sur Entrée pour démarrer le système sélectionné, 'e' pour éditer les commandes "
+            "avant de démarrer ou 'c' pour obtenir une invite de commandes. Échap pour revenir au menu précédent."
         )
         if timeout >= 0:
             help_text += f"\n\nL'entrée sélectionnée sera démarrée automatiquement dans {timeout}s."
@@ -94,6 +91,8 @@ class GrubPreviewRenderer:
         default_entry: str,
         menu_entries: list[MenuEntry],
         is_text_mode: bool,
+        show_title: bool = True,
+        show_footer: bool = True,
     ) -> None:
         """Rend le preview GRUB complet dans un container.
 
@@ -104,18 +103,21 @@ class GrubPreviewRenderer:
             menu_entries: Liste des entrées de menu
             is_text_mode: Si True, mode console texte
         """
-        # Titre GNU GRUB
-        title_label = Gtk.Label(label="GNU GRUB version 2.12")
-        title_label.add_css_class("grub-title")
-        if is_text_mode:
-            title_label.set_halign(Gtk.Align.CENTER)
-        container.append(title_label)
+        if show_title:
+            # Titre GNU GRUB
+            title_label = Gtk.Label(label="GNU GRUB version 2.12")
+            title_label.add_css_class("grub-title")
+            if is_text_mode:
+                title_label.set_halign(Gtk.Align.CENTER)
+            container.append(title_label)
 
-        # Séparateur en mode texte
-        if is_text_mode:
-            separator = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
-            separator.add_css_class("grub-title-separator")
-            container.append(separator)
+            # Séparateur en mode texte
+            if is_text_mode:
+                separator = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
+                separator.set_hexpand(True)
+                separator.set_halign(Gtk.Align.FILL)
+                separator.add_css_class("grub-title-separator")
+                container.append(separator)
 
         # Container des entrées
         if is_text_mode:
@@ -135,7 +137,7 @@ class GrubPreviewRenderer:
             target_box.append(entry_row)
 
         # Footer en mode graphique
-        if not is_text_mode:
+        if show_footer and not is_text_mode:
             help_label = Gtk.Label(label=cls.build_help_text(timeout=timeout))
             help_label.set_justify(Gtk.Justification.CENTER)
             help_label.add_css_class("grub-info")

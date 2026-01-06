@@ -37,6 +37,7 @@ class GrubConfig:  # pylint: disable=too-many-instance-attributes
     grub_color_normal: str = "white/black"
     grub_color_highlight: str = "black/white"
     grub_gfxmode: str = "auto"
+    grub_terminal_output: str = ""  # gfxterm, console, serial, ...
     grub_theme: str | None = None
     grub_cmdline_linux: str = ""
     grub_cmdline_linux_default: str = ""
@@ -76,6 +77,7 @@ class GrubService:
                 grub_color_normal=str(_get("GRUB_COLOR_NORMAL", "white/black") or "white/black"),
                 grub_color_highlight=str(_get("GRUB_COLOR_HIGHLIGHT", "black/white") or "black/white"),
                 grub_gfxmode=str(_get("GRUB_GFXMODE", "auto") or "auto"),
+                grub_terminal_output=str(_get("GRUB_TERMINAL_OUTPUT", _get("GRUB_TERMINAL", "") or "") or ""),
                 grub_theme=_get("GRUB_THEME"),
                 grub_cmdline_linux=str(_get("GRUB_CMDLINE_LINUX", "") or ""),
                 grub_cmdline_linux_default=str(_get("GRUB_CMDLINE_LINUX_DEFAULT", "") or ""),

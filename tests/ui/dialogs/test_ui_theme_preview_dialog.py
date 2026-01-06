@@ -10,7 +10,8 @@ gi.require_version("Gtk", "4.0")
 
 from core.models.core_models_theme import GrubTheme
 from ui.dialogs.preview.ui_dialogs_preview_grub_parsers import GrubConfigParser
-from ui.dialogs.ui_dialogs_grub_preview import GrubPreviewDialog
+from ui.dialogs.ui_dialogs_theme_preview import GrubThemePreviewDialog as GrubPreviewDialog
+from ui.dialogs.ui_dialogs_theme_preview import compute_text_mode_metrics
 
 # Set headless backend for GTK
 os.environ["GDK_BACKEND"] = "headless"
@@ -56,3 +57,12 @@ def test_grub_preview_dialog_init(theme):
     dialog = GrubPreviewDialog(theme)
     assert dialog.theme == theme
     assert dialog.theme_name == "TestTheme"
+
+
+def test_compute_text_mode_metrics_scales_with_size() -> None:
+    small = compute_text_mode_metrics(width=800, height=600)
+    large = compute_text_mode_metrics(width=1600, height=1200)
+
+    assert large["outer_margin"] > small["outer_margin"]
+    assert large["inner_pad_x"] > small["inner_pad_x"]
+    assert large["inner_pad_y"] > small["inner_pad_y"]

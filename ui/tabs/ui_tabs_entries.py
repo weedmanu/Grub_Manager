@@ -28,14 +28,6 @@ def build_entries_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
     apply_margins(box, 12)
 
-    box.append(
-        create_info_box(
-            "Visibilité:",
-            "Gérez la visibilité et les options des entrées de démarrage.",
-            css_class="info-box",
-        )
-    )
-
     # === Conteneur 2 colonnes ===
     _, left_section, right_section = create_two_column_layout(box, spacing=12)
 
@@ -74,7 +66,6 @@ def build_entries_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
         "Désactiver OS Prober",
         controller.disable_os_prober_check,
         "Ne pas détecter les autres systèmes (Windows, etc).",
-        color_class="label-orange",
     )
 
     controller.hide_advanced_options_check = Gtk.Switch()
@@ -85,7 +76,6 @@ def build_entries_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
         "Masquer 'Advanced options'",
         controller.hide_advanced_options_check,
         "Cache les entrées avancées du menu.",
-        color_class="label-blue",
     )
 
     controller.hide_memtest_check = Gtk.Switch()
@@ -96,7 +86,6 @@ def build_entries_tab(controller: GrubConfigManager, notebook: Gtk.Notebook) -> 
         "Masquer 'memtest'",
         controller.hide_memtest_check,
         "Cache les entrées de test mémoire.",
-        color_class="label-green",
     )
 
     right_box.append(switches_box)
@@ -125,15 +114,15 @@ def _add_styled_switch(
     color_class: str | None = None,
 ) -> None:
     """Ajoute un switch avec label et description optionnelle dans un conteneur."""
+    del color_class
     row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
 
     vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
     vbox.set_hexpand(True)
 
-    lbl = Gtk.Label(xalign=0, label=label_text)
+    lbl = Gtk.Label(xalign=0)
+    lbl.set_markup(f"<b>{label_text}</b>")
     lbl.add_css_class("title-4")
-    if color_class:
-        lbl.add_css_class(color_class)
     vbox.append(lbl)
 
     if description:

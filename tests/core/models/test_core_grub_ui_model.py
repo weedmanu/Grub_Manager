@@ -170,6 +170,12 @@ def test_merged_config_empty_strings() -> None:
     assert "GRUB_GFXPAYLOAD_LINUX" not in merged
 
 
+def test_merged_config_normalizes_grub_terminal_output() -> None:
+    model = GrubUiModel(grub_terminal="gfxterm (graphique)")
+    merged = merged_config_from_model({}, model)
+    assert merged["GRUB_TERMINAL_OUTPUT"] == "gfxterm"
+
+
 def test_merged_config_all_flags() -> None:
     """Test fusion avec tous les drapeaux activés."""
     model = GrubUiModel(save_default=True, disable_os_prober=True)

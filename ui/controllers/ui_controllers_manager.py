@@ -6,6 +6,7 @@ Contient uniquement l'orchestration (délègue construction UI et gestion d'éta
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from loguru import logger
 
@@ -25,6 +26,7 @@ from ui.controllers.ui_controllers_infobar import ERROR, INFO, WARNING, InfoBarC
 from ui.controllers.ui_controllers_tab_policy import apply_tab_policy
 from ui.controllers.ui_controllers_workflow import WorkflowController, WorkflowDeps
 from ui.dialogs.ui_dialogs_grub_preview import GrubPreviewDialog
+from ui.dialogs.ui_dialogs_theme_preview import GrubThemePreviewDialog
 from ui.helpers.ui_helpers_gtk import GtkHelper
 from ui.helpers.ui_helpers_gtk_imports import Gtk
 from ui.helpers.ui_helpers_model_mapper import ModelWidgetMapper
@@ -97,9 +99,12 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         logger.debug("[GrubConfigManager.__init__] Démarrage initialisation de la fenêtre principale")
         title = "Gestionnaire de Configuration GRUB"
         super().__init__(application=application, title=title)
-        # UI fixe: 900x700
-        self.set_default_size(900, 700)
+        # UI fixe: 1000x700 (ne doit pas varier selon les onglets)
+        self.set_default_size(1000, 700)
         self.set_resizable(False)
+        # Empêche GTK de réduire la fenêtre si le contenu devient plus petit
+        # (ex: onglet Thèmes masqué en mode texte).
+        self.set_size_request(1000, 700)
         self.state_manager = AppStateManager()
 
         # Contrôleurs SRP (Single Responsibility)
@@ -549,6 +554,22 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         try:
             model = self.state_manager.get_model()
 
+            # Si aucun thème custom n'est défini (Configuration Simple ou Défaut), utiliser l'aperçu natif
+            if not model.grub_theme or model.grub_theme == "":
+                grub_cfg_content = ""
+                try:
+                    for p in ["/boot/grub/grub.cfg", "/boot/grub2/grub.cfg"]:
+                        if Path(p).exists():
+                            grub_cfg_content = Path(p).read_text(encoding="utf-8", errors="ignore")
+                            break
+                except OSError:
+                    pass
+
+                dialog = GrubPreviewDialog(grub_cfg_content, model=model)
+                dialog.present()
+                return
+
+            # Sinon, utiliser l'aperçu de thème avec rendu UI
             if model.theme_management_enabled:
                 try:
                     theme = ActiveThemeManager().load_active_theme()
@@ -561,8 +582,9 @@ class GrubConfigManager(Gtk.ApplicationWindow):
                 theme = GrubTheme(name="Configuration Simple")
                 theme_name = "Configuration Simple"
 
-            dialog = GrubPreviewDialog(theme, model=model, theme_name=theme_name, use_system_files=True)
-            dialog.show()
+            dialog = GrubThemePreviewDialog(theme, model=model, theme_name=theme_name, use_system_files=True)
+            GtkHelper.present_dialog(dialog)
+
         except (OSError, RuntimeError) as exc:
             logger.error(f"[on_preview] Erreur: {exc}")
             create_error_dialog(f"Erreur lors de l'aperçu:\n{exc}")

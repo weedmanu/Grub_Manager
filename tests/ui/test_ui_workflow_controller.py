@@ -6,12 +6,43 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import gi
+import pytest
 
 gi.require_version("Gtk", "4.0")
 
 from ui.controllers.ui_controllers_infobar import ERROR, INFO, WARNING
 from ui.controllers.ui_controllers_workflow import WorkflowController, WorkflowDeps
 from ui.models.ui_models_state import AppState
+
+
+# --- Mocks pour le Threading synchrone ---
+class SynchronousThread:
+    """Mock de Thread qui exécute la target immédiatement (pour les tests)."""
+
+    def __init__(self, target=None, args=(), kwargs=None, **_kwargs):
+        self.target = target
+        self.args = args
+        self.kwargs = kwargs or {}
+
+    def start(self):
+        if self.target:
+            self.target(*self.args, **self.kwargs)
+
+
+def synchronous_idle_add(callback, *args):
+    """Mock de idle_add qui exécute le callback immédiatement."""
+    callback(*args)
+    return False
+
+
+@pytest.fixture(autouse=True)
+def patch_threading_sync():
+    """Force synchronous execution of threads and idle_add."""
+    with (
+        patch("ui.controllers.ui_controllers_workflow.threading.Thread", side_effect=SynchronousThread),
+        patch("ui.controllers.ui_controllers_workflow.GLib.idle_add", side_effect=synchronous_idle_add),
+    ):
+        yield
 
 
 def _make_state_manager() -> MagicMock:
@@ -22,6 +53,8 @@ def _make_state_manager() -> MagicMock:
     state_manager.state_data = SimpleNamespace(raw_config={"GRUB_TIMEOUT": "5", "GRUB_DEFAULT": "0"}, entries=["e"])
     state_manager.apply_state = MagicMock()
     state_manager.update_state_data = MagicMock()
+    # Ensure is_loading returns False by default
+    state_manager.is_loading.return_value = False
     return state_manager
 
 
@@ -360,7 +393,7 @@ def test_perform_save_success_no_apply_and_not_dirty_does_not_add_visibility_not
 
 
 def test_perform_save_failure_sets_dirty_and_shows_error():
-    controller, _load_config_cb, _read_model_cb, show_info_cb, sm = _make_controller()
+    controller, _load_config_cb, _read_model_cb, show_info_cb, _sm = _make_controller()
 
     result = SimpleNamespace(success=False, message="Nope", details="")
 
@@ -434,7 +467,7 @@ def test_on_reload_with_backup_reload_current():
 
 
 def test_perform_save_exception_sets_dirty_and_shows_unexpected_error():
-    controller, _load_config_cb, read_model_cb, show_info_cb, sm = _make_controller()
+    controller, _load_config_cb, read_model_cb, show_info_cb, _sm = _make_controller()
 
     read_model_cb.side_effect = RuntimeError("boom")
 
@@ -479,13 +512,14 @@ def test_check_restore_last_modif_non_root_blocks_restore():
 
 def test_check_restore_last_modif_restore_failure():
     """Test la gestion d'erreur lors de la restauration."""
-    controller, load_config_cb, _, show_info_cb, _ = _make_controller()
+    controller, _load_config_cb, _, show_info_cb, _ = _make_controller()
     backup_path = "/tmp/fake_backup"
 
     with (
         patch("ui.controllers.ui_controllers_workflow.os.geteuid", return_value=0),
         patch(
-            "ui.controllers.ui_controllers_workflow.restore_grub_default_backup", side_effect=OSError("Backup not found")
+            "ui.controllers.ui_controllers_workflow.restore_grub_default_backup",
+            side_effect=OSError("Backup not found"),
         ),
     ):
 

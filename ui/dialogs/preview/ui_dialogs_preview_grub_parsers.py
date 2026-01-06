@@ -206,13 +206,21 @@ class GrubConfigParser:
             Tuple (fg, bg)
         """
         if not color_pair or "/" not in color_pair:
-            return default_fg, default_bg
+            return (
+                GrubConfigParser.parse_grub_color(default_fg, default="white"),
+                GrubConfigParser.parse_grub_color(default_bg, default="black"),
+            )
 
         parts = color_pair.split("/")
         if len(parts) >= 2:
-            return parts[0].strip(), parts[1].strip()
+            fg = GrubConfigParser.parse_grub_color(parts[0].strip(), default=default_fg)
+            bg = GrubConfigParser.parse_grub_color(parts[1].strip(), default=default_bg)
+            return fg, bg
 
-        return default_fg, default_bg
+        return (
+            GrubConfigParser.parse_grub_color(default_fg, default="white"),
+            GrubConfigParser.parse_grub_color(default_bg, default="black"),
+        )
 
     @staticmethod
     def parse_grub_color(color: str, default: str = "white") -> str:

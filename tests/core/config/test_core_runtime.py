@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from io import StringIO
 
-from core.config.core_config_runtime import configure_logging, parse_debug_flag
+from core.config.core_config_runtime import configure_logging, parse_debug_flag, parse_verbosity_flags
 
 
 class TestParseDebugFlag:
@@ -50,24 +50,70 @@ class TestParseDebugFlag:
         assert remaining == []
 
 
+class TestParseVerbosityFlags:
+    """Tests pour parse_verbosity_flags."""
+
+    def test_no_flags(self):
+        debug, verbose, remaining = parse_verbosity_flags(["script.py", "arg1"])
+        assert debug is False
+        assert verbose is False
+        assert remaining == ["script.py", "arg1"]
+
+    def test_verbose_flag(self):
+        debug, verbose, remaining = parse_verbosity_flags(["--verbose", "arg"])
+        assert debug is False
+        assert verbose is True
+        assert remaining == ["arg"]
+
+    def test_debug_flag(self):
+        debug, verbose, remaining = parse_verbosity_flags(["--debug", "arg"])
+        assert debug is True
+        assert verbose is False
+        assert remaining == ["arg"]
+
+    def test_both_flags(self):
+        debug, verbose, remaining = parse_verbosity_flags(["--verbose", "--debug", "arg"])
+        assert debug is True
+        assert verbose is True
+        assert remaining == ["arg"]
+
+
 class TestConfigureLogging:
     """Tests pour configure_logging."""
 
     def test_configure_info_level(self):
         """Vérifie la configuration en mode INFO."""
-        # Ne devrait pas lever d'exception
-        configure_logging(debug=False)
+        # Sans --verbose/--debug: silencieux (pas de handler).
+        configure_logging(debug=False, verbose=False)
+
+        from loguru import logger
+
+        output = StringIO()
+        logger.add(output, level="INFO")
+        logger.info("Test info message")
+        assert "Test info message" in output.getvalue()
+
+    def test_configure_verbose_level(self):
+        """Vérifie la configuration en mode --verbose (INFO)."""
+        from loguru import logger
+
+        configure_logging(debug=False, verbose=True)
+
+        output = StringIO()
+        logger.add(output, level="INFO")
+        logger.info("Verbose info")
+        assert "Verbose info" in output.getvalue()
 
     def test_configure_debug_level(self):
         """Vérifie la configuration en mode DEBUG."""
         # Ne devrait pas lever d'exception
-        configure_logging(debug=True)
+        configure_logging(debug=True, verbose=False)
 
     def test_logging_actually_works(self):
         """Vérifie que le logging fonctionne après configuration."""
         from loguru import logger
 
-        configure_logging(debug=True)
+        configure_logging(debug=True, verbose=False)
 
         # Capturer la sortie
         output = StringIO()
