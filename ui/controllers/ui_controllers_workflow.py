@@ -11,13 +11,15 @@ from typing import TYPE_CHECKING
 from loguru import logger
 
 from core.config.core_config_paths import GRUB_DEFAULT_PATH
+from core.core_exceptions import GrubManagerError
 from core.io.core_io_grub_default import (
     create_last_modif_backup,
     read_grub_default,
     restore_grub_default_backup,
 )
-from core.managers.core_managers_apply import GrubApplyManager
+from core.managers.core_managers_apply import ApplyResult
 from core.managers.core_managers_entry_visibility import apply_hidden_entries_to_grub_cfg, save_hidden_entry_ids
+from core.managers.protocols import IGrubApplyManager
 from core.models.core_models_grub_ui import merged_config_from_model
 from core.system.core_system_grub_commands import GrubUiState
 from ui.controllers.ui_controllers_infobar import ERROR, INFO, WARNING
@@ -39,6 +41,7 @@ class WorkflowDeps:
     load_config_cb: Callable[[], None]
     read_model_cb: Callable[[], GrubUiModel]
     show_info_cb: Callable[[str, str], None]
+    apply_manager_factory: Callable[[], IGrubApplyManager]
 
 
 class WorkflowController:
@@ -67,6 +70,7 @@ class WorkflowController:
         self.reload_btn = deps.reload_btn
         self.load_config_cb = deps.load_config_cb
         self.read_model_cb = deps.read_model_cb
+        self.apply_manager_factory = deps.apply_manager_factory
         self.show_info_cb = deps.show_info_cb
 
     def _apply_state(self, state: AppState) -> None:
@@ -272,7 +276,7 @@ class WorkflowController:
 
             def _worker():
                 try:
-                    manager = GrubApplyManager()
+                    manager = self.apply_manager_factory()
                     result = manager.apply_configuration(
                         merged_config,
                         apply_changes=apply_now,
@@ -280,6 +284,9 @@ class WorkflowController:
                         pending_script_changes=pending_changes,
                     )
                     GLib.idle_add(self._on_save_worker_complete, result, merged_config, model, apply_now)
+                except GrubManagerError as e:
+                    logger.exception("[WorkflowController._worker] Erreur GRUB Manager")
+                    GLib.idle_add(self._on_save_worker_error, e)
                 except (OSError, RuntimeError, ValueError, TypeError) as exc:
                     logger.exception("[WorkflowController._worker] ERREUR inattendue dans le thread")
                     GLib.idle_add(self._on_save_worker_error, exc)
@@ -287,11 +294,17 @@ class WorkflowController:
             threading.Thread(target=_worker, name="GrubApplyWorker", daemon=True).start()
 
         except (OSError, RuntimeError, ValueError, TypeError) as e:
-            logger.exception("[WorkflowController._perform_save] ERREUR inattendue")
+            logger.exception("[WorkflowController.perform_save] ERREUR inattendue")
             self._apply_state(AppState.DIRTY)
             self.show_info_cb(f"Erreur inattendue: {e}", ERROR)
 
-    def _on_save_worker_complete(self, result, merged_config, model, apply_now):
+    def _on_save_worker_complete(
+        self,
+        result: ApplyResult,
+        merged_config: dict[str, str],
+        model: GrubUiModel,
+        apply_now: bool,
+    ) -> bool:
         """Callback MainThread après succès/échec du worker."""
         logger.debug(f"[WorkflowController._on_save_worker_complete] Résultat apply: success={result.success}")
 
@@ -303,7 +316,7 @@ class WorkflowController:
             self.show_info_cb(f"Erreur: {result.message}", ERROR)
         return False
 
-    def _on_save_worker_error(self, exc):
+    def _on_save_worker_error(self, exc: BaseException) -> bool:
         """Callback MainThread en cas d'erreur du worker."""
         self._apply_state(AppState.DIRTY)
         self.show_info_cb(f"Erreur inattendue: {exc}", ERROR)

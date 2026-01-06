@@ -67,6 +67,7 @@ def _make_controller(
     load_config_cb = MagicMock()
     read_model_cb = MagicMock(return_value=SimpleNamespace(timeout=10, default="0", theme_management_enabled=True))
     show_info_cb = MagicMock()
+    apply_manager_factory = MagicMock()
 
     controller = WorkflowController(
         window=MagicMock(),
@@ -77,13 +78,14 @@ def _make_controller(
             load_config_cb=load_config_cb,
             read_model_cb=read_model_cb,
             show_info_cb=show_info_cb,
+            apply_manager_factory=apply_manager_factory,
         ),
     )
-    return controller, load_config_cb, read_model_cb, show_info_cb, sm
+    return controller, load_config_cb, read_model_cb, show_info_cb, sm, apply_manager_factory
 
 
 def test_on_reload_when_not_modified_calls_load_directly():
-    controller, load_config_cb, _read_model_cb, show_info_cb, sm = _make_controller()
+    controller, load_config_cb, _read_model_cb, show_info_cb, sm, _ = _make_controller()
     sm.modified = False
 
     with patch("ui.controllers.ui_controllers_workflow.os.path.exists", return_value=False):
@@ -94,7 +96,7 @@ def test_on_reload_when_not_modified_calls_load_directly():
 
 
 def test_on_reload_when_modified_confirm_triggers_load():
-    controller, load_config_cb, _read_model_cb, show_info_cb, sm = _make_controller()
+    controller, load_config_cb, _read_model_cb, show_info_cb, sm, _ = _make_controller()
     sm.modified = True
 
     dialog = MagicMock()
@@ -121,7 +123,7 @@ def test_on_reload_when_modified_confirm_triggers_load():
 
 
 def test_on_reload_when_modified_cancel_does_nothing():
-    controller, load_config_cb, _read_model_cb, show_info_cb, sm = _make_controller()
+    controller, load_config_cb, _read_model_cb, show_info_cb, sm, _ = _make_controller()
     sm.modified = True
 
     dialog = MagicMock()
@@ -147,7 +149,7 @@ def test_on_reload_when_modified_cancel_does_nothing():
 
 
 def test_on_reload_dialog_exception_is_swallowed():
-    controller, load_config_cb, _read_model_cb, show_info_cb, sm = _make_controller()
+    controller, load_config_cb, _read_model_cb, show_info_cb, sm, _ = _make_controller()
     sm.modified = True
 
     dialog = MagicMock()
@@ -173,7 +175,7 @@ def test_on_reload_dialog_exception_is_swallowed():
 
 
 def test_on_save_non_root_shows_error():
-    controller, _load_config_cb, _read_model_cb, show_info_cb, _sm = _make_controller()
+    controller, _load_config_cb, _read_model_cb, show_info_cb, _sm, _ = _make_controller()
 
     with patch("ui.controllers.ui_controllers_workflow.os.geteuid", return_value=1000):
         controller.on_save()
@@ -182,7 +184,7 @@ def test_on_save_non_root_shows_error():
 
 
 def test_on_save_root_confirm_triggers_perform_save():
-    controller, _load_config_cb, _read_model_cb, _show_info_cb, _sm = _make_controller()
+    controller, _load_config_cb, _read_model_cb, _show_info_cb, _sm, _ = _make_controller()
 
     dialog = MagicMock()
     captured: dict[str, object] = {}
@@ -206,7 +208,7 @@ def test_on_save_root_confirm_triggers_perform_save():
 
 
 def test_on_save_root_dialog_exception_is_swallowed():
-    controller, _load_config_cb, _read_model_cb, _show_info_cb, _sm = _make_controller()
+    controller, _load_config_cb, _read_model_cb, _show_info_cb, _sm, _ = _make_controller()
 
     dialog = MagicMock()
     captured: dict[str, object] = {}
@@ -231,17 +233,17 @@ def test_on_save_root_dialog_exception_is_swallowed():
 
 
 def test_perform_save_success_apply_now_with_hidden_entries_adds_mask_info():
-    controller, _load_config_cb, read_model_cb, show_info_cb, sm = _make_controller()
+    controller, _load_config_cb, read_model_cb, show_info_cb, sm, factory = _make_controller()
     sm.hidden_entry_ids = {"id-1"}
 
     result = SimpleNamespace(success=True, message="OK", details="Details")
 
     apply_manager = MagicMock()
     apply_manager.apply_configuration.return_value = result
+    factory.return_value = apply_manager
 
     with (
         patch("ui.controllers.ui_controllers_workflow.merged_config_from_model", return_value={"A": "B"}),
-        patch("ui.controllers.ui_controllers_workflow.GrubApplyManager", return_value=apply_manager),
         patch(
             "ui.controllers.ui_controllers_workflow.apply_hidden_entries_to_grub_cfg",
             return_value=("/boot/grub/grub.cfg", 2),
@@ -268,16 +270,16 @@ def test_perform_save_success_apply_now_with_hidden_entries_adds_mask_info():
 
 
 def test_perform_save_success_apply_now_without_hidden_entries_stays_info():
-    controller, _load_config_cb, _read_model_cb, show_info_cb, sm = _make_controller()
+    controller, _load_config_cb, _read_model_cb, show_info_cb, sm, factory = _make_controller()
     sm.hidden_entry_ids = set()
 
     result = SimpleNamespace(success=True, message="OK", details="")
     apply_manager = MagicMock()
     apply_manager.apply_configuration.return_value = result
+    factory.return_value = apply_manager
 
     with (
         patch("ui.controllers.ui_controllers_workflow.merged_config_from_model", return_value={"A": "B"}),
-        patch("ui.controllers.ui_controllers_workflow.GrubApplyManager", return_value=apply_manager),
         patch(
             "ui.controllers.ui_controllers_workflow.read_grub_default",
             return_value={"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "0"},
@@ -293,17 +295,17 @@ def test_perform_save_success_apply_now_without_hidden_entries_stays_info():
 
 
 def test_perform_save_apply_now_true_entries_visibility_dirty_does_not_add_skip_note():
-    controller, _load_config_cb, _read_model_cb, show_info_cb, sm = _make_controller()
+    controller, _load_config_cb, _read_model_cb, show_info_cb, sm, factory = _make_controller()
     sm.hidden_entry_ids = set()
     sm.entries_visibility_dirty = True
 
     result = SimpleNamespace(success=True, message="OK", details="")
     apply_manager = MagicMock()
     apply_manager.apply_configuration.return_value = result
+    factory.return_value = apply_manager
 
     with (
         patch("ui.controllers.ui_controllers_workflow.merged_config_from_model", return_value={"A": "B"}),
-        patch("ui.controllers.ui_controllers_workflow.GrubApplyManager", return_value=apply_manager),
         patch(
             "ui.controllers.ui_controllers_workflow.read_grub_default",
             return_value={"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "0"},
@@ -319,17 +321,17 @@ def test_perform_save_apply_now_true_entries_visibility_dirty_does_not_add_skip_
 
 
 def test_perform_save_success_apply_now_masking_failure_becomes_warning():
-    controller, _load_config_cb, _read_model_cb, show_info_cb, sm = _make_controller()
+    controller, _load_config_cb, _read_model_cb, show_info_cb, sm, factory = _make_controller()
     sm.hidden_entry_ids = {"id-1"}
 
     result = SimpleNamespace(success=True, message="OK", details="")
 
     apply_manager = MagicMock()
     apply_manager.apply_configuration.return_value = result
+    factory.return_value = apply_manager
 
     with (
         patch("ui.controllers.ui_controllers_workflow.merged_config_from_model", return_value={"A": "B"}),
-        patch("ui.controllers.ui_controllers_workflow.GrubApplyManager", return_value=apply_manager),
         patch(
             "ui.controllers.ui_controllers_workflow.apply_hidden_entries_to_grub_cfg", side_effect=RuntimeError("boom")
         ),
@@ -344,17 +346,17 @@ def test_perform_save_success_apply_now_masking_failure_becomes_warning():
 
 
 def test_perform_save_success_no_apply_adds_visibility_note():
-    controller, _load_config_cb, _read_model_cb, show_info_cb, sm = _make_controller()
+    controller, _load_config_cb, _read_model_cb, show_info_cb, sm, factory = _make_controller()
     sm.entries_visibility_dirty = True
 
     result = SimpleNamespace(success=True, message="OK", details="")
 
     apply_manager = MagicMock()
     apply_manager.apply_configuration.return_value = result
+    factory.return_value = apply_manager
 
     with (
         patch("ui.controllers.ui_controllers_workflow.merged_config_from_model", return_value={"A": "B"}),
-        patch("ui.controllers.ui_controllers_workflow.GrubApplyManager", return_value=apply_manager),
         patch(
             "ui.controllers.ui_controllers_workflow.read_grub_default",
             return_value={"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "0"},
@@ -368,17 +370,17 @@ def test_perform_save_success_no_apply_adds_visibility_note():
 
 
 def test_perform_save_success_no_apply_and_not_dirty_does_not_add_visibility_note():
-    controller, _load_config_cb, _read_model_cb, show_info_cb, sm = _make_controller()
+    controller, _load_config_cb, _read_model_cb, show_info_cb, sm, factory = _make_controller()
     sm.entries_visibility_dirty = False
 
     result = SimpleNamespace(success=True, message="OK", details="")
 
     apply_manager = MagicMock()
     apply_manager.apply_configuration.return_value = result
+    factory.return_value = apply_manager
 
     with (
         patch("ui.controllers.ui_controllers_workflow.merged_config_from_model", return_value={"A": "B"}),
-        patch("ui.controllers.ui_controllers_workflow.GrubApplyManager", return_value=apply_manager),
         patch(
             "ui.controllers.ui_controllers_workflow.read_grub_default",
             return_value={"GRUB_TIMEOUT": "10", "GRUB_DEFAULT": "0"},
@@ -393,16 +395,16 @@ def test_perform_save_success_no_apply_and_not_dirty_does_not_add_visibility_not
 
 
 def test_perform_save_failure_sets_dirty_and_shows_error():
-    controller, _load_config_cb, _read_model_cb, show_info_cb, _sm = _make_controller()
+    controller, _load_config_cb, _read_model_cb, show_info_cb, _sm, factory = _make_controller()
 
     result = SimpleNamespace(success=False, message="Nope", details="")
 
     apply_manager = MagicMock()
     apply_manager.apply_configuration.return_value = result
+    factory.return_value = apply_manager
 
     with (
         patch("ui.controllers.ui_controllers_workflow.merged_config_from_model", return_value={"A": "B"}),
-        patch("ui.controllers.ui_controllers_workflow.GrubApplyManager", return_value=apply_manager),
         patch("ui.controllers.ui_controllers_workflow.create_last_modif_backup"),
     ):
         controller.perform_save(apply_now=True)
@@ -414,7 +416,7 @@ def test_perform_save_failure_sets_dirty_and_shows_error():
 
 
 def test_on_reload_with_backup_restore_success():
-    controller, load_config_cb, _read_model_cb, show_info_cb, sm = _make_controller()
+    controller, load_config_cb, _read_model_cb, show_info_cb, sm, _ = _make_controller()
     sm.modified = False  # Not modified, but backup exists
 
     dialog = MagicMock()
@@ -442,7 +444,7 @@ def test_on_reload_with_backup_restore_success():
 
 
 def test_on_reload_with_backup_reload_current():
-    controller, load_config_cb, _read_model_cb, show_info_cb, sm = _make_controller()
+    controller, load_config_cb, _read_model_cb, show_info_cb, sm, _ = _make_controller()
     sm.modified = False
 
     dialog = MagicMock()
@@ -467,7 +469,7 @@ def test_on_reload_with_backup_reload_current():
 
 
 def test_perform_save_exception_sets_dirty_and_shows_unexpected_error():
-    controller, _load_config_cb, read_model_cb, show_info_cb, _sm = _make_controller()
+    controller, _load_config_cb, read_model_cb, show_info_cb, _sm, _ = _make_controller()
 
     read_model_cb.side_effect = RuntimeError("boom")
 
@@ -482,7 +484,7 @@ def test_perform_save_exception_sets_dirty_and_shows_unexpected_error():
 
 def test_check_restore_last_modif_non_root_blocks_restore():
     """Test que la restauration est bloquée si l'utilisateur n'est pas root."""
-    controller, load_config_cb, _, show_info_cb, _ = _make_controller()
+    controller, load_config_cb, _, show_info_cb, _, _ = _make_controller()
     backup_path = "/tmp/fake_backup"
 
     dialog = MagicMock()
@@ -512,7 +514,7 @@ def test_check_restore_last_modif_non_root_blocks_restore():
 
 def test_check_restore_last_modif_restore_failure():
     """Test la gestion d'erreur lors de la restauration."""
-    controller, _load_config_cb, _, show_info_cb, _ = _make_controller()
+    controller, _load_config_cb, _, show_info_cb, _, _ = _make_controller()
     backup_path = "/tmp/fake_backup"
 
     with (
@@ -543,7 +545,7 @@ def test_check_restore_last_modif_restore_failure():
 
 def test_check_restore_success_restore_path():
     """Test successful restoration of last_modif backup (idx==2)."""
-    controller, load_config_cb, _, show_info_cb, _ = _make_controller()
+    controller, load_config_cb, _, show_info_cb, _, _ = _make_controller()
     backup_path = "/tmp/fake_backup"
 
     with (
@@ -575,7 +577,7 @@ def test_check_restore_success_restore_path():
 
 def test_check_restore_reload_current():
     """Test restoration reload current option (idx==1)."""
-    controller, load_config_cb, _, show_info_cb, _ = _make_controller()
+    controller, load_config_cb, _, show_info_cb, _, _ = _make_controller()
     backup_path = "/tmp/fake_backup"
 
     def fake_choose(window, parent, callback):
@@ -600,7 +602,7 @@ def test_check_restore_reload_current():
 
 def test_check_restore_restore_requires_root():
     """Test restore previous option (idx==2) without root rights."""
-    controller, load_config_cb, _, show_info_cb, _ = _make_controller()
+    controller, load_config_cb, _, show_info_cb, _, _ = _make_controller()
     backup_path = "/tmp/fake_backup"
 
     def fake_choose(window, parent, callback):
@@ -628,24 +630,23 @@ def test_check_restore_restore_requires_root():
 
 def test_perform_save_create_last_modif_backup_fails():
     """Test that perform_save continues even if create_last_modif_backup fails."""
-    controller, _, _, _, _ = _make_controller()
+    controller, _, _, _, _, factory = _make_controller()
 
     with (
         patch("ui.controllers.ui_controllers_workflow.create_last_modif_backup", side_effect=OSError("Backup failed")),
         patch.object(controller, "read_model_cb", return_value=MagicMock()),
-        patch("ui.controllers.ui_controllers_workflow.GrubApplyManager") as mock_apply,
     ):
 
         # Should not raise, just continue
         controller.perform_save(apply_now=True)
 
-        # GrubApplyManager should still be called
-        assert mock_apply.called
+        # GrubApplyManager factory should still be called
+        assert factory.called
 
 
 def test_handle_restore_choice_reload_current():
     """Test _handle_restore_choice with idx=1 (reload current) - lines 127-128."""
-    controller, load_config_cb, _, show_info_cb, _ = _make_controller()
+    controller, load_config_cb, _, show_info_cb, _, _ = _make_controller()
 
     mock_dlg = MagicMock()
     mock_dlg.choose_finish.return_value = 1  # Recharger actuel
@@ -661,7 +662,7 @@ def test_handle_restore_choice_reload_current():
 
 def test_handle_restore_choice_glib_error():
     """Test _handle_restore_choice when GLib.Error is raised (line 133->exit)."""
-    controller, load_config_cb, _, show_info_cb, _ = _make_controller()
+    controller, load_config_cb, _, show_info_cb, _, _ = _make_controller()
 
     with patch("ui.controllers.ui_controllers_workflow.GLib.Error", new=Exception):
         mock_dlg = MagicMock()

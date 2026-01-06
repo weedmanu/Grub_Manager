@@ -340,6 +340,7 @@ class GrubConfigManager(Gtk.ApplicationWindow):
                 load_config_cb=self.load_config,
                 read_model_cb=self.read_model_from_ui,
                 show_info_cb=self.show_info,
+                apply_manager_factory=GrubApplyManager,
             ),
         )
         self.apply_state(AppState.CLEAN)
