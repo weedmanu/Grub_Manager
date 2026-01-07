@@ -264,7 +264,11 @@ class TabThemeConfig:
         scripts_notes.set_vexpand(False)
         scripts_notes.set_valign(Gtk.Align.START)
 
-        grub_colors_note = create_info_box("05_grub_colors:", "Chargement…", css_class="warning-box compact-card")
+        grub_colors_note = create_info_box(
+            "Scripts impactant l'apparence:",
+            "Chargement…",
+            css_class="warning-box compact-card",
+        )
         self._apply_note_layout(grub_colors_note)
         scripts_notes.append(grub_colors_note)
 
@@ -350,21 +354,43 @@ class TabThemeConfig:
         self._set_label_text(normal_label, self._normal_color_note_text(simple_panel))
         self._set_label_text(highlight_label, self._highlight_color_note_text(simple_panel))
 
+    def _appearance_scripts_note_text(self) -> str:
+        """Résume les scripts pouvant écraser les réglages d'apparence.
+
+        On se base sur les scripts détectés (theme/colors/custom).
+        """
+        try:
+            scripts = self.services.script_service.scan_theme_scripts()
+            scripts_list = list(scripts) if scripts else []
+        except OSError:  # pragma: no cover
+            scripts_list = []
+
+        if not scripts_list:
+            return "Aucun script d'apparence détecté dans /etc/grub.d."  # pragma: no cover
+
+        # Classement simple: actifs vs inactifs.
+        active_names: list[str] = []
+        inactive_names: list[str] = []
+        for script in scripts_list:
+            name = str(getattr(script, "name", ""))
+            active, pending = self._effective_script_state(script)
+            decorated = f"{name}{' *' if pending else ''}"
+            (active_names if active else inactive_names).append(decorated)
+
+        active_part = ", ".join(active_names) if active_names else "(aucun)"
+        inactive_part = ", ".join(inactive_names) if inactive_names else "(aucun)"
+
+        return (
+            "Actifs (peuvent écraser GRUB_THEME/GRUB_BACKGROUND/GRUB_COLOR_*): "
+            f"{active_part}. Inactifs: {inactive_part}."
+        )
+
     def _update_script_note_labels(
         self,
         grub_colors_label: Gtk.Label | None,
         *_: object,
     ) -> None:
-        self._set_label_text(
-            grub_colors_label,
-            self._script_state_note_text(
-                script_name="05_grub_colors",
-                active_text=(
-                    "force des couleurs via le script lors de update-grub ; GRUB_COLOR_* peut " "être ignoré."
-                ),
-                inactive_text="les couleurs du menu proviennent de GRUB_COLOR_NORMAL / GRUB_COLOR_HIGHLIGHT.",
-            ),
-        )
+        self._set_label_text(grub_colors_label, self._appearance_scripts_note_text())
 
     def _wire_grub_scripts_dynamic_notes(
         self,

@@ -6,8 +6,10 @@ Contient uniquement l'orchestration (délègue construction UI et gestion d'éta
 from __future__ import annotations
 
 import os
-from pathlib import Path
+import subprocess
+import threading
 
+from gi.repository import GLib
 from loguru import logger
 
 from core.config.core_config_paths import get_grub_themes_dir
@@ -15,7 +17,7 @@ from core.core_exceptions import GrubConfigError, GrubParsingError
 from core.managers.core_managers_apply import GrubApplyManager
 from core.managers.core_managers_entry_visibility import apply_hidden_entries_to_grub_cfg, save_hidden_entry_ids
 from core.models.core_models_grub_ui import merged_config_from_model
-from core.models.core_models_theme import GrubTheme
+from core.services.core_services_qemu_preview import GrubQemuPreviewService, QemuPreviewOptions
 from core.system.core_system_grub_commands import GrubDefaultChoice, GrubUiModel, load_grub_ui_state
 from core.system.core_system_sync_checker import check_grub_sync
 from core.theme.core_theme_active_manager import ActiveThemeManager
@@ -25,8 +27,6 @@ from ui.controllers import PermissionController
 from ui.controllers.ui_controllers_infobar import ERROR, INFO, WARNING, InfoBarController
 from ui.controllers.ui_controllers_tab_policy import apply_tab_policy
 from ui.controllers.ui_controllers_workflow import WorkflowController, WorkflowDeps
-from ui.dialogs.ui_dialogs_grub_preview import GrubPreviewDialog
-from ui.dialogs.ui_dialogs_theme_preview import GrubThemePreviewDialog
 from ui.helpers.ui_helpers_gtk import GtkHelper
 from ui.helpers.ui_helpers_gtk_imports import Gtk
 from ui.helpers.ui_helpers_model_mapper import ModelWidgetMapper
@@ -107,8 +107,14 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         self.set_size_request(1000, 700)
         self.state_manager = AppStateManager()
 
+        # Process preview QEMU en cours (si lancé)
+        self._qemu_preview_proc: subprocess.Popen | None = None
+
         # Contrôleurs SRP (Single Responsibility)
         self.perm_ctrl = PermissionController()
+
+        # Si l'utilisateur ferme l'app alors qu'une preview tourne, on la termine.
+        self.connect("close-request", self._on_close_request)
 
         self.create_ui()
         # Important: ne jamais modifier la config/les fichiers GRUB sans action explicite "Appliquer"
@@ -117,6 +123,19 @@ class GrubConfigManager(Gtk.ApplicationWindow):
         self.load_config(refresh_grub=False)
         self.check_permissions()
         logger.success("[GrubConfigManager.__init__] Initialisation complète")
+
+    def _on_close_request(self, *_args) -> bool:
+        proc = getattr(self, "_qemu_preview_proc", None)
+        if proc is not None and proc.poll() is None:
+            try:
+                proc.terminate()
+            except OSError:
+                pass
+        return False
+
+    def _set_qemu_preview_proc(self, proc: subprocess.Popen | None) -> bool:
+        self._qemu_preview_proc = proc
+        return False
 
     def apply_state(self, state: AppState) -> None:
         """Wrapper pour synchroniser l'état et les boutons.
@@ -551,44 +570,23 @@ class GrubConfigManager(Gtk.ApplicationWindow):
             self.workflow.on_reload(button)
 
     def on_preview(self, _button):
-        """Affiche un aperçu du menu GRUB (configuration actuelle)."""
-        try:
-            model = self.state_manager.get_model()
+        """Lance une preview "réelle" du menu GRUB via QEMU (ISO + boot)."""
+        # Empêche les previews multiples.
+        existing = getattr(self, "_qemu_preview_proc", None)
+        if existing is not None and existing.poll() is None:
+            self.show_info("Preview déjà ouverte (QEMU)", INFO)
+            return
 
-            # Si aucun thème custom n'est défini (Configuration Simple ou Défaut), utiliser l'aperçu natif
-            if not model.grub_theme or model.grub_theme == "":
-                grub_cfg_content = ""
-                try:
-                    for p in ["/boot/grub/grub.cfg", "/boot/grub2/grub.cfg"]:
-                        if Path(p).exists():
-                            grub_cfg_content = Path(p).read_text(encoding="utf-8", errors="ignore")
-                            break
-                except OSError:
-                    pass
+        def _run() -> None:
+            try:
+                service = GrubQemuPreviewService()
+                proc = service.start_preview(options=QemuPreviewOptions(mode="mirror", firmware="auto"))
+                GLib.idle_add(self._set_qemu_preview_proc, proc)
+            except (GrubConfigError, OSError, subprocess.SubprocessError) as exc:
+                logger.error(f"[on_preview] Erreur preview QEMU: {exc}")
+                GLib.idle_add(create_error_dialog, f"Erreur lors de la preview QEMU:\n{exc}")
 
-                dialog = GrubPreviewDialog(grub_cfg_content, model=model)
-                dialog.present()
-                return
-
-            # Sinon, utiliser l'aperçu de thème avec rendu UI
-            if model.theme_management_enabled:
-                try:
-                    theme = ActiveThemeManager().load_active_theme()
-                except (OSError, RuntimeError) as exc:
-                    logger.debug(f"[on_preview] Pas de thème actif: {exc}")
-                    # Fallback: un thème minimal avec un nom explicite
-                    theme = GrubTheme(name="Configuration actuelle")
-                theme_name = "Configuration actuelle"
-            else:
-                theme = GrubTheme(name="Configuration Simple")
-                theme_name = "Configuration Simple"
-
-            dialog = GrubThemePreviewDialog(theme, model=model, theme_name=theme_name, use_system_files=True)
-            GtkHelper.present_dialog(dialog)
-
-        except (OSError, RuntimeError) as exc:
-            logger.error(f"[on_preview] Erreur: {exc}")
-            create_error_dialog(f"Erreur lors de l'aperçu:\n{exc}")
+        threading.Thread(target=_run, daemon=True).start()
 
     def on_save(self, button):
         """Validate UI values and save configuration using ApplyManager."""

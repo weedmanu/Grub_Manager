@@ -467,7 +467,10 @@ def _get_config_files() -> list[tuple[str, str]]:
     if os.path.exists("/etc/grub.d"):
         for script_name in os.listdir("/etc/grub.d"):
             script_path = f"/etc/grub.d/{script_name}"
-            if any(keyword in script_name.lower() for keyword in ["theme", "color", "05_debian"]):
+            # Afficher les scripts susceptibles d'impacter la configuration et l'apparence.
+            # (On évite de lister *tous* les scripts GRUB pour rester lisible.)
+            lname = script_name.lower()
+            if any(keyword in lname for keyword in ["theme", "color", "custom", "05_debian"]):
                 if os.path.isfile(script_path):
                     grub_d_scripts.append((script_name, script_path))
 

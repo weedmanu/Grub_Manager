@@ -103,16 +103,27 @@ def test_load_themes_sets_current_theme_and_refreshes(tab_theme_config: TabTheme
 
 
 def test_on_preview_theme_exception_shows_error_dialog(tab_theme_config: TabThemeConfig) -> None:
-    # On utilise "Configuration Simple" pour déclencher GrubPreviewDialog (natif)
+    # On utilise "Configuration Simple" pour déclencher la preview QEMU
     tab_theme_config.data.current_theme = GrubTheme(name="Configuration Simple")
 
+    class _ImmediateThread:
+        def __init__(self, *, target, daemon: bool = True):
+            self._target = target
+
+        def start(self) -> None:
+            self._target()
+
     with (
-        patch.object(handlers, "GrubPreviewDialog") as MockDialog,
+        patch.object(handlers, "threading") as mock_threading,
+        patch.object(handlers, "GrubQemuPreviewService") as mock_service,
+        patch.object(handlers, "GLib") as mock_glib,
         patch.object(handlers, "create_error_dialog") as mock_error,
     ):
-        # On configure le mock pour simuler une erreur lors de l'affichage
-        MockDialog.return_value.present.side_effect = RuntimeError("boom")
+        mock_threading.Thread.side_effect = lambda target, daemon=True: _ImmediateThread(target=target, daemon=daemon)
+        mock_service.return_value.start_preview.side_effect = RuntimeError("boom")
+
+        # GLib.idle_add exécute normalement sur le main loop; ici on exécute directement
+        mock_glib.idle_add.side_effect = lambda func, *args, **kwargs: func(*args)
 
         handlers.on_preview_theme(tab_theme_config)
-
         assert mock_error.called

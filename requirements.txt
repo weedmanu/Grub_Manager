@@ -1,9 +1,12 @@
 loguru>=0.7
+PyGObject>=3.46.0
 mypy
 vulture
 ruff
 black
 pytest
 pytest-cov
+pytest-benchmark
 pytest-timeout
 radon
+memory-profiler

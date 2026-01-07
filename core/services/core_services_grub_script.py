@@ -17,7 +17,9 @@ from core.core_exceptions import GrubCommandError, GrubScriptNotFoundError
 
 # Constantes
 GRUB_SCRIPT_DIR: Final[Path] = Path("/etc/grub.d")
-THEME_SCRIPT_PATTERNS: Final[list[str]] = ["*theme*", "*colors*"]
+# Scripts qui peuvent impacter l'apparence / le rendu GRUB (thèmes, couleurs, overrides custom).
+# Objectif: les rendre visibles dans l'UI pour détecter ceux qui écrasent la config.
+THEME_SCRIPT_PATTERNS: Final[list[str]] = ["*theme*", "*color*", "*colors*", "*custom*"]
 EXECUTABLE_PERMISSION: Final[int] = 0o111
 
 

@@ -24,7 +24,7 @@ def _resolve_executable_state(script: Any, pending_changes: dict[str, bool]) -> 
 
 def _format_script_name(script: Any, *, is_pending: bool) -> str:
     script_name = str(getattr(script, "name", ""))
-    if script_name in ["05_debian_theme", "05_grub_colors"]:
+    if script_name == "05_debian_theme":
         script_name += " (Défaut)"
     if is_pending:
         script_name += " *"

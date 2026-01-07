@@ -7,17 +7,20 @@ dans un sous-module. Les tests importent/patchent désormais ce module.
 from __future__ import annotations
 
 import shutil
+import subprocess
+import threading
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from gi.repository import Gtk
+from gi.repository import GLib, Gtk
 from loguru import logger
 
 from core.config.core_config_paths import get_grub_themes_dir
+from core.core_exceptions import GrubConfigError
 from core.models.core_models_theme import GrubTheme
+from core.services.core_services_qemu_preview import GrubQemuPreviewService, QemuPreviewOptions
 from ui.builders.ui_builders_widgets import create_error_dialog, create_success_dialog
-from ui.dialogs.ui_dialogs_grub_preview import GrubPreviewDialog
 from ui.dialogs.ui_dialogs_interactive_theme_generator_window import InteractiveThemeGeneratorWindow
 from ui.dialogs.ui_dialogs_theme_preview import GrubThemePreviewDialog
 from ui.helpers.ui_helpers_gtk import GtkHelper
@@ -259,19 +262,17 @@ def on_preview_theme(
 
     try:
         if is_simple:
-            # Aperçu natif (style test_preview_grub.py)
-            grub_cfg_content = ""
-            for p in ["/boot/grub/grub.cfg", "/boot/grub2/grub.cfg"]:
-                path = Path(p)
-                if path.exists():
-                    try:
-                        grub_cfg_content = path.read_text(encoding="utf-8", errors="ignore")
-                        break
-                    except OSError as e:
-                        logger.warning(f"Erreur lecture {p}: {e}")
+            # Preview "réelle" via QEMU (ISO + boot). Non-bloquant pour l'UI.
 
-            dialog = GrubPreviewDialog(grub_cfg_content, model=model)
-            dialog.present()
+            def _run() -> None:
+                try:
+                    # Best-effort: évite de bloquer l'UI; le process est géré par l'OS.
+                    GrubQemuPreviewService().start_preview(options=QemuPreviewOptions(mode="mirror", firmware="auto"))
+                except (GrubConfigError, OSError, subprocess.SubprocessError) as exc:
+                    logger.error(f"[on_preview_theme] Erreur preview QEMU: {exc}")
+                    GLib.idle_add(create_error_dialog, f"Erreur lors de la preview QEMU:\n{exc}")
+
+            threading.Thread(target=_run, daemon=True).start()
         else:
             # Aperçu de thème (style existant)
             theme_txt_path = None

@@ -19,7 +19,7 @@ from core.io.core_io_grub_default import (
 )
 from core.managers.core_managers_apply import ApplyResult
 from core.managers.core_managers_entry_visibility import apply_hidden_entries_to_grub_cfg, save_hidden_entry_ids
-from core.managers.protocols import IGrubApplyManager
+from core.managers.core_managers_protocol import IGrubApplyManager
 from core.models.core_models_grub_ui import merged_config_from_model
 from core.system.core_system_grub_commands import GrubUiState
 from ui.controllers.ui_controllers_infobar import ERROR, INFO, WARNING
@@ -44,7 +44,7 @@ class WorkflowDeps:
     apply_manager_factory: Callable[[], IGrubApplyManager]
 
 
-class WorkflowController:
+class WorkflowController:  # pylint: disable=too-many-instance-attributes
     """Gère l'orchestration des actions de sauvegarde et recharge."""
 
     def __init__(
