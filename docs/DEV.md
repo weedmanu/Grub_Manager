@@ -13,39 +13,124 @@ L'application suit une séparation stricte entre la logique métier et l'interfa
 
 ```text
 .
-├── core/                               # COEUR DU SYSTÈME
-│   ├── config/                         # Configuration (logs, chemins, runtime)
-│   ├── io/                             # Entrées/Sorties (parsing GRUB, validation)
-│   ├── managers/                       # Logique d'application et d'état
-│   │   ├── core_managers_apply.py      # Orchestrateur de sauvegarde
-│   │   ├── core_managers_protocol.py   # Interfaces et contrats
-│   │   └── ...
-│   ├── models/                         # Structures de données (Dataclasses)
-│   ├── services/                       # Services métier (Maintenance, Thèmes...)
-│   │   ├── core_services_qemu_preview.py# Preview "réelle" via QEMU (ISO + boot)
-│   ├── system/                         # Commandes système (update-grub, etc.)
-│   └── theme/                          # Moteur de génération de thèmes
-│
-├── ui/                                 # INTERFACE GRAPHIQUE (GTK4)
-│   ├── builders/                       # Construction des widgets et fenêtres
-│   ├── components/                     # Composants réutilisables
-│   ├── config/                         # Styles CSS et constantes UI
-│   ├── controllers/                    # Contrôleurs (MVC/MVP)
-│   │   ├── ui_controllers_manager.py    # Bouton "Preview" -> service QEMU (thread)
-│   ├── dialogs/                        # Fenêtres de dialogue
-│   ├── helpers/                        # Utilitaires GTK
-│   ├── models/                         # État de l'UI et Mappers
-│   └── tabs/                           # Logique des onglets principaux
-│
-├── tests/                              # SUITE DE TESTS
-│   ├── core/                           # Tests unitaires du coeur
-│   ├── ui/                             # Tests unitaires de l'interface
-│   └── conftest.py                     # Configuration Pytest
-│
-├── docs/                               # DOCUMENTATION
-├── main.py                             # Point d'entrée de l'application
-├── run_quality.sh                      # Script de qualité (lint, format, test)
-└── requirements.txt                    # Dépendances Python
+├── core/
+│   ├── config/
+│   │   ├── core_config_logging.py
+│   │   ├── core_config_paths.py
+│   │   ├── core_config_runtime.py
+│   │   └── __init__.py
+│   ├── core_exceptions.py
+│   ├── __init__.py
+│   ├── io/
+│   │   ├── core_io_grub_default.py
+│   │   ├── core_io_grub_menu_parser.py
+│   │   ├── core_io_grub_parsing_utils.py
+│   │   ├── core_io_grub_validation.py
+│   │   └── __init__.py
+│   ├── managers/
+│   │   ├── core_managers_apply.py
+│   │   ├── core_managers_apply_states.py
+│   │   ├── core_managers_entry_visibility.py
+│   │   ├── core_managers_protocol.py
+│   │   └── __init__.py
+│   ├── models/
+│   │   ├── core_models_grub_ui.py
+│   │   ├── core_models_theme.py
+│   │   └── __init__.py
+│   ├── services/
+│   │   ├── core_services_grub.py
+│   │   ├── core_services_grub_script.py
+│   │   ├── core_services_maintenance.py
+│   │   ├── core_services_qemu_preview.py
+│   │   ├── core_services_theme.py
+│   │   └── __init__.py
+│   ├── system/
+│   │   ├── core_system_grub_commands.py
+│   │   ├── core_system_sync_checker.py
+│   │   └── __init__.py
+│   └── theme/
+│       ├── core_theme_active_manager.py
+│       ├── generator/
+│       │   ├── core_theme_generator_enums.py
+│       │   ├── core_theme_generator_models.py
+│       │   ├── core_theme_generator_palettes.py
+│       │   ├── core_theme_generator.py
+│       │   ├── core_theme_generator_resolution.py
+│       │   ├── core_theme_generator_templates.py
+│       │   ├── core_theme_generator_validation.py
+│       │   └── __init__.py
+│       └── __init__.py
+├── ui/
+│   ├── builders/
+│   │   ├── __init__.py
+│   │   ├── ui_builders_index.py
+│   │   └── ui_builders_widgets.py
+│   ├── components/
+│   │   ├── __init__.py
+│   │   ├── ui_components_color_picker.py
+│   │   ├── ui_components_theme_config_actions.py
+│   │   ├── ui_components_theme.py
+│   │   ├── ui_components_theme_scripts_list.py
+│   │   ├── ui_components_theme_scripts_renderer.py
+│   │   ├── ui_components_theme_simple_config_logic.py
+│   │   └── ui_components_theme_simple_config.py
+│   ├── config/
+│   │   ├── __init__.py
+│   │   ├── style.css
+│   │   └── ui_config_constants.py
+│   ├── controllers/
+│   │   ├── __init__.py
+│   │   ├── ui_controllers_infobar.py
+│   │   ├── ui_controllers_manager.py
+│   │   ├── ui_controllers_permission.py
+│   │   ├── ui_controllers_tab_policy.py
+│   │   └── ui_controllers_workflow.py
+│   ├── dialogs/
+│   │   ├── preview/
+│   │   │   ├── __init__.py
+│   │   │   ├── ui_dialogs_preview_grub_css.py
+│   │   │   ├── ui_dialogs_preview_grub_data.py
+│   │   │   ├── ui_dialogs_preview_grub_parsers.py
+│   │   │   └── ui_dialogs_preview_grub_renderer.py
+│   │   ├── theme_editors/
+│   │   │   ├── ui_dialogs_theme_editors_base.py
+│   │   │   ├── ui_dialogs_theme_editors_layout.py
+│   │   │   ├── ui_dialogs_theme_editors_text.py
+│   │   │   └── ui_dialogs_theme_editors_visual.py
+│   │   ├── ui_dialogs_file.py
+│   │   ├── ui_dialogs_index.py
+│   │   ├── ui_dialogs_interactive_theme_generator.py
+│   │   ├── ui_dialogs_interactive_theme_generator_window.py
+│   │   └── ui_dialogs_theme_preview.py
+│   ├── helpers/
+│   │   ├── __init__.py
+│   │   ├── ui_helpers_gtk_imports.py
+│   │   ├── ui_helpers_gtk.py
+│   │   └── ui_helpers_model_mapper.py
+│   ├── __init__.py
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── ui_models_protocols.py
+│   │   └── ui_models_state.py
+│   ├── tabs/
+│   │   ├── __init__.py
+│   │   ├── theme_config/
+│   │   │   ├── __init__.py
+│   │   │   └── ui_tabs_theme_config_handlers.py
+│   │   ├── ui_tabs_backups.py
+│   │   ├── ui_tabs_display.py
+│   │   ├── ui_tabs_entries.py
+│   │   ├── ui_tabs_entries_renderer.py
+│   │   ├── ui_tabs_general.py
+│   │   ├── ui_tabs_maintenance.py
+│   │   └── ui_tabs_theme_config.py
+│   └── ui_exceptions.py
+├── docs/
+├── tests/
+├── main.py
+├── pyproject.toml
+├── requirements.txt
+└── run_quality.sh
 ```
 
 ### Principes (pratiques)
